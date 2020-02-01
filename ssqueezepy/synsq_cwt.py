@@ -4,9 +4,9 @@
 #    (https://github.com/ebrevdo/synchrosqueezing/)
 
 import numpy as np
-from utils import est_riskshrink_thresh, p2up, synsq_adm
-from wavelet_transforms import phase_cwt, phase_cwt_num
-from wavelet_transforms import cwt_fwd, synsq_squeeze
+from .utils import est_riskshrink_thresh, p2up, synsq_adm
+from .wavelet_transforms import phase_cwt, phase_cwt_num
+from .wavelet_transforms import cwt_fwd, synsq_squeeze
 
 
 def synsq_cwt_fwd(x, t=None, fs=None, nv=32, opts=None):

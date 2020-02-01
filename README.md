@@ -69,6 +69,7 @@ There are more unlisted (see original repo), but not all will be implemented, in
  - **Moved functions**; each no longer has its own file, but is grouped with other relevant functions
  - **Code style**; grouped parts of code as sub-functions for improved readability; indentation for vertical alignment; other
  - **Performance**; this repo may work faster or slower, as Numpy arrays are faster than C arrays, but some of original funcs use MEX-optimized code with no Numpy equivalent. Also using dense instead of sparse matrices (see below).
+ - **Performance**; this repo _will_ work **10x+ faster** for some of the methods which were vectorized out of for-loops
  
  **Other**:
   - Dense instead of sparse matrices for `stft_fwd` in [stft_transforms.py](https://github.com/OverLordGoldDragon/ssqueezepy/blob/master/synchrosqueezing/stft_transforms.py), as Numpy doesn't handle latter in ops involved

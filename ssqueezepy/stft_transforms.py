@@ -4,8 +4,8 @@
 #    (https://github.com/ebrevdo/synchrosqueezing/)
 
 import numpy as np
+from .utils import wfiltfn, padsignal, buffer
 from quadpy import quad as quadgk
-from utils import wfiltfn, padsignal, buffer
 
 PI = np.pi
 EPS = np.finfo(np.float64).eps  # machine epsilon for float64
@@ -85,7 +85,7 @@ def stft_fwd(x, dt, opts={}):
         Sfs = np.linspace(0, 1, opts['winlen'] + 1)
         Sfs = Sfs[:np.floor(opts['winlen'] / 2).astype('int64') + 1] / dt
         
-        # compute STFt and keep only the positive frequencies
+        # compute STFT and keep only the positive frequencies
         xbuf = buffer(x, opts['winlen'], opts['winlen'] - 1, 'nodelay')
         xbuf = np.diag(window) @ xbuf
         Sx = np.fft.fft(xbuf, None, axis=0)

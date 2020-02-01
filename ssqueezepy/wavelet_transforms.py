@@ -4,7 +4,7 @@
 #    (https://github.com/ebrevdo/synchrosqueezing/)
 
 import numpy as np
-from utils import padsignal, wfiltfn
+from .utils import padsignal, wfiltfn
 
 EPS = np.finfo(np.float64).eps  # machine epsilon for float64
 PI = np.pi
@@ -56,6 +56,63 @@ def synsq_squeeze(Wx, w, t, nv=None, opts={}):
         SIAM Journal on Mathematical Analysis, 43(5):2078-2095, 2011.
     """
     def _squeeze(w, Wx, Wx_scales, fs, dfs, scaleterm, na, N, lfm, lfM, opts):
+        def _vectorized(scaleterm):  # possible to optimize further
+            if len(scaleterm.shape) == 1:
+                scaleterm = np.expand_dims(scaleterm, 1)
+            if v1:
+                _k = np.round(w * dfs)
+                _k[np.where(np.isnan(_k))] = len(fs)
+                _k_ones = np.ones(_k.size)
+                k = np.min((np.max((_k.flatten(), 1*_k_ones), axis=0),
+                            len(fs)*_k_ones), axis=0).reshape(*_k.shape)
+            elif v2:  # TESTED
+                _k = 1 + np.round(na / (lfM - lfm) * (np.log2(w) - lfm))
+                _k[np.where(np.isnan(_k))] = len(fs)
+                _k_ones = np.ones(_k.size)
+                k = np.min((np.max((_k.flatten(), 1*_k_ones), axis=0),
+                            na*_k_ones), axis=0).reshape(*_k.shape)
+            elif v3:
+                w_rep = np.matlib.repmat(w[None].flatten(), len(fs), 1).reshape(
+                    len(fs), *w.shape)
+                _k = w_rep - fs.reshape(len(fs), 1, 1)
+                _k[np.where(np.isnan(_k))] = len(fs)
+                k = np.min(np.abs(_k), axis=0)   
+                
+            k = np.floor(k).astype('int32') - 1  # MAT to py idx
+            Ws_prod = Wx * scaleterm
+
+            for b in range(N):
+                for ai in range(len(Wx_scales)):
+                    Tx[k[ai, b], b] += Ws_prod[ai, b]
+            return Tx
+        
+        def _for_loop():  # much slower; tested 11x slowdown
+            if v1:
+                for b in range(N):
+                  for ai in range(len(Wx_scales)):
+                    _k = np.round(w[ai, b] * dfs)
+                    k = min(max(_k, 1), len(fs)) if not np.isnan(_k) else len(fs)
+    
+                    k = int(k - 1)  # MAT to py idx
+                    Tx[k, b] += Wx[ai, b] * scaleterm[ai]
+            elif v2:
+                for b in range(N):
+                  for ai in range(len(Wx_scales)):
+                    _k = 1 + np.round(na / (lfM - lfm) * (
+                        np.log2(w[ai, b]) - lfm))
+                    k = min(max(_k, 1), na) if not np.isnan(_k) else len(fs)
+    
+                    k = int(k - 1)  # MAT to py idx
+                    Tx[k, b] += Wx[ai, b] * scaleterm[ai]
+            elif v3:
+                for b in range(N):
+                  for ai in range(len(Wx_scales)):
+                    k = np.min(np.abs(w[ai, b] - fs))
+                
+                    k = int(k - 1)  # MAT to py idx
+                    Tx[k, b] += Wx[ai, b] * scaleterm[ai]   
+            return Tx
+
         # must cast to complex else value assignment discards imaginary component
         Tx = np.zeros((len(fs), Wx.shape[1])).astype('complex128')
 
@@ -66,18 +123,7 @@ def synsq_squeeze(Wx, w, t, nv=None, opts={}):
         v2 = (opts['findbins'] == 'direct') and (opts['freqscale'] == 'log')
         v3 = (opts['findbins'] == 'min')
 
-        for b in range(N):
-          for ai in range(len(Wx_scales)):
-            if v1:
-                _k = np.round(w[ai, b] * dfs)
-                k = min(max(_k, 1), len(fs)) if not np.isnan(_k) else len(fs)      
-            elif v2:
-                _k = 1 + np.round(na / (lfM - lfm) * (np.log2(w[ai, b]) - lfm))
-                k = min(max(_k, 1), na) if not np.isnan(_k) else len(fs)
-            elif v3:
-                k = np.min(np.abs(w[ai, b] - fs))
-            k = int(k - 1)  # MAT to py idx
-            Tx[k, b] += Wx[ai, b] * scaleterm[ai]
+        Tx = _vectorized(scaleterm)
 
         if opts['transform'] == 'CWT':
             Tx *= (1 / nv)

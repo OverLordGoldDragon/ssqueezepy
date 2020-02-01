@@ -248,39 +248,35 @@ def buffer(x, n, p=0, opt=None):
         ryanjdillon: https://stackoverflow.com/questions/38453249/
         is-there-a-matlabs-buffer-equivalent-in-numpy#answer-40105995
     """
-    import numpy as np
-
     if opt not in ('nodelay', None):
         raise ValueError('{} not implemented'.format(opt))
 
     i = 0
-    first_iter = True
-    while i < len(x):
-        if first_iter:
-            if opt == 'nodelay':
-                # No zeros at array start
-                result = x[:n]
-                i = n
-            else:
-                # Start with `p` zeros
-                result = np.hstack([np.zeros(p), x[:n-p]])
-                i = n-p
-            # Make 2D array and pivot
-            result = np.expand_dims(result, axis=0).T
-            first_iter = False
-            continue
+    if opt == 'nodelay':
+        # No zeros at array start
+        result = x[:n]
+        i = n
+    else:
+        # Start with `p` zeros
+        result = np.hstack([np.zeros(p), x[:n-p]])
+        i = n-p
+        
+    # Make 2D array
+    result = np.expand_dims(result, axis=0)
+    result = list(result)
 
+    while i < len(x):
         # Create next column, add `p` results from last col if given
         col = x[i:i+(n-p)]
         if p != 0:
-            col = np.hstack([result[:,-1][-p:], col])
-        i += n-p
+            col = np.hstack([result[-1][-p:], col])
 
         # Append zeros if last row and not length `n`
-        if len(col) < n:
-            col = np.hstack([col, np.zeros(n-len(col))])
+        if len(col):
+            col = np.hstack([col, np.zeros(n - len(col))])
 
         # Combine result with next row
-        result = np.hstack([result, np.expand_dims(col, axis=0).T])
+        result.append(np.array(col))
+        i += (n - p)
 
-    return result
+    return np.vstack(result).T

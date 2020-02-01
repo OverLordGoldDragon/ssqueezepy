@@ -4,9 +4,9 @@
 #    (https://github.com/ebrevdo/synchrosqueezing/)
 
 import numpy as np
-from utils import wfiltfn
-from stft_transforms import stft_fwd, phase_stft
-from wavelet_transforms import synsq_squeeze
+from .utils import wfiltfn
+from .stft_transforms import stft_fwd, phase_stft
+from .wavelet_transforms import synsq_squeeze
 from quadpy import quad as quadgk
 
 PI = np.pi
