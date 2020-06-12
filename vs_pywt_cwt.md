@@ -129,7 +129,7 @@ plt.plot(int_psi_scale_lens)
 plt.plot(scales, int_psi_scale_lens)
 ```
 
-<img src="https://user-images.githubusercontent.com/16495490/84498476-c57a1780-acc1-11ea-8bf5-e2c38a0f010e.png">
+<img src="https://user-images.githubusercontent.com/16495490/84498578-f8241000-acc1-11ea-89ce-be16ee7da1e6.png">
 
 <hr>
 
