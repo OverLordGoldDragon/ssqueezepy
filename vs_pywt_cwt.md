@@ -108,13 +108,7 @@ for scale in scales:
     int_psi_scales.append(int_psi[j][::-1])
 
 #### Plot scales #########################################################
-_, axes = plt.subplots(10, 1, sharex=False, sharey=True, figsize=(10, 10))
-for i, ax in enumerate(axes.flat):
-    scale_idx = 16 * (i + 1) - 1
-    ips = int_psi_scales[scale_idx]
-    ax.plot(ips)
-
-    ## style axes ##################################
+def _style_axis(ax, scale_idx, ips, scales):
     ax.set_xlim(0, len(ips) - 1)
 
     ax.annotate("scale = %.2f" % scales[scale_idx], weight='bold', fontsize=14,
@@ -123,6 +117,14 @@ for i, ax in enumerate(axes.flat):
     xmin, xmax = ax.get_xlim()
     ax.annotate(xmin, fontsize=12, xy=(.02, .1), xycoords='axes fraction')
     ax.annotate(xmax, fontsize=12, xy=(.95, .1), xycoords='axes fraction')
+    
+_, axes = plt.subplots(10, 1, sharex=False, sharey=True, figsize=(10, 10))
+for i, ax in enumerate(axes.flat):
+    scale_idx = 16 * (i + 1) - 1
+    ips = int_psi_scales[scale_idx]
+    ax.plot(ips)
+    _style_axis(ax, scale_idx, ips, scales)
+    ## style axes ##################################
 
 plt.subplots_adjust(left=0, right=1, bottom=0, top=1, hspace=.01)
 plt.show()
