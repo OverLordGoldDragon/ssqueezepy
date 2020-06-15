@@ -108,28 +108,38 @@ for scale in scales:
     int_psi_scales.append(int_psi[j][::-1])
 
 #### Plot scales #########################################################
-_, axes = plt.subplots(10, 1, sharex=False, sharey=True, figsize=(12, 10))
+_, axes = plt.subplots(10, 1, sharex=False, sharey=True, figsize=(10, 10))
 for i, ax in enumerate(axes.flat):
-    ips = int_psi_scales[16 * (i + 1) - 1]
+    scale_idx = 16 * (i + 1) - 1
+    ips = int_psi_scales[scale_idx]
     ax.plot(ips)
+
+    ## style axes ##################################
     ax.set_xlim(0, len(ips) - 1)
+
+    ax.annotate("scale = %.2f" % scales[scale_idx], weight='bold', fontsize=14,
+                xy=(.8, .8), xycoords='axes fraction')
+
+    xmin, xmax = ax.get_xlim()
+    ax.annotate(xmin, fontsize=12, xy=(.02, .1), xycoords='axes fraction')
+    ax.annotate(xmax, fontsize=12, xy=(.95, .1), xycoords='axes fraction')
 
 plt.subplots_adjust(left=0, right=1, bottom=0, top=1, hspace=.01)
 plt.show()
 ```
 ```python
 """Show `scales`"""
-plt.plot(scales)
+plt.plot(scales); plt.show()
 #%%##################################################
 """Show `len(int_psi_scale)` for varying `scales`"""
 int_psi_scale_lens = list(map(len, int_psi_scales))
-plt.plot(int_psi_scale_lens)
+plt.plot(int_psi_scale_lens); plt.show()
 # `int_psi_scales` is a linear function of `scales`; `scales` is exponential.
 # this can be verified by plotting below
 plt.plot(scales, int_psi_scale_lens)
 ```
 
-<img src="https://user-images.githubusercontent.com/16495490/84498578-f8241000-acc1-11ea-89ce-be16ee7da1e6.png">
+<img src="https://user-images.githubusercontent.com/16495490/84664249-4f7ae800-af2f-11ea-8660-29e649259fe6.png">
 
 <hr>
 
