@@ -145,4 +145,71 @@ plt.plot(scales, int_psi_scale_lens)
 
 <hr>
 
+```python
+import numpy as np
+import matplotlib.pyplot as plt
+from ssutil import ssq_preproc, pre_pywt_cwt
+
+import scipy.fftpack
+import scipy.signal as sig
+fftmodule = scipy.fftpack
+next_fast_len = fftmodule.next_fast_len
+PI = np.pi
+```
+```python
+t = np.linspace(0, 12, 1000)
+s = np.cos(t**2 + t + np.cos(t))
+
+OPTS = {'type': 'bump', 'mu':1}
+data, scales = pre_pywt_cwt(s, OPTS)
+wavelet_type = 'morlet'; nv=32; dt=1
+
+Wx, Wx_scales, psihfn, xi, k, xh = ssq_preproc(s, wavelet_type, nv, dt, OPTS)
+```
+```python
+"""Visuals helper methods"""
+def _style_axis(ax, psih, a):
+    ax.set_xlim(0, max(psih.shape))
+    ax.annotate("scale = %.2f" % a, weight='bold', fontsize=13,
+                xy=(.45, .8), xycoords='axes fraction')
+    if ax.colNum == 1:
+        ax.yaxis.set_label_position('right')
+        ax.yaxis.tick_right()
+
+def viz_scales(fn, sharey=True):
+    fig, axes = plt.subplots(10, 1, sharex=True, sharey=sharey, figsize=(14, 11))
+    for j, ax in enumerate(axes.flat):
+        a = Wx_scales[j * 8]
+        psih = fn(a)
+        ax.plot(psih.squeeze())
+        _style_axis(ax, psih, a)
+
+    fig.subplots_adjust(left=0, right=1, bottom=0, top=1, hspace=.01, wspace=.01)
+    plt.show()
+
+def viz_scales_v2(fn, ylim=None, sharey=True):
+    fig, axes = plt.subplots(10, 2, sharex=True, sharey=sharey, figsize=(14, 11))
+
+    for i in range(0, 2):
+        for j in range(0, 10):
+            scale_idx = min(j * 17 + (len(Wx_scales) + 17) // 2 * i,
+                            len(Wx_scales) - 1)
+            a = Wx_scales[scale_idx]
+            psih = fn(a)
+
+            ax = axes[j, i]
+            ax.plot(psih.squeeze())
+            _style_axis(ax, psih, a)
+
+    if ylim:
+        ax.set_ylim(*ylim)
+    fig.subplots_adjust(left=0, right=1, bottom=0, top=1, hspace=.01, wspace=.01)
+    plt.show()
+```
+
+
 <img src="https://user-images.githubusercontent.com/16495490/84475084-feec5c00-ac9c-11ea-868f-3ca1ffe78cd5.png">
+
+<hr>
+
+<img src="https://user-images.githubusercontent.com/16495490/84676532-ad62fc00-af3e-11ea-86dd-6d9131b27d56.png">
