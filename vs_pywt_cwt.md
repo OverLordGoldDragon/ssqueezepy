@@ -32,6 +32,41 @@ def cwt_step(i, x, data, scales, out, int_psi, size_scale0, precision):
     """CWT coefficient computation for a single scale, returning
     intermediate parameters for inspection
     """
+    # BREAKDOWN: data.ndim == 1.
+    #     data.shape[-1] -> len(data); coef.shape[-1] -> len(coef)
+    # __________________________________________________________________________
+    # `int_psi`: window function; integrated wavelet `wavelet` from -Inf to `x`
+    # len(int_psi) == len(x)
+    #
+    # `x`: points of integration, determined by `precision`:
+    #     - higher: more points, smaller `step`
+    #     - lower:  less points, bigger  `step`
+    #
+    # `j`: indexing for `int_psi`; range is nearly same throughout scales -
+    #      main change is in *resolution*, or number of points between min/max
+    #
+    # `int_psi_scale`: scaled window function; `int_psi` at scale `scale`:
+    #     - higher scale: more points, granularity
+    #     - also flipped about origin (since same # of pts on both sides)
+    #
+    # `size_scale`: nearest power of 2 to combined lengths of `data`
+    #               and `int_psi_scale` for efficient FFT computation.
+    #               If changes w.r.t. previous `scale`, `fft_data` is recomputed
+    #               to account for change in padding size.
+    # `fft_data`: fft (discrete fourier transform) of `data`, with `n=size_scale`.
+    #     n: fft length. If n < len(x), x is truncated.
+    #                    If n > len(x), x is zero-padded.
+    #
+    # `conv`: inverse fft of (fft_wav * fft_data).
+    #         Right-trimmed to combined len of `data` and `int_psi_scale`,
+    #         minus 1.
+    #
+    # `coef`: difference between successive elements of `conv` (np.diff(conv)).
+    #         `coef` is trimmed afterwards, but its contents are unchanged.
+    # __________________________________________________________________________
+    # Larger `scale` -> `int_psi_scale` has more points ->
+    #                -> `size_scale` is larger -> `fft_data` has more points
+    # __________________________________________________________________________
     #### compute scale-specific parameters ##########################
     scale = scales[i]
     step = x[1] - x[0]
@@ -53,12 +88,17 @@ def cwt_step(i, x, data, scales, out, int_psi, size_scale0, precision):
     prod = fft_wav * fft_data
     conv = fftmodule.ifft(prod, axis=-1)
     conv = conv[..., :len(data) + int_psi_scale.size - 1]
-    
+
     coef = - np.sqrt(scale) * np.diff(conv, axis=-1)
-    return fft_data, fft_wav, prod, conv, coef
+    return fft_data, fft_wav, prod, conv, coef, int_psi_scale, j, scale
 
 kw_common = dict(x=x, data=data, scales=scales, out=out, int_psi=int_psi,
                  size_scale0=size_scale0, precision=precision)
+```
+```python
+i = 0  # increment to 'step through' CWT generation for various scales
+(fft_data, fft_wav, prod, conv, coef, int_psi_scale, j, scale
+) = cwt_step(i, **kw_common)
 ```
 ```python
 """Visualize"""
@@ -141,7 +181,7 @@ plt.plot(int_psi_scale_lens); plt.show()
 plt.plot(scales, int_psi_scale_lens)
 ```
 
-<img src="https://user-images.githubusercontent.com/16495490/84664249-4f7ae800-af2f-11ea-8660-29e649259fe6.png">
+<img src="https://user-images.githubusercontent.com/16495490/86709602-27ad0a80-c02b-11ea-8224-bf60e0495a6b.png">
 
 <hr>
 
