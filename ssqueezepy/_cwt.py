@@ -163,7 +163,9 @@ def icwt(Wx, wavelet, scales='log', one_int=True, x_len=None, x_mean=0,
 
 
 def _icwt_2int(Wx, scales, wavelet, N, freqscale, l1_norm):
-    """Double-integral iCWT; works with any(?) wavelet."""
+    """Double-integral iCWT; works with any(?) wavelet.
+    Explanation: https://dsp.stackexchange.com/a/71148/50076
+    """
     norm = _icwt_norm(freqscale, l1_norm, one_int=False)
     x = np.zeros(N)
     for a, Wxa in zip(scales, Wx):  # TODO vectorize?
@@ -174,7 +176,9 @@ def _icwt_2int(Wx, scales, wavelet, N, freqscale, l1_norm):
 
 
 def _icwt_1int(Wx, scales, freqscale, l1_norm):
-    """One-integral iCWT; assumes analytic wavelet."""
+    """One-integral iCWT; assumes analytic wavelet.
+    Explanation: https://dsp.stackexchange.com/a/71274/50076
+    """
     norm = _icwt_norm(freqscale, l1_norm, one_int=True)
     return (Wx.real / (norm(scales))).sum(axis=0)
 
