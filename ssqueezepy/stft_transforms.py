@@ -7,7 +7,7 @@ import numpy as np
 from .utils import wfiltfn, padsignal, buffer
 from quadpy import quad as quadgk
 
-PI = np.pi
+pi = np.pi
 EPS = np.finfo(np.float64).eps  # machine epsilon for float64
 
 
@@ -242,7 +242,7 @@ def stft_inv(Sx, opts={}):
     if opts['type'] == 'bump':
         C *= 0.8675
     
-    x *= 2 / (PI * C)
+    x *= 2 / (pi * C)
     
     return x
 
@@ -277,7 +277,7 @@ def phase_stft(Sx, dSx, Sfs, t, opts={}):
     opts['gamma'] = opts.get('gamma', np.sqrt(EPS))
     
     # calculate phase transform; modified STFT amounts to extra frequency term
-    w = np.matlib.repmat(Sfs, len(t), 1).T - np.imag(dSx / Sx / (2 * PI))
+    w = np.matlib.repmat(Sfs, len(t), 1).T - np.imag(dSx / Sx / (2 * pi))
     
     # threshold out small points
     w[np.abs(Sx) < opts['gamma']] = np.inf
