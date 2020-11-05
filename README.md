@@ -1,7 +1,7 @@
 # Synchrosqueezing in Python
 [Synchrosqueezing Toolbox](https://github.com/ebrevdo/synchrosqueezing) ported to Python.
 
-`ssqueezepy`'s come out of retirement; see Releases. I've validated all main methods; the repo's now production-ready. The rest is a matter of extending.
+`ssqueezepy`'s come out of retirement; see [Releases](https://github.com/OverLordGoldDragon/ssqueezepy/releases). I've validated all main methods; the repo's now production-ready. The rest is a matter of extending.
 
 Significant changes to some code structure are expected until v0.6.0, but whatever's not explicitly marked as problematic will work as intended. README will also change soon.
 
