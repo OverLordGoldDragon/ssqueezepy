@@ -5,9 +5,14 @@
 
 import numpy as np
 import numpy.matlib
+from termcolor import colored
 from quadpy import quad as quadgk
+from .algos import replace_at_inf_or_nan
 
-PI = np.pi
+
+WARN = colored('WARNING:', 'red')
+NOTE = colored('NOTE:', 'blue')
+pi = np.pi
 
 
 def mad(data, axis=None):
@@ -16,29 +21,27 @@ def mad(data, axis=None):
 
 def est_riskshrink_thresh(Wx, nv):
     """Estimate the RiskShrink hard thresholding level.
-    
+
     # Arguments:
         Wx:  np.ndarray. Wavelet transform of a signal.
         opt: dict. Options structure used for forward wavelet transform.
-    
+
     # Returns:
         gamma: float. The RiskShrink hard thresholding estimate.
     """
-    na, n = Wx.shape
-
+    N = Wx.shape[1]
     Wx_fine = np.abs(Wx[:nv])
-    gamma = 1.4826 * np.sqrt(2 * np.log(n)) * np.mad(Wx_fine)
-
+    gamma = 1.4826 * np.sqrt(2 * np.log(N)) * mad(Wx_fine)
     return gamma
 
 
 def p2up(n):
     """Calculates next power of 2, and left/right padding to center
     the original `n` locations.
-    
+
     # Arguments:
         n: int. Non-dyadic integer.
-    
+
     # Returns:
         up: next power of 2
         n1: length on left
@@ -46,31 +49,29 @@ def p2up(n):
     """
     eps = np.finfo(np.float64).eps  # machine epsilon for float64
     up = 2 ** (1 + np.round(np.log2(n + eps)))
-    
+
     n1 = np.floor((up - n) / 2)
-    n2 = n1
-    
-    if (2 * n1 + n) % 2 == 1:
-        n2 = n1 + 1
-    return up, n1, n2
+    n2 = n1 + n % 2           # if n is odd, right-pad by (n1 + 1), else n2=n1
+    assert n1 + n + n2 == up  # [left_pad, original, right_pad]
+    return int(up), int(n1), int(n2)
 
 
 def padsignal(x, padtype='symmetric', padlength=None):
-    """Pads signal and returns indices of original signal.
-    
+    """Pads signal and returns trim indices to recover original.
+
     # Arguments:
         x: np.ndarray. Original signal.
         padtype: str ('symmetric', 'replicate').
         padlength: int. Number of samples to pad on each side. Default is
                    nearest power of 2.
-    
+
     # Returns:
         x: padded signal.
         n_up: next power of 2.
         n1: length on left.
         n2: length on right.
     """
-    padtypes = ('symmetric', 'replicate')
+    padtypes = ('symmetric', 'replicate', 'zero')
     if padtype not in padtypes:
         raise ValueError(("Unsupported `padtype` {}; must be one of: {}"
                           ).format(padtype, ", ".join(padtypes)))
@@ -81,35 +82,37 @@ def padsignal(x, padtype='symmetric', padlength=None):
         n_up, n1, n2 = p2up(n)
     else:
         n_up = n + 2 * padlength
-        n1 = padlength + 1
-        n2 = padlength    
+        n1 = padlength + 1  # TODO why n1 >= n2 here but n2 >= n1 in p2up
+        n2 = padlength
     n_up, n1, n2 = int(n_up), int(n1), int(n2)
 
+    # comments use (n=4, n1=3, n2=4) as example, but this combination can't occur
     if padtype == 'symmetric':
-        xl = np.matlib.repmat(np.hstack([x, np.flipud(x)]),
-                              m=int(np.ceil(n1 / (2 * n))), n=1).squeeze()
-        xr = np.matlib.repmat(np.hstack([np.flipud(x), x]),
-                              m=int(np.ceil(n2 / (2 * n))), n=1).squeeze()
+        # [1,2,3,4] -> [3,2,1, 1,2,3,4, 4,3,2,1]
+        xpad = np.hstack([x[::-1][-n1:], x, x[::-1][:n2]])
     elif padtype == 'replicate':
-        xl = x[0]  * np.ones(n1)
-        xr = x[-1] * np.ones(n2)
+        # [1,2,3,4] -> [1,1,1, 1,2,3,4, 4,4,4,4]
+        x = np.pad(x, [n1, n2], mode='edge')
+    elif padtype == 'zero':
+        # [1,2,3,4] -> [0,0,0, 1,2,3,4, 0,0,0,0]
+        x = np.pad(x, [n1, n2])
 
-    xpad = np.hstack([xl[-n1:], x, xr[:n2]])
-    
+    assert len(xpad) == n_up == n1 + n + n2
     return xpad, n_up, n1, n2
 
 
-def wfiltfn(wavelet_type, opts, derivative=False):
+# TODO revamp into classes?
+def wfiltfn(wavelet, derivative=False):
     """Wavelet transform function of the wavelet filter in question,
     Fourier domain.
-    
+
     # Arguments:
         wavelet_type: str. See below.
         opts: dict. Options, e.g. {'s': 1, 'mu': 5}
-        
+
     # Returns:
         lambda xi: psihfn(xi)
-    
+
     _______________________________________________________________________
     Filter types      Use for synsq?    Parameters (default)
 
@@ -127,107 +130,187 @@ def wfiltfn(wavelet_type, opts, derivative=False):
         psihfn = wfiltfn('bump', {'s': .5, 'mu': 1})
         plt.plot(psihfn(np.arange(-5, 5.01, step=.01)))
     """
-    supported_types = ('bump', 'mhat', 'cmhat', 'morlet', 'shannon',
-                       'hshannon', 'hhat', 'hhhat')
-    if wavelet_type not in supported_types:
-        raise ValueError(("Unsupported `wavelet_type` '{}'; must be one of: {}"
-                          ).format(wavelet_type, ", ".join(supported_types)))
-    if wavelet_type == 'bump':
-        mu = opts.get('mu', 5)
-        s  = opts.get('s',  1)
-        om = opts.get('om', 0)
-        
+    if isinstance(wavelet, tuple):
+        wavelet, wavopts = wavelet
+    else:
+        wavopts = {}
+    supported = ('bump', 'mhat', 'cmhat', 'morlet', 'shannon',
+                 'hshannon', 'hhat', 'hhhat')
+    if wavelet not in supported:
+        raise ValueError(("Unsupported wavelet '{}'; must be one of: {}"
+                          ).format(wavelet, ", ".join(supported)))
+
+    # TODO make wavelets into functions in own .py?
+    if wavelet == 'bump':
+        mu = wavopts.get('mu', 5)
+        s  = wavopts.get('s',  1)
+        om = wavopts.get('om', 0)
+
         psihfnorig = lambda w: (np.abs(w) < .999) * np.exp(
             -1. / (1 - (w * (np.abs(w) < .999)) ** 2)) / .443993816053287
-        
-        psihfn = lambda w: np.exp(2 * PI * 1j * om * w) * psihfnorig(
+
+        psihfn = lambda w: np.exp(2 * pi * 1j * om * w) * psihfnorig(
             (w - mu) / s) / s
         if derivative:
             _psihfn = psihfn; del psihfn
             psihfn = lambda w: _psihfn(w) * (
-                2 * PI * 1j * om - 2 * ((w - mu) / s**2) / (
+                2 * pi * 1j * om - 2 * ((w - mu) / s**2) / (
                     1 - ((w - mu) / s)**2)**2)
 
-    elif wavelet_type == 'mhat':  # mexican hat
-        s = opts.get('s', 1)
-        psihfn = lambda w: -np.sqrt(8) * s**(5/2) * PI**(1/4) / np.sqrt(
+    elif wavelet == 'mhat':  # mexican hat
+        s = wavopts.get('s', 1)
+        psihfn = lambda w: -np.sqrt(8) * s**(5/2) * pi**(1/4) / np.sqrt(
             3) * w**2 * np.exp(-s**2 * w**2 / 2)
 
-    elif wavelet_type == 'cmhat':
+    elif wavelet == 'cmhat':
         # complex mexican hat; hilbert analytic function of sombrero
         # can be used with synsq
-        s  = opts.get('s',  1)
-        mu = opts.get('mu', 1)
-        psihfnshift = lambda w: 2 * np.sqrt(2/3) * PI**(-1/4) * (
+        s  = wavopts.get('s',  1)
+        mu = wavopts.get('mu', 1)
+        psihfnshift = lambda w: 2 * np.sqrt(2/3) * pi**(-1/4) * (
             s**(5/2) * w**2 * np.exp(-s**2 * w**2 / 2) * (w >= 0))
         psihfn = lambda w: psihfnshift(w - mu)
-    
-    elif wavelet_type == 'morlet':
+
+    elif wavelet == 'morlet':
         # can be used with synsq for large enough `s` (e.g. >5)
-        mu = opts.get('mu', 2 * PI)
+        mu = wavopts.get('mu', 2 * pi)
         cs = (1 + np.exp(-mu**2) - 2 * np.exp(-3/4 * mu**2)) ** (-.5)
         ks = np.exp(-.5 * mu**2)
-        psihfn = lambda w: cs * PI**(-1/4) * (np.exp(-.5 * (mu - w)**2)
+        psihfn = lambda w: cs * pi**(-1/4) * (np.exp(-.5 * (mu - w)**2)
                                               - ks * np.exp(-.5 * w**2))
-    
-    elif wavelet_type == 'shannon':
-        psihfn = lambda w: np.exp(-1j * w / 2) * (np.abs(w) >= PI
-                                                  and np.abs(w) <= 2 * PI)
-    elif wavelet_type == 'hshannon':
+
+    elif wavelet == 'shannon':
+        psihfn = lambda w: np.exp(-1j * w / 2) * (np.abs(w) >= pi
+                                                  and np.abs(w) <= 2 * pi)
+    elif wavelet == 'hshannon':
         # hilbert analytic function of shannon transform
         # time decay is too slow to be of any use in synsq transform
-        mu = opts.get('mu', 0)
+        mu = wavopts.get('mu', 0)
         psihfnshift = lambda w: np.exp(-1j * w / 2) * (
-            w >= PI and w <= 2 * PI) * (1 + np.sign(w))
+            w >= pi and w <= 2 * pi) * (1 + np.sign(w))
         psihfn = lambda w: psihfnshift(w - mu)
 
-    elif wavelet_type == 'hhat':  # hermitian hat
-        psihfnshift = lambda w: 2 / np.sqrt(5) * PI**(-1 / 4) * (
+    elif wavelet == 'hhat':  # hermitian hat
+        psihfnshift = lambda w: 2 / np.sqrt(5) * pi**(-1 / 4) * (
             w * (1 + w) * np.exp(-.5 * w**2))
         psihfn = lambda w: psihfnshift(w - mu)
 
-    elif wavelet_type == 'hhhat':
+    elif wavelet == 'hhhat':
         # hilbert analytic function of hermitian hat; can be used with synsq
-        mu = opts.get('mu', 5)
-        psihfnshift = lambda w: 2 / np.sqrt(5) * PI**(-1/4) * (
+        mu = wavopts.get('mu', 5)
+        psihfnshift = lambda w: 2 / np.sqrt(5) * pi**(-1/4) * (
             w * (1 + w) * np.exp(-1/2 * w**2)) * (1 + np.sign(w))
         psihfn = lambda w: psihfnshift(w - mu)
 
     return psihfn
 
 
-def synsq_adm(wavelet_type, opts={}):
+# TODO default dt = 1/N? one sample per sec unlikely
+def wfilth(wavelet, N, a=1, dt=1, derivative=False, l1_norm=True):
+    """Outputs the FFT of the wavelet of family and options in `wavelet`,
+    of length N at scale a.
+
+    Note that the output is made so that the inverse fft of the
+    result is zero-centered in time.  This is important for
+    convolving with the derivative(dpsih).  To get the correct
+    output, perform an ifftshift.  That is,
+        psi   = ifftshift(ifft(psih))
+        xfilt = ifftshift(ifft(fft(x) * psih))
+
+    Inputs:
+        type: wavelet type (see help wfiltfn)
+        N: number of samples to calculate
+        a: wavelet scale parameter (default = 1)
+        opt: wavelet options (see help wfiltfn)
+          opt.dt: delta t (sampling period, default = 1)
+                  important for properly scaling dpsih
+
+    Outputs:
+        psih: wavelet sampling in frequency domain (for use in fft)
+        dpsih: derivative of same wavelet, sampled in frequency domain (for fft)
+        xi: associated fourier domain frequencies of the samples.
+
+    ---------------------------------------------------------------------------
+       Synchrosqueezing Toolbox
+       Authors: Eugene Brevdo (http://www.math.princeton.edu/~ebrevdo/)
+    ---------------------------------------------------------------------------
+    """
+    if not np.log2(N).is_integer():
+        raise ValueError(f"`N` must be a power of 2 (got {N})")
+
+    xi = (2*pi/N) * np.hstack([np.arange(N//2 + 1),
+                               np.arange(-N//2 + 1, 0)])
+    psihfn = wfiltfn(wavelet)
+
+    # sample FT of wavelet at scale `a`, normalize energy
+    # `* (-1)^[0,1,...]` = frequency-domain spectral reversal
+    #                      to center time-domain wavelet
+    norm = 1 if l1_norm else np.sqrt(a)
+    psih = psihfn(a * xi) * norm * (-1)**np.arange(N)
+
+    # Sometimes bump gives a NaN when it means 0
+    if 'bump' in wavelet:
+        psih = replace_at_inf_or_nan(psih, 0)
+
+    if derivative:
+        # discretized freq-domain derivative of trigonometric interpolant of psih
+        # http://wavelets.ens.fr/ENSEIGNEMENT/COURS/UCSB/farge_ann_rev_1992.pdf
+        dpsih = (1j * xi / dt) * psih  # `dt` relevant for phase transform
+        return psih, dpsih
+    else:
+        return psih
+
+
+def adm_ssq(wavelet):
     """Calculate the synchrosqueezing admissibility constant, the term
-    R_\psi in Eq. 3 of [1]. Note, here we multiply R_\psi by the inverse of
-    log(2)/nv (found in Alg. 1 of [1]).
-    
+    R_\psi in Eq. 3 of [1].
+
     Uses numerical intergration.
-    
+
     # Arguments:
-        wavelet_type: str. See `wfiltfn`.
+        wavelet: str. See `wfiltfn`.
         opts: dict. Options. See `wfiltfn`.
-    
+
     # Returns:
-        Css: proportional to 2 * integral(conj(f(w)) / w, w=0..inf)
-    
+        Css: integral(conj(wavelet_fn(w)) / w, w=0..inf)
+
     # References:
         1. G. Thakur, E. Brevdo, N.-S. Fučkar, and H.-T. Wu,
-        "The Synchrosqueezing algorithm for time-varying spectral analysis: 
+        "The Synchrosqueezing algorithm for time-varying spectral analysis:
         robustness properties and new paleoclimate applications",
         Signal Processing, 93:1079-1094, 2013.
-    
+
+        2. I. Daubechies, J. Lu, H.T. Wu, "Synchrosqueezed Wavelet Transforms:
+        an empricial mode decomposition-like tool",
+        Applied and Computational Harmonic Analysis 30(2):243-261, 2011.
     """
-    psihfn = wfiltfn(wavelet_type, opts)
-    Css = lambda x: quadgk(np.conj(psihfn(x)) / x, 0, np.inf)
-    
-    # Normalization constant, due to logarithmic scaling
-    # in wavelet transform
-    _Css = Css; del Css
-    Css = lambda x: _Css(x) / np.sqrt(2 * PI) * 2 * np.log(2)
-    
+    psihfn = wfiltfn(wavelet)
+    Css = quadgk(lambda w: np.conj(psihfn(w)) / w, 0., np.inf)[0]
     return Css
 
 
+def adm_cwt(wavelet):
+    """Calculate cwt admissibility constant int(|f(w)|^2/w, w=0..inf) as
+    per Eq. (4.67) of [1].
+
+    1. Mallat, S., Wavelet Tour of Signal Processing 3rd ed.
+	"""
+    wavelet = wavelet if isinstance(wavelet, tuple) else (wavelet, {})
+    wavelet, opts = wavelet
+
+    if wavelet == 'sombrero':
+        s = opts.get('s', 1)
+        Cpsi = (4/3) * s * np.sqrt(pi)
+    elif wavelet == 'shannon':
+        Cpsi = np.log(2)
+    else:
+        psihfn = wfiltfn(wavelet)
+        Cpsi = quadgk(lambda w: np.conj(psihfn(w)) * psihfn(w) / w,
+                      0., np.inf)[0]
+    return Cpsi
+
+
+# TODO never reviewed
 def buffer(x, n, p=0, opt=None):
     """Mimic MATLAB routine to generate buffer array
 
@@ -237,16 +320,15 @@ def buffer(x, n, p=0, opt=None):
         x: np.ndarray. Signal array.
         n: int. Number of data segments.
         p: int. Number of values to overlap
-        opt: str.  Initial condition options. Default sets the first `p` 
+        opt: str.  Initial condition options. Default sets the first `p`
         values to zero, while 'nodelay' begins filling the buffer immediately.
 
     # Returns:
         result : (n,n) ndarray
             Buffer array created from x.
-            
+
     # References:
-        ryanjdillon: https://stackoverflow.com/questions/38453249/
-        is-there-a-matlabs-buffer-equivalent-in-numpy#answer-40105995
+        ryanjdillon: https://stackoverflow.com/a/40105995/10133797
     """
     if opt not in ('nodelay', None):
         raise ValueError('{} not implemented'.format(opt))
@@ -259,8 +341,8 @@ def buffer(x, n, p=0, opt=None):
     else:
         # Start with `p` zeros
         result = np.hstack([np.zeros(p), x[:n-p]])
-        i = n-p
-        
+        i = n - p
+
     # Make 2D array
     result = np.expand_dims(result, axis=0)
     result = list(result)
@@ -280,3 +362,76 @@ def buffer(x, n, p=0, opt=None):
         i += (n - p)
 
     return np.vstack(result).T
+
+
+def _assert_positive_integer(g, name=''):
+    if not (g > 0 and float(g).is_integer()):
+        raise ValueError(f"'{name}' must be a positive integer (got {g})")
+
+
+def process_scales(scales, len_x, nv=None, na=None, get_params=False):
+    """Makes scales if `scales` is a string, else validates the array,
+    and returns relevant parameters if requested.
+
+        - Ensures, if array,  `scales` is 1D, or 2D with last dim == 1
+        - Ensures, if string, `scales` is one of ('log', 'linear')
+        - If `get_params`, also returns (`freqscale`, `nv`, `na`)
+           - `freqscale`: inferred from `scales` if it's an array
+           - `nv`, `na`: computed newly only if not already passed
+    """
+    def _infer_freqscale(scales):
+        th = 1e-15 if scales.dtype == np.float64 else 2e-7
+        if np.mean(np.abs(np.diff(scales, 2, axis=0))) < th:
+            freqscale = 'linear'
+        elif np.mean(np.abs(np.diff(np.log(scales), 2, axis=0))) < th:
+            freqscale = 'log'
+        else:
+            raise ValueError("could not infer `freqscale` from `scales`; "
+                             "`scales` array must be linear or logarithmic.")
+        return freqscale
+
+    def _process_args(scales, nv, na):
+        if isinstance(scales, str):
+            if scales not in ('log', 'linear'):
+                raise ValueError("`scales`, if string, must be one of: log, "
+                                 "linear (got %s)" % scales)
+            elif (na is None and nv is None):
+                raise ValueError("must pass one of `na`, `nv`, if `scales` "
+                                 "isn't array")
+            freqscale = scales
+        elif isinstance(scales, np.ndarray):
+            if scales.squeeze().ndim != 1:
+                raise ValueError("`scales`, if array, must be 1D "
+                                 "(got shape %s)" % scales.shape)
+
+            freqscale = _infer_freqscale(scales)
+            if na is not None:
+                print(WARN, "`na` is ignored if `scales` is an array")
+            na = len(scales)
+        else:
+            raise TypeError("`scales` must be a string or Numpy array "
+                            "(got %s)" % type(scales))
+        return freqscale, na
+
+    freqscale, na = _process_args(scales, nv, na)
+
+    # compute params
+    n_up, *_ = p2up(len_x)
+    noct = np.log2(n_up) - 1
+    if nv is None:
+        nv = na / noct
+    elif na is None:
+        na = int(noct * nv)
+    _assert_positive_integer(noct, 'noct')
+    _assert_positive_integer(nv, 'nv')
+
+    # make `scales` if passed string
+    if isinstance(scales, str):
+        if freqscale == 'log':
+            scales = np.power(2 ** (1 / nv), np.arange(1, na + 1))
+        elif freqscale == 'linear':
+            scales = np.linspace(1, na, na)  # ??? should `1` be included?
+    scales = scales.reshape(-1, 1)  # ensure 2D for mult / div later
+
+    return (scales if not get_params else
+            (scales, freqscale, na, nv))
