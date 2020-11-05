@@ -23,7 +23,6 @@ Significant changes to some code structure are expected until v0.6.0, but whatev
  - **Edited docstrings**; filled missing info, & few corrections
  - **Moved functions**; each no longer has its own file, but is grouped with other relevant functions
  - **Code style**; grouped parts of code as sub-functions for improved readability; indentation for vertical alignment; other
- - **Performance**; this repo may work faster or slower, as Numpy arrays are faster than C arrays, but some of original funcs use MEX-optimized code with no Numpy equivalent. Also using dense instead of sparse matrices (see below).
  - **Performance**; this repo will work faster and for less memory for some methods (to be documented)
  
  **Other**:
