@@ -58,7 +58,7 @@ def ssqueeze(Wx, w, scales, t, freqscale=None, transform='cwt', squeezing='full'
         # incorporate threshold by zeroing out Inf values, so they get ignored
         Wx = replace_at_inf_or_nan(Wx, ref=w, replacement=0)
         # reassign indeterminate (ignored per above anyway) to avoid warnings
-        w  = replace_at_inf_or_nan(w, ref=w, replacement=fs[-1])
+        w  = replace_at_inf_or_nan(w, replacement=fs[-1])
 
         # do squeezing by finding which frequency bin each phase transform point
         # w[a, b] lands in (i.e. to which f in fs each w[a, b] is closest to)

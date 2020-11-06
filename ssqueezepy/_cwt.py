@@ -50,7 +50,7 @@ def cwt(x, wavelet, scales='log', dt=1, nv=None, l1_norm=True,
             raise ValueError("`dt` must be > 0")
         if np.isnan(x.max()) or np.isinf(x.max()) or np.isinf(x.min()):
             print(WARN, "found NaN or inf values in `x`; will zero")
-            replace_at_inf_or_nan(x, ref=x, replacement=0)
+            replace_at_inf_or_nan(x, replacement=0)
         return
 
     _process_args(x, scales, dt)
@@ -70,6 +70,8 @@ def cwt(x, wavelet, scales='log', dt=1, nv=None, l1_norm=True,
     xh = fft(x)
 
     pn = (-1) ** np.arange(N)
+    # TODO this can be trouble for very large N, fill xi directly instead
+    # and just move wavelet at scale computation to own function
     xi = (2*pi / N) * np.hstack([np.arange(N // 2 + 1),
                                  np.arange(-N // 2 + 1, 0)])
     psihfn = wfiltfn(wavelet)  # TODO use wfiltfn instead?

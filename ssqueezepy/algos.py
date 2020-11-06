@@ -27,8 +27,17 @@ def indexed_sum(a, k):
     return out
 
 
+def replace_at_inf_or_nan(x, ref=None, replacement=0):
+    if ref is None:
+        ref = x
+    if not (isinstance(x, np.ndarray) and isinstance(ref, np.ndarray)):
+        raise TypeError("inputs must be numpy arrays "
+                        "(got %s, %s)" % (type(x), type(ref)))
+    return _replace_at_inf_or_nan(x, ref, replacement)
+
+
 @jit(nopython=True)
-def replace_at_inf_or_nan(x, ref, replacement=0):
+def _replace_at_inf_or_nan(x, ref, replacement=0):
     for i in range(x.shape[0]):
         for j in range(x.shape[1]):
             if np.isinf(ref[i, j]) or np.isnan(ref[i, j]):
