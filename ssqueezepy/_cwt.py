@@ -1,8 +1,9 @@
 import numpy as np
 from numpy.fft import fft, ifft, ifftshift
-from .utils import pi, WARN, p2up, adm_cwt, adm_ssq, wfiltfn, wfilth
+from .utils import WARN, p2up, adm_cwt, adm_ssq, wfilth
 from .utils import padsignal, process_scales
 from .algos import replace_at_inf_or_nan
+from .wavelets import Wavelet
 
 
 def cwt(x, wavelet, scales='log', dt=1, nv=None, l1_norm=True,
@@ -70,23 +71,19 @@ def cwt(x, wavelet, scales='log', dt=1, nv=None, l1_norm=True,
     xh = fft(x)
 
     pn = (-1) ** np.arange(N)
-    # TODO this can be trouble for very large N, fill xi directly instead
-    # and just move wavelet at scale computation to own function
-    xi = (2*pi / N) * np.hstack([np.arange(N // 2 + 1),
-                                 np.arange(-N // 2 + 1, 0)])
-    psihfn = wfiltfn(wavelet)  # TODO use wfiltfn instead?
+    psihfn = Wavelet(wavelet, N=N)
 
     # TODO vectorize? can FFT all at once if all `psih` are precomputed
     # but keep loop option in case of OOM
     for i, a in enumerate(scales):
         # sample FT of wavelet at scale `a`
         # `* pn` = freq-domain spectral reversal to center time-domain wavelet
-        psih = psihfn(a * xi) * pn
+        psih = psihfn(a) * pn
 
         xcpsi = ifftshift(ifft(xh * psih))
         Wx[i] = xcpsi
 
-        dpsih = (1j * xi / dt) * psih
+        dpsih = (1j * psihfn.xi / dt) * psih
         dxcpsi = ifftshift(ifft(dpsih * xh))
         dWx[i] = dxcpsi
 
@@ -102,7 +99,6 @@ def cwt(x, wavelet, scales='log', dt=1, nv=None, l1_norm=True,
     return Wx, scales, dWx, x_mean
 
 
-# TODO add one-integral implementation
 def icwt(Wx, wavelet, scales='log', one_int=True, x_len=None, x_mean=0,
          padtype='symmetric', rpadded=False, l1_norm=True):
     """The inverse continuous wavelet transform of signal Wx via double integral.

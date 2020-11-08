@@ -1,6 +1,7 @@
 import numpy as np
 from numpy.fft import fft, ifft, ifftshift
-from .utils import pi, wfiltfn, adm_cwt
+from .utils import pi, adm_cwt
+from .wavelets import Wavelet
 from quadpy import quad as quadgk
 
 
@@ -14,7 +15,7 @@ def err_fix(x, wavelet, a0):  # primitive code, doesn't work
     N = len(x)
     xi = (2*pi/N) * np.arange(1, N//2 + 1)
 
-    psihfn = wfiltfn(wavelet)
+    psihfn = Wavelet(wavelet)
     # integrate from 0 to w, w spanning same spectrum as psih
     # this can be sped up by nature of brick-wall behavior, stopping computing
     # after first zero, also computing fewer in total and linearly interpolating

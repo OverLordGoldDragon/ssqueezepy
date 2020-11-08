@@ -13,6 +13,10 @@ Significant changes to some code structure are expected until v0.6.0, but whatev
   - More
 
 
+## Installation
+
+`pip install git+https://github.com/OverLordGoldDragon/ssqueezepy`, for now; PyPi-available after 0.5.0.
+
 ## Differences w.r.t. original
 
  - **Renamed variables/functions**; more Pythonic & readable
@@ -27,7 +31,3 @@ Significant changes to some code structure are expected until v0.6.0, but whatev
  
  **Other**:
   - Dense instead of sparse matrices for `stft_fwd` in [stft_transforms.py](https://github.com/OverLordGoldDragon/ssqueezepy/blob/master/synchrosqueezing/stft_transforms.py), as Numpy doesn't handle latter in ops involved
-
-
-
-

@@ -8,6 +8,7 @@ import numpy.matlib
 from termcolor import colored
 from quadpy import quad as quadgk
 from .algos import replace_at_inf_or_nan
+from .wavelets import Wavelet
 
 
 WARN = colored('WARNING:', 'red')
@@ -101,110 +102,6 @@ def padsignal(x, padtype='symmetric', padlength=None):
     return xpad, n_up, n1, n2
 
 
-# TODO revamp into classes?
-def wfiltfn(wavelet, derivative=False):
-    """Wavelet transform function of the wavelet filter in question,
-    Fourier domain.
-
-    # Arguments:
-        wavelet_type: str. See below.
-        opts: dict. Options, e.g. {'s': 1, 'mu': 5}
-
-    # Returns:
-        lambda xi: psihfn(xi)
-
-    _______________________________________________________________________
-    Filter types      Use for synsq?    Parameters (default)
-
-    mhat              no                s (1)
-    cmhat             yes               s (1), mu (1)
-    morlet            yes               mu (2*pi)
-    shannon           no                --   (NOT recommended for analysis)
-    hshannon          yes               --   (NOT recommended for analysis)
-    hhat              no
-    hhhat             yes               mu (5)
-    bump              yes               s (1), mu (5)
-    _______________________________________________________________________
-
-    # Example:
-        psihfn = wfiltfn('bump', {'s': .5, 'mu': 1})
-        plt.plot(psihfn(np.arange(-5, 5.01, step=.01)))
-    """
-    if isinstance(wavelet, tuple):
-        wavelet, wavopts = wavelet
-    else:
-        wavopts = {}
-    supported = ('bump', 'mhat', 'cmhat', 'morlet', 'shannon',
-                 'hshannon', 'hhat', 'hhhat')
-    if wavelet not in supported:
-        raise ValueError(("Unsupported wavelet '{}'; must be one of: {}"
-                          ).format(wavelet, ", ".join(supported)))
-
-    # TODO make wavelets into functions in own .py?
-    if wavelet == 'bump':
-        mu = wavopts.get('mu', 5)
-        s  = wavopts.get('s',  1)
-        om = wavopts.get('om', 0)
-
-        psihfnorig = lambda w: (np.abs(w) < .999) * np.exp(
-            -1. / (1 - (w * (np.abs(w) < .999)) ** 2)) / .443993816053287
-
-        psihfn = lambda w: np.exp(2 * pi * 1j * om * w) * psihfnorig(
-            (w - mu) / s) / s
-        if derivative:
-            _psihfn = psihfn; del psihfn
-            psihfn = lambda w: _psihfn(w) * (
-                2 * pi * 1j * om - 2 * ((w - mu) / s**2) / (
-                    1 - ((w - mu) / s)**2)**2)
-
-    elif wavelet == 'mhat':  # mexican hat
-        s = wavopts.get('s', 1)
-        psihfn = lambda w: -np.sqrt(8) * s**(5/2) * pi**(1/4) / np.sqrt(
-            3) * w**2 * np.exp(-s**2 * w**2 / 2)
-
-    elif wavelet == 'cmhat':
-        # complex mexican hat; hilbert analytic function of sombrero
-        # can be used with synsq
-        s  = wavopts.get('s',  1)
-        mu = wavopts.get('mu', 1)
-        psihfnshift = lambda w: 2 * np.sqrt(2/3) * pi**(-1/4) * (
-            s**(5/2) * w**2 * np.exp(-s**2 * w**2 / 2) * (w >= 0))
-        psihfn = lambda w: psihfnshift(w - mu)
-
-    elif wavelet == 'morlet':
-        # can be used with synsq for large enough `s` (e.g. >5)
-        mu = wavopts.get('mu', 2 * pi)
-        cs = (1 + np.exp(-mu**2) - 2 * np.exp(-3/4 * mu**2)) ** (-.5)
-        ks = np.exp(-.5 * mu**2)
-        psihfn = lambda w: cs * pi**(-1/4) * (np.exp(-.5 * (mu - w)**2)
-                                              - ks * np.exp(-.5 * w**2))
-
-    elif wavelet == 'shannon':
-        psihfn = lambda w: np.exp(-1j * w / 2) * (np.abs(w) >= pi
-                                                  and np.abs(w) <= 2 * pi)
-    elif wavelet == 'hshannon':
-        # hilbert analytic function of shannon transform
-        # time decay is too slow to be of any use in synsq transform
-        mu = wavopts.get('mu', 0)
-        psihfnshift = lambda w: np.exp(-1j * w / 2) * (
-            w >= pi and w <= 2 * pi) * (1 + np.sign(w))
-        psihfn = lambda w: psihfnshift(w - mu)
-
-    elif wavelet == 'hhat':  # hermitian hat
-        psihfnshift = lambda w: 2 / np.sqrt(5) * pi**(-1 / 4) * (
-            w * (1 + w) * np.exp(-.5 * w**2))
-        psihfn = lambda w: psihfnshift(w - mu)
-
-    elif wavelet == 'hhhat':
-        # hilbert analytic function of hermitian hat; can be used with synsq
-        mu = wavopts.get('mu', 5)
-        psihfnshift = lambda w: 2 / np.sqrt(5) * pi**(-1/4) * (
-            w * (1 + w) * np.exp(-1/2 * w**2)) * (1 + np.sign(w))
-        psihfn = lambda w: psihfnshift(w - mu)
-
-    return psihfn
-
-
 # TODO default dt = 1/N? one sample per sec unlikely
 def wfilth(wavelet, N, a=1, dt=1, derivative=False, l1_norm=True):
     """Outputs the FFT of the wavelet of family and options in `wavelet`,
@@ -229,24 +126,17 @@ def wfilth(wavelet, N, a=1, dt=1, derivative=False, l1_norm=True):
         psih: wavelet sampling in frequency domain (for use in fft)
         dpsih: derivative of same wavelet, sampled in frequency domain (for fft)
         xi: associated fourier domain frequencies of the samples.
-
-    ---------------------------------------------------------------------------
-       Synchrosqueezing Toolbox
-       Authors: Eugene Brevdo (http://www.math.princeton.edu/~ebrevdo/)
-    ---------------------------------------------------------------------------
     """
     if not np.log2(N).is_integer():
         raise ValueError(f"`N` must be a power of 2 (got {N})")
 
-    xi = (2*pi/N) * np.hstack([np.arange(N//2 + 1),
-                               np.arange(-N//2 + 1, 0)])
-    psihfn = wfiltfn(wavelet)
+    psihfn = Wavelet(wavelet, N=N)
 
     # sample FT of wavelet at scale `a`, normalize energy
     # `* (-1)^[0,1,...]` = frequency-domain spectral reversal
     #                      to center time-domain wavelet
     norm = 1 if l1_norm else np.sqrt(a)
-    psih = psihfn(a * xi) * norm * (-1)**np.arange(N)
+    psih = psihfn(a) * norm * (-1)**np.arange(N)
 
     # Sometimes bump gives a NaN when it means 0
     if 'bump' in wavelet:
@@ -255,7 +145,7 @@ def wfilth(wavelet, N, a=1, dt=1, derivative=False, l1_norm=True):
     if derivative:
         # discretized freq-domain derivative of trigonometric interpolant of psih
         # http://wavelets.ens.fr/ENSEIGNEMENT/COURS/UCSB/farge_ann_rev_1992.pdf
-        dpsih = (1j * xi / dt) * psih  # `dt` relevant for phase transform
+        dpsih = (1j * psihfn.xi / dt) * psih  # `dt` relevant for phase transform
         return psih, dpsih
     else:
         return psih
@@ -284,7 +174,7 @@ def adm_ssq(wavelet):
         an empricial mode decomposition-like tool",
         Applied and Computational Harmonic Analysis 30(2):243-261, 2011.
     """
-    psihfn = wfiltfn(wavelet)
+    psihfn = Wavelet(wavelet)
     Css = quadgk(lambda w: np.conj(psihfn(w)) / w, 0., np.inf)[0]
     return Css
 
@@ -304,7 +194,7 @@ def adm_cwt(wavelet):
     elif wavelet == 'shannon':
         Cpsi = np.log(2)
     else:
-        psihfn = wfiltfn(wavelet)
+        psihfn = Wavelet(wavelet)
         Cpsi = quadgk(lambda w: np.conj(psihfn(w)) * psihfn(w) / w,
                       0., np.inf)[0]
     return Cpsi

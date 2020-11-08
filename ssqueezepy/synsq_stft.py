@@ -4,7 +4,7 @@
 #    (https://github.com/ebrevdo/synchrosqueezing/)
 
 import numpy as np
-from .utils import wfiltfn
+from .wavelets import Wavelet
 from .stft_transforms import stft_fwd, phase_stft
 from .ssqueezing import ssqueeze
 from quadpy import quad as quadgk
@@ -88,7 +88,7 @@ def synsq_stft_inv(Tx, fs, opts, Cs=None, freqband=None):
     Cs       = Cs       or np.ones((Tx.shape[1], 1))
     freqband = freqband or Tx.shape[0]
 
-    windowfunc = wfiltfn(opts['type'], opts, derivative=False)
+    windowfunc = Wavelet((opts['type'], opts))
     inf_lim = 1000  # quadpy can't handle np.inf limits
     C = quadgk(lambda x: windowfunc(x)**2, -inf_lim, inf_lim)
     if opts['type'] == 'bump':
