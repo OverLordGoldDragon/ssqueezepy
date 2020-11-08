@@ -15,7 +15,7 @@ Significant changes to some code structure are expected until v0.6.0, but whatev
 
 ## Installation
 
-`pip install git+https://github.com/OverLordGoldDragon/ssqueezepy`, for now; PyPi-available after 0.5.0.
+`pip install git+https://github.com/OverLordGoldDragon/ssqueezepy` or clone repository; PyPi-available after 0.5.0.
 
 ## Differences w.r.t. original
 
