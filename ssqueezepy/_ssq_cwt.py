@@ -65,7 +65,7 @@ def ssq_cwt(x, wavelet='morlet', scales='log', t=None, freqscale=None,
             raise ValueError("`squeezing` must be one of: full, measure "
                              "(got %s)" % squeezing)
         if t is None:
-            fs = fs or 1.  # TODO change default to 1/len(x)?
+            fs = fs or len(x)  # if None, assume t=[0, ..., 1]
             t = np.linspace(0., len(x) / fs, len(x))
         elif not np.mean(np.abs(np.diff(t, 2, axis=0))) < 1e-7:  # float32 thresh
             raise Exception("Time vector `t` must be uniformly sampled.")

@@ -1,77 +1,110 @@
+"""Convenience visual methods"""
 import numpy as np
 import matplotlib.pyplot as plt
 
 
-def imshow(data, norm=None, complex=None, abs=0, show=1, w=1, h=1,
-           ridge=0, yticks=None, **kw):
+def imshow(data, title=None, show=1, cmap=None, norm=None, complex=None, abs=0,
+           w=None, h=None, ridge=0, ticks=1, yticks=None, aspect='auto', **kw):
     kw['interpolation'] = kw.get('interpolation', 'none')
     if norm is None:
         mx = np.max(np.abs(data))
-        vmin, vmax = -mx, mx
+        vmin, vmax = ((-mx, mx) if not abs else
+                      (0, mx))
     else:
         vmin, vmax = norm
+    if cmap is None:
+        cmap = 'bone' if abs else 'bwr'
+    _kw = dict(vmin=vmin, vmax=vmax, cmap=cmap, aspect=aspect, **kw)
 
     if abs:
-        kw['cmap'] = kw.get('cmap', 'bone')
-        plt.imshow(np.abs(data), vmin=0, vmax=vmax, **kw)
+        plt.imshow(np.abs(data), **_kw)
     else:
-        kw['cmap'] = kw.get('cmap', 'bwr')
         if (complex is None and np.sum(np.abs(np.imag(data))) < 1e-8) or (
                 complex is False):
-            plt.imshow(np.real(data), vmin=vmin, vmax=vmax, **kw)
+            plt.imshow(data.real, **_kw)
         else:
             fig, axes = plt.subplots(1, 2)
-            axes[0].imshow(data.real, vmin=vmin, vmax=vmax, **kw)
-            axes[1].imshow(data.imag, vmin=vmin, vmax=vmax, **kw)
+            axes[0].imshow(data.real, **_kw)
+            axes[0].imshow(data.imag, **_kw)
             plt.subplots_adjust(left=0, right=1, bottom=0, top=1,
                                 wspace=0, hspace=0)
-    plt.gcf().set_size_inches(14 * w, 8 * h)
+    if w or h:
+        plt.gcf().set_size_inches(14 * (w or 1), 8 * (h or 1))
 
     if ridge:
         data_mx = np.where(np.abs(data) == np.abs(data).max(axis=0))
         plt.scatter(data_mx[1], data_mx[0], color='r', s=4)
+    if not ticks:
+        plt.xticks([])
+        plt.yticks([])
     if yticks is not None:
-        plt.gca().set_yticklabels(yticks)
+        idxs = np.linspace(0, len(yticks) - 1, 8).astype('int32')
+        yt = ["%.2f" % h for h in yticks[idxs]]
+        plt.yticks(idxs, yt)
+    _maybe_title(title)
     if show:
         plt.show()
 
 
-def plot(x, y=None, size=0, show=False, ax_equal=False, complex=0, **kw):
+def plot(x, y=None, title=None, show=0, ax_equal=False, complex=0,
+         w=None, h=None, **kw):
     if y is None:
-        if complex:
-            plt.plot(x.real, **kw)
-            plt.plot(x.imag, **kw)
-        else:
-            plt.plot(x, **kw)
+        y = x
+        x = np.arange(len(x))
+    if complex:
+        plt.plot(x, y.real, **kw)
+        plt.plot(x, y.imag, **kw)
     else:
-        if complex:
-            plt.plot(x, y.real, **kw)
-            plt.plot(x, y.imag, **kw)
-        else:
-            plt.plot(x, y.real, **kw)
-    _scale_plot(plt.gcf(), plt.gca(), size=size, show=show, ax_equal=ax_equal)
+        plt.plot(x, y, **kw)
+    _maybe_title(title)
+    _scale_plot(plt.gcf(), plt.gca(), show=show, ax_equal=ax_equal, w=w, h=h)
 
 
-def scat(x, y=None, size=0, show=False, ax_equal=False, s=18, **kw):
+def scat(x, y=None, title=None, show=0, ax_equal=False, s=18, w=None, h=None,
+         **kw):
     if y is None:
-        plt.scatter(np.arange(len(x)), x, s=s, **kw)
-    else:
-        plt.scatter(x, y, s=s, **kw)
-    _scale_plot(plt.gcf(), plt.gca(), size=size, show=show, ax_equal=ax_equal)
+        y = x
+        x = np.arange(len(x))
+    plt.scatter(x, y, s=s, **kw)
+    _maybe_title(title)
+    _scale_plot(plt.gcf(), plt.gca(), show=show, ax_equal=ax_equal, w=w, h=h)
 
 
-def _scale_plot(fig, ax, size=True, show=False, ax_equal=False):
+def hist(x, bins=500, title=None, show=0, stats=0):
+    x = np.asarray(x)
+    _ = plt.hist(x.ravel(), bins=bins)
+    _maybe_title(title)
+    if show:
+        plt.show()
+    if stats:
+        mu, std, mn, mx = (x.mean(), x.std(), x.min(), x.max())
+        print("(mean, std, min, max) = ({}, {}, {}, {})".format(
+            *_fmt(mu, std, mn, mx)))
+        return mu, std, mn, mx
+
+
+def _fmt(*nums):
+    return [(("%.3e" % n) if (abs(n) > 1e3 or abs(n) < 1e-3) else
+             ("%.3f" % n)) for n in nums]
+
+
+def _maybe_title(title):
+    if title is not None:
+        plt.title(str(title), loc='left', weight='bold', fontsize=15)
+
+
+def _scale_plot(fig, ax, show=False, ax_equal=False, w=None, h=None):
     xmin, xmax = ax.get_xlim()
     rng = xmax - xmin
     ax.set_xlim(xmin + .018 * rng, xmax - .018 * rng)
-    if size:
-        fig.set_size_inches(15, 7)
+    if w or h:
+        fig.set_size_inches(14*(w or 1), 8*(h or 1))
     if ax_equal:
         yabsmax = max(np.abs([*ax.get_ylim()]))
         mx = max(yabsmax, max(np.abs([xmin, xmax])))
         ax.set_xlim(-mx, mx)
         ax.set_ylim(-mx, mx)
-        fig.set_size_inches(8, 8)
+        fig.set_size_inches(8*(w or 1), 8*(h or 1))
     if show:
         plt.show()
 
