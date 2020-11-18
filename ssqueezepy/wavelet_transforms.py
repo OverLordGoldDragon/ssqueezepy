@@ -11,7 +11,7 @@ EPS = np.finfo(np.float64).eps  # machine epsilon for float64  # TODO float32?
 PI = np.pi
 
 
-def synsq_squeeze(Wx, w, scales, t, transform='cwt', freqscale='log', nv=None,
+def synsq_squeeze(Wx, w, scales, t, transform='cwt', ssq_freqs='log', nv=None,
                   squeezing='full'):
     """Calculates the synchrosqueezed CWT or STFT of `x`. Used internally by
     `synsq_cwt_fwd` and `synsq_stft_fwd`.
@@ -23,7 +23,7 @@ def synsq_squeeze(Wx, w, scales, t, transform='cwt', freqscale='log', nv=None,
         nv: int. Number of voices (CWT only).
         opts: dict. Options:
             'transform': ('CWT', 'STFT'). Underlying time-frequency transform.
-            'freqscale': ('log', 'linear'). Frequency bins/divisions.
+            'ssq_freqs': ('log', 'linear'). Frequency bins/divisions.
             'squeezing': ('full', 'measure'). Latter corresponds to approach
                          in [3], which is not invertible but has better
                          robustness properties in some cases; not recommended
@@ -56,7 +56,7 @@ def synsq_squeeze(Wx, w, scales, t, transform='cwt', freqscale='log', nv=None,
         Instantaneous Frequency from Nonuniform Samples",
         SIAM Journal on Mathematical Analysis, 43(5):2078-2095, 2011.
     """
-    def _squeeze(w, Wx, fs, transform, freqscale):
+    def _squeeze(w, Wx, fs, transform, ssq_freqs):
         # incorporate threshold by zeroing out Inf values, so they get ignored
         Wx = replace_at_inf_or_nan(Wx, ref=w, replacement=0)
         # reassign indeterminate (ignored per above anyway) to avoid warnings
@@ -65,7 +65,7 @@ def synsq_squeeze(Wx, w, scales, t, transform='cwt', freqscale='log', nv=None,
         # do squeezing by finding which frequency bin each phase transform point
         # w[a, b] lands in (i.e. to which f in fs each w[a, b] is closest to)
         # equivalent to argmin(abs(w[a, b] - fs)) for every a, b
-        k = (find_closest(w, fs) if freqscale != 'log' else
+        k = (find_closest(w, fs) if ssq_freqs != 'log' else
              find_closest(np.log2(w), np.log2(fs)))
 
         dfs = np.diff(fs, axis=0)
@@ -86,7 +86,7 @@ def synsq_squeeze(Wx, w, scales, t, transform='cwt', freqscale='log', nv=None,
             # Tx *= (fs[1] - fs[0])  # ??? and this; shouldn't it be log2 if log?
         return Tx
 
-    def _compute_associated_frequencies(t, transform, freqscale):
+    def _compute_associated_frequencies(t, transform, ssq_freqs):
         dT = t[-1] - t[0]
         dt = t[1]  - t[0]
         # normalized frequencies to map discrete-domain to physical:
@@ -100,7 +100,7 @@ def synsq_squeeze(Wx, w, scales, t, transform='cwt', freqscale='log', nv=None,
         na, N = Wx.shape
 
         # frequency divisions `w_l` to search over in Synchrosqueezing
-        if freqscale == 'log':
+        if ssq_freqs == 'log':
             fs = fm * np.power(fM / fm, np.arange(na) / (na - 1))
         else:
             if transform == 'cwt':
@@ -111,26 +111,26 @@ def synsq_squeeze(Wx, w, scales, t, transform='cwt', freqscale='log', nv=None,
                 fs = fs[:N // 2]
         return fs
 
-    def _process_args(w, transform, freqscale, squeezing):
+    def _process_args(w, transform, ssq_freqs, squeezing):
         if w.min() < 0:
             raise ValueError("found negatives in `w`")
         if transform not in ('cwt', 'stft'):
             raise ValueError("`transform` must be one of: cwt, stft "
                              "(got %s)" % squeezing)
-        if freqscale is None:
-            freqscale = 'log' if transform == 'cwt' else 'linear'
+        if ssq_freqs is None:
+            ssq_freqs = 'log' if transform == 'cwt' else 'linear'
         if squeezing not in ('full', 'measure'):
             raise ValueError("`squeezing` must be one of: full, measure "
                              "(got %s)" % squeezing)
-        return freqscale
+        return ssq_freqs
 
-    freqscale = _process_args(w, transform, freqscale, squeezing)
-    fs = _compute_associated_frequencies(t, transform, freqscale)
+    ssq_freqs = _process_args(w, transform, ssq_freqs, squeezing)
+    fs = _compute_associated_frequencies(t, transform, ssq_freqs)
 
     if squeezing == 'measure':  # from reference [3]
         Wx = np.ones(Wx.shape) / len(Wx)
 
-    Tx = _squeeze(w, Wx, fs, transform, freqscale)
+    Tx = _squeeze(w, Wx, fs, transform, ssq_freqs)
     return Tx, fs
 
 

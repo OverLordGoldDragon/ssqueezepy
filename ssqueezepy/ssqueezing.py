@@ -1,5 +1,5 @@
 import numpy as np
-from .algos import find_closest, indexed_sum, replace_at_inf_or_nan
+from .algos import find_closest, indexed_sum, replace_at_inf
 from .utils import process_scales
 
 
@@ -7,72 +7,82 @@ EPS = np.finfo(np.float64).eps  # machine epsilon for float64  # TODO float32?
 pi = np.pi
 
 
-def ssqueeze(Wx, w, scales, t, freqscale=None, transform='cwt', squeezing='full'):
+def ssqueeze(Wx, w, scales, t, ssq_freqs=None, transform='cwt', squeezing='full'):
     """Calculates the synchrosqueezed CWT or STFT of `x`. Used internally by
     `synsq_cwt` and `synsq_stft_fwd`.
 
     # Arguments:
-        Wx or Sx: np.ndarray. CWT or STFT of `x`.
-        w: np.ndarray. Phase transform at same locations in T-F plane.
-        scales: CWT scales. np.ndarray or ('log', 'linear')
-                !!! beware of scales='linear'; bad current default scheme for
-                capturing low frequencies for sequences longer than 2048.
-                Recommended scales='log' with freqscale='linear' instead.
-        t: np.ndarray. Time vector.
-        freqscale: synchrosqueezing plane scales. np.ndarray or ('log', 'linear')
-        opts: dict. Options:
-            'transform': ('CWT', 'STFT'). Underlying time-frequency transform.
-            'squeezing': ('full', 'measure'). Latter corresponds to approach
-                         in [3], which is not invertible but has better
-                         robustness properties in some cases; not recommended
-                         unless you know what you're doing.
+        Wx or Sx: np.ndarray
+            CWT or STFT of `x`.
+        w: np.ndarray
+            Phase transform of `Wx` or `Sx`.
+        scales: str['log', 'linear'] / np.ndarray
+            CWT scales. Ignored if transform='stft'.
+                - 'log': exponentially distributed scales, as pow of 2:
+                         `[2^(1/nv), 2^(2/nv), ...]`
+                - 'linear': linearly distributed scales.
+                  !!! EXPERIMENTAL; default scheme for len(x)>2048 performs
+                  poorly (and there may not be a good non-piecewise scheme).
+        t: np.ndarray
+            Vector of times at which samples are taken (eg np.linspace(0, 1, n)).
+            Must be uniformly-spaced.
+        ssq_freqs: str['log', 'linear'] / np.ndarray / None
+            Frequencies to synchrosqueeze CWT scales onto. Scale-frequency
+            mapping is only approximate and wavelet-dependent.
+            If None, will infer from and set to same distribution as `scales`.
+        transform: str['cwt', 'stft']
+            Whether `Wx` is from CWT or STFT (`Sx`).
+        squeezing: str['full', 'measure']
+                - 'full' = standard synchrosqueezing using `Wx`.
+                - 'measure' = as in [3], setting `Wx=ones()`, which is not
+                invertible but has better robustness properties in some cases.
+                Not recommended unless you know what you're doing.
 
     # Returns:
-        Tx: synchrosqueezed output.
-        fs: associated frequencies.
-
-    Note the multiplicative correction term x in `synsq_cwt_squeeze_mex`,
-    required due to the fact that the squeezing integral of Eq. (2.7), in,
-    [1], is taken w.r.t. dlog(a). This correction term needs to be included
-    as a factor of Eq. (2.3), which we implement here.
-
-    A more detailed explanation is available in Sec. III of [2].
-    Note the constant multiplier log(2)/nv has been moved to the
-    inverse of the normalization constant, as calculated in `adm_ssq`.
+        Tx: np.ndarray [nf x n]
+            Synchrosqueezed CWT of `x`. (rows=~frequencies, cols=timeshifts)
+            (nf = len(ssq_freqs); n = len(x))
+            `nf = na` by default, where `na = len(scales)`.
+        fs: np.ndarray [nf]
+            Frequencies associated with rows of `Tx`.
 
     # References:
-        1. I. Daubechies, J. Lu, H.T. Wu, "Synchrosqueezed Wavelet Transforms:
-        an empricial mode decomposition-like tool",
-        Applied and Computational Harmonic Analysis, 30(2):243-261, 2011.
+        1. Synchrosqueezed Wavelet Transforms: a Tool for Empirical Mode
+        Decomposition. I. Daubechies, J. Lu, H.T. Wu.
+        https://arxiv.org/pdf/0912.2437.pdf
 
-        2. G. Thakur, E. Brevdo, N.-S. Fučkar, and H.-T. Wu,
-        "The Synchrosqueezing algorithm for time-varying spectral analysis:
-        robustness properties and new paleoclimate applications",
-        Signal Processing, 93:1079-1094, 2013.
+        2. The Synchrosqueezing algorithm for time-varying spectral analysis:
+        robustness properties and new paleoclimate applications.
+        G. Thakur, E. Brevdo, N.-S. Fučkar, and H.-T. Wu.
+        https://arxiv.org/abs/1105.0010
 
-        3. G. Thakur and H.-T. Wu,  "Synchrosqueezing-based Recovery of
-        Instantaneous Frequency from Nonuniform Samples",
-        SIAM Journal on Mathematical Analysis, 43(5):2078-2095, 2011.
+        3. Synchrosqueezing-based Recovery of Instantaneous Frequency from
+        Nonuniform Samples. G. Thakur and H.-T. Wu.
+        https://arxiv.org/abs/1006.2533
+
+        4. Synchrosqueezing Toolbox, (C) 2014--present. E. Brevdo, G. Thakur.
+        https://github.com/ebrevdo/synchrosqueezing/blob/master/synchrosqueezing/
+        synsq_squeeze.m
     """
-    def _ssqueeze(w, Wx, fs, transform, freqscale):
+    def _ssqueeze(w, Wx, fs, transform, ssq_freqs):
         # incorporate threshold by zeroing out Inf values, so they get ignored
-        Wx = replace_at_inf_or_nan(Wx, ref=w, replacement=0)
+        Wx = replace_at_inf(Wx, ref=w, replacement=0)
         # reassign indeterminate (ignored per above anyway) to avoid warnings
-        w  = replace_at_inf_or_nan(w, replacement=fs[-1])
+        w  = replace_at_inf(w, replacement=fs[-1])
 
         # do squeezing by finding which frequency bin each phase transform point
         # w[a, b] lands in (i.e. to which f in fs each w[a, b] is closest to)
         # equivalent to argmin(abs(w[a, b] - fs)) for every a, b
-        k = (find_closest(w, fs) if freqscale != 'log' else
+        k = (find_closest(w, fs) if ssq_freqs != 'log' else
              find_closest(np.log2(w), np.log2(fs)))
 
         # Tx[k[i, j], j] += Wx[i, j] * norm
         if transform == 'cwt':
             # Eq 14 [2]; Eq 2.3 [1]
-            if freqscale == 'log':
+            if ssq_freqs == 'log':
                 # ln(2)/nv == diff(ln(scales))[0] == ln(2**(1/nv))
                 Tx = indexed_sum(Wx / scales**(1/2) * np.log(2) / nv, k)
-            elif freqscale == 'linear':
+            elif ssq_freqs == 'linear':
                 # omit /dw since it's cancelled by *dw in inversion anyway
                 da = (scales[1] - scales[0])
                 Tx = indexed_sum(Wx / scales**(3/2) * da, k)
@@ -80,7 +90,7 @@ def ssqueeze(Wx, w, scales, t, freqscale=None, transform='cwt', squeezing='full'
             Tx = indexed_sum(Wx * (fs[1] - fs[0]), k)  # TODO validate
         return Tx
 
-    def _compute_associated_frequencies(t, na, N, transform, freqscale):
+    def _compute_associated_frequencies(t, na, N, transform, ssq_freqs):
         dT = t[-1] - t[0]
         dt = t[1]  - t[0]
         # normalized frequencies to map discrete-domain to physical:
@@ -91,7 +101,7 @@ def ssqueeze(Wx, w, scales, t, freqscale=None, transform='cwt', squeezing='full'
         fm = 1 / dT
 
         # frequency divisions `w_l` to search over in Synchrosqueezing
-        if freqscale == 'log':
+        if ssq_freqs == 'log':
             fs = fm * np.power(fM / fm, np.arange(na) / (na - 1))  # [fm,...,fM]
         else:
             if transform == 'cwt':
@@ -116,49 +126,74 @@ def ssqueeze(Wx, w, scales, t, freqscale=None, transform='cwt', squeezing='full'
     _process_args(w, transform, squeezing)
 
     na, N = Wx.shape
-    scales, _freqscale, _, nv = process_scales(scales, N, get_params=True)
-    if freqscale is None:
+    scales, _ssq_freqs, _, nv = process_scales(scales, N, get_params=True)
+    if ssq_freqs is None:
         # default to same scheme used by `scales`
         # !!! scales='linear' not recommended for len(x)>2048; see docstr
-        freqscale = _freqscale
-    fs = _compute_associated_frequencies(t, na, N, transform, freqscale)
+        ssq_freqs = _ssq_freqs
+    fs = _compute_associated_frequencies(t, na, N, transform, ssq_freqs)
 
     if squeezing == 'measure':  # from reference [3]
         # !!! not recommended unless having specific reason;
         # no reconstruction; not validated
         Wx = np.ones(Wx.shape) / len(Wx)
 
-    Tx = _ssqueeze(w, Wx, fs, transform, freqscale)
+    Tx = _ssqueeze(w, Wx, fs, transform, ssq_freqs)
     return Tx, fs
 
 
 def phase_cwt(Wx, dWx, difftype='direct', gamma=None):
     """Calculate the phase transform at each (scale, time) pair:
-        w[a, b] = Im((1/2pi) * d/db (Wx[a,b]) / Wx[a,b])
-    Uses direct differentiation by calculating dWx/db in frequency domain
-    (the secondary output of `cwt`, see `cwt`)
-
-    This is the analytic implementation of Eq. (7) of [1].
+          w[a, b] = Im((1/2pi) * d/db (Wx[a,b]) / Wx[a,b])
+    See above Eq 20.3 in [1], or Eq 13 in [2].
 
     # Arguments:
-        Wx: np.ndarray. wavelet transform of `x` (see `cwt`).
-        dWx: np.ndarray. Samples of time derivative of wavelet transform of `x`
-             (see `cwt`).
-        opts. dict. Options:
-            'gamma': wavelet threshold (default: sqrt(machine epsilon))
+        Wx: np.ndarray
+            CWT of `x` (see `cwt`).
+        dWx: np.ndarray.
+            Time-derivative of `Wx`, computed via frequency-domain differentiation
+            (effectively, derivative of trigonometric interpolation; see [4]).
+        difftype: str['direct', 'phase']
+            Method by which to differentiate Wx (default='direct') to obtain
+            instantaneous frequencies:
+                    w(a,b) = Im( (1/2pi) * (1/Wx(a,b)) * d/db[Wx(a,b)] )
+
+                - 'direct': using `dWx` (see `dWx`).
+                - 'phase': differentiate by taking forward finite-difference of
+                unwrapped angle of `Wx` (see `phase_cwt`).
+        gamma: float
+            CWT phase threshold. Sets `w=inf` for small values of `Wx` where
+            phase computation is unstable and inaccurate (like in DFT):
+                w[abs(Wx) < beta] = inf
+            This is used to zero `Wx` where `w=0` in computing `Tx` to ignore
+            contributions from points with indeterminate phase.
+            Default = sqrt(machine epsilon) = np.sqrt(np.finfo(np.float64).eps)
 
     # Returns:
-        w: phase transform, w.shape == Wx.shape.
+        w: np.ndarray
+            Phase transform for each element of `Wx`. w.shape == Wx.shape.
 
     # References:
-        1. G. Thakur, E. Brevdo, N.-S. Fučkar, and H.-T. Wu,
-        "The Synchrosqueezing algorithm for time-varying spectral analysis:
-        robustness properties and new paleoclimate applications,"
-        Signal Processing, 93:1079-1094, 2013.
+        1. A Nonlinear squeezing of the CWT Based on Auditory Nerve Models.
+        I. Daubechies, S. Maes.
+        https://services.math.duke.edu/%7Eingrid/publications/DM96.pdf
 
-        2. I. Daubechies, J. Lu, H.T. Wu, "Synchrosqueezed Wavelet Transforms:
-        an empricial mode decomposition-like tool",
-        Applied and Computational Harmonic Analysis 30(2):243-261, 2011.
+        2. The Synchrosqueezing algorithm for time-varying spectral analysis:
+        robustness properties and new paleoclimate applications.
+        G. Thakur, E. Brevdo, N.-S. Fučkar, and H.-T. Wu.
+        https://arxiv.org/abs/1105.0010
+
+        3. Synchrosqueezed Wavelet Transforms: a Tool for Empirical Mode
+        Decomposition. I. Daubechies, J. Lu, H.T. Wu.
+        https://arxiv.org/pdf/0912.2437.pdf
+
+        4. The Exponential Accuracy of Fourier and Chebyshev Differencing Methods.
+        E. Tadmor.
+        http://webhome.auburn.edu/~jzl0097/teaching/math_8970/Tadmor_86.pdf
+
+        5. Synchrosqueezing Toolbox, (C) 2014--present. E. Brevdo, G. Thakur.
+        https://github.com/ebrevdo/synchrosqueezing/blob/master/synchrosqueezing/
+        phase_cwt.m
     """
     # Calculate phase transform for each `ai`, normalize by 2pi
     if difftype == 'phase':
@@ -178,25 +213,39 @@ def phase_cwt(Wx, dWx, difftype='direct', gamma=None):
 def phase_cwt_num(Wx, dt, difforder=4, gamma=None):
     """Calculate the phase transform at each (scale, time) pair:
         w[a, b] = Im((1/2pi) * d/db (Wx[a,b]) / Wx[a,b])
-    Uses numerical differentiation (1st, 2nd, or 4th order).
-
-    This is a numerical differentiation implementation of Eq. (7) of [1].
+    Uses numerical differentiation (1st, 2nd, or 4th order). See above Eq 20.3
+    in [1], or Eq 13 in [2].
 
     # Arguments:
         Wx: np.ndarray. Wavelet transform of `x` (see `cwt`).
         dt: int. Sampling period (e.g. t[1] - t[0]).
-        opts. dict. Options:
-            'dorder': int (1, 2, 4). Differences order. (default = 4)
-            'gamma': float. Wavelet threshold. (default = sqrt(machine epsilon))
+        difforder: int[1, 2, 4]
+            Order of differentiation (default=4).
+        gamma: float
+            CWT phase threshold. Sets `w=inf` for small values of `Wx` where
+            phase computation is unstable and inaccurate (like in DFT):
+                w[abs(Wx) < beta] = inf
+            This is used to zero `Wx` where `w=0` in computing `Tx` to ignore
+            contributions from points with indeterminate phase.
+            Default = sqrt(machine epsilon) = np.sqrt(np.finfo(np.float64).eps)
 
     # Returns:
-        w: demodulated FM-estimates, w.shape == Wx.shape.
+        w: np.ndarray
+            Phase transform via demodulated FM-estimates. w.shape == Wx.shape.
 
     # References:
-        1. G. Thakur, E. Brevdo, N.-S. Fučkar, and H.-T. Wu,
-        "The Synchrosqueezing algorithm for time-varying spectral analysis:
-        robustness properties and new paleoclimate applications,"
-        Signal Processing, 93:1079-1094, 2013.
+        1. A Nonlinear squeezing of the CWT Based on Auditory Nerve Models.
+        I. Daubechies, S. Maes.
+        https://services.math.duke.edu/%7Eingrid/publications/DM96.pdf
+
+        2. The Synchrosqueezing algorithm for time-varying spectral analysis:
+        robustness properties and new paleoclimate applications.
+        G. Thakur, E. Brevdo, N.-S. Fučkar, and H.-T. Wu.
+        https://arxiv.org/abs/1105.0010
+
+        2. Synchrosqueezing Toolbox, (C) 2014--present. E. Brevdo, G. Thakur.
+        https://github.com/ebrevdo/synchrosqueezing/blob/master/synchrosqueezing/
+        phase_cwt_num.m
     """
     # unreliable; bad results on high freq pure tones
     def _differentiate(Wx, dt):
@@ -229,7 +278,7 @@ def phase_cwt_num(Wx, dt, difforder=4, gamma=None):
                          "(got %s)" % difforder)
 
     w = _differentiate(Wx, dt)
-    w[np.abs(Wx) < gamma] = np.nan
+    w[np.abs(Wx) < gamma] = np.inf
 
     # calculate inst. freq for each scale
     # 2*pi norm per discretized inverse FT rather than inverse DFT

@@ -2,4 +2,3 @@ numpy
 numba
 matplotlib
 quadpy
-termcolor

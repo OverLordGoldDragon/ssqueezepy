@@ -1,34 +1,45 @@
-# Ported from the Synchrosqueezing Toolbox, authored by
-# Eugine Brevdo, Gaurav Thakur
-#    (http://www.math.princeton.edu/~ebrevdo/)
-#    (https://github.com/ebrevdo/synchrosqueezing/)
-
 import numpy as np
 import numpy.matlib
-from termcolor import colored
+import logging
 from quadpy import quad as quadgk
 from .algos import replace_at_inf_or_nan
 from .wavelets import Wavelet
 
 
-WARN = colored('WARNING:', 'red')
-NOTE = colored('NOTE:', 'blue')
+logging.basicConfig(format='')
+WARN = lambda msg: logging.warning("WARNING: %s" % msg)
+NOTE = lambda msg: logging.info("NOTE: %s" % msg)
 pi = np.pi
 
 
+
 def mad(data, axis=None):
+    """Mean absolute deviation"""
     return np.mean(np.abs(data - np.mean(data, axis)), axis)
 
 
 def est_riskshrink_thresh(Wx, nv):
-    """Estimate the RiskShrink hard thresholding level.
+    """Estimate the RiskShrink hard thresholding level, based on [1].
 
     # Arguments:
-        Wx:  np.ndarray. Wavelet transform of a signal.
-        opt: dict. Options structure used for forward wavelet transform.
+        Wx: np.ndarray
+            CWT of a signal (see `cwt`).
+        nv: int
+            Number of voices used in CWT (see `cwt`).
 
     # Returns:
-        gamma: float. The RiskShrink hard thresholding estimate.
+        gamma: float
+            The RiskShrink hard thresholding estimate.
+
+    # References:
+        1. The Synchrosqueezing algorithm for time-varying spectral analysis:
+        robustness properties and new paleoclimate applications.
+        G. Thakur, E. Brevdo, N.-S. Fučkar, and H.-T. Wu.
+        https://arxiv.org/abs/1105.0010
+
+        2. Synchrosqueezing Toolbox, (C) 2014--present. E. Brevdo, G. Thakur.
+        https://github.com/ebrevdo/synchrosqueezing/blob/master/synchrosqueezing/
+        est_riskshrink_thresh.m
     """
     N = Wx.shape[1]
     Wx_fine = np.abs(Wx[:nv])
@@ -41,12 +52,16 @@ def p2up(n):
     the original `n` locations.
 
     # Arguments:
-        n: int. Non-dyadic integer.
+        n: int
+            Length of original (unpadded) signal.
 
     # Returns:
-        up: next power of 2
-        n1: length on left
-        n2: length on right
+        n_up: int
+            Next power of 2.
+        n1: int
+            Left  pad length.
+        n2: int
+            Right pad length.
     """
     eps = np.finfo(np.float64).eps  # machine epsilon for float64
     up = 2 ** (1 + np.round(np.log2(n + eps)))
@@ -62,15 +77,33 @@ def padsignal(x, padtype='symmetric', padlength=None):
 
     # Arguments:
         x: np.ndarray. Original signal.
-        padtype: str ('symmetric', 'replicate').
-        padlength: int. Number of samples to pad on each side. Default is
-                   nearest power of 2.
+        padtype: str
+            Pad scheme to apply on input. One of:
+                ('zero', 'symmetric', 'replicate').
+            'zero' is most naive, while 'symmetric' (default) partly mitigates
+            boundary effects. See [1] & [2].
+        padlength: int / None
+            Number of samples to pad on each side. Default is for padded signal
+            to have total length that's next power of 2.
 
     # Returns:
-        x: padded signal.
-        n_up: next power of 2.
-        n1: length on left.
-        n2: length on right.
+        xpad: np.ndarray
+            Padded signal.
+        n_up: int
+            Next power of 2.
+        n1: int
+            Left  pad length.
+        n2: int
+            Right pad length.
+
+    # References:
+        1. Signal extension modes. PyWavelets contributors
+        https://pywavelets.readthedocs.io/en/latest/ref/
+        signal-extension-modes.html
+
+        2. Wavelet Bases and Lifting Wavelets. H. Xiong.
+        http://min.sjtu.edu.cn/files/wavelet/
+        6-lifting%20wavelet%20and%20filterbank.pdf
     """
     padtypes = ('symmetric', 'replicate', 'zero')
     if padtype not in padtypes:
@@ -104,28 +137,45 @@ def padsignal(x, padtype='symmetric', padlength=None):
 
 # TODO default dt = 1/N? one sample per sec unlikely
 def wfilth(wavelet, N, a=1, dt=1, derivative=False, l1_norm=True):
-    """Outputs the FFT of the wavelet of family and options in `wavelet`,
-    of length N at scale a.
+    """Computes the discretized (sampled) wavelets in Fourier frequency domain.
+    Used in CWT for discretized convolution theorem via FFT.
 
-    Note that the output is made so that the inverse fft of the
-    result is zero-centered in time.  This is important for
-    convolving with the derivative(dpsih).  To get the correct
-    output, perform an ifftshift.  That is,
-        psi   = ifftshift(ifft(psih))
-        xfilt = ifftshift(ifft(fft(x) * psih))
+    # Arguments:
+        wavelet: str / tuple[str, dict] / `wavelets.Wavelet`
+            Wavelet sampled in Fourier frequency domain.
+                - str: name of builtin wavelet. `ssqueezepy.wavs()`
+                - tuple[str, dict]: name of builtin wavelet and its configs.
+                  E.g. `('morlet', {'mu': 5})`.
+                - `wavelets.Wavelet` instance. Can use for custom wavelet.
+        N: int
+            Number of samples to calculate.
+        a: float
+            Wavelet scale parameter (default=1). Higher -> lower frequency.
+        dt: float
+            Sampling period (of input signal `x`), used to scale `dpsih`.
+        derivative: bool (default False)
+            Whether to compute and return derivative of same wavelet.
+            Computed via frequency-domain differentiation (effectively,
+            derivative of trigonometric interpolation; see [1]).
+        l1_norm: bool (default True)
+            Whether to L1-normalize the wvelet, which yields a CWT with more
+            representative distribution of energies and component amplitudes
+            than L2 (see [2]). If False (default True), uses L2 norm.
 
-    Inputs:
-        type: wavelet type (see help wfiltfn)
-        N: number of samples to calculate
-        a: wavelet scale parameter (default = 1)
-        opt: wavelet options (see help wfiltfn)
-          opt.dt: delta t (sampling period, default = 1)
-                  important for properly scaling dpsih
+    # Returns:
+        psih: np.ndarray
+            Discretized (sampled) wavelets in Fourier frequency domain.
+        dpsih: np.ndarray
+            Derivative of same wavelet, used in CWT for computing `dWx`.
 
-    Outputs:
-        psih: wavelet sampling in frequency domain (for use in fft)
-        dpsih: derivative of same wavelet, sampled in frequency domain (for fft)
-        xi: associated fourier domain frequencies of the samples.
+    # References:
+        1. The Exponential Accuracy of Fourier and Chebyshev Differencing Methods.
+        E. Tadmor.
+        http://webhome.auburn.edu/~jzl0097/teaching/math_8970/Tadmor_86.pdf
+
+        2. Rectification of the Bias in the Wavelet Power Spectrum.
+        Y. Liu, X. S. Liang, R. H. Weisberg.
+        http://ocg6.marine.usf.edu/~liu/Papers/Liu_etal_2007_JAOT_wavelet.pdf
     """
     if not np.log2(N).is_integer():
         raise ValueError(f"`N` must be a power of 2 (got {N})")
@@ -143,8 +193,6 @@ def wfilth(wavelet, N, a=1, dt=1, derivative=False, l1_norm=True):
         psih = replace_at_inf_or_nan(psih, 0)
 
     if derivative:
-        # discretized freq-domain derivative of trigonometric interpolant of psih
-        # http://wavelets.ens.fr/ENSEIGNEMENT/COURS/UCSB/farge_ann_rev_1992.pdf
         dpsih = (1j * psihfn.xi / dt) * psih  # `dt` relevant for phase transform
         return psih, dpsih
     else:
@@ -152,27 +200,20 @@ def wfilth(wavelet, N, a=1, dt=1, derivative=False, l1_norm=True):
 
 
 def adm_ssq(wavelet):
-    """Calculate the synchrosqueezing admissibility constant, the term
-    R_\psi in Eq. 3 of [1].
+    """Calculates the synchrosqueezing admissibility constant, the term
+    R_psi in Eq 15 of [1] (also see Eq 2.5 of [2]). Uses numerical intergration.
 
-    Uses numerical intergration.
-
-    # Arguments:
-        wavelet: str. See `wfiltfn`.
-        opts: dict. Options. See `wfiltfn`.
-
-    # Returns:
-        Css: integral(conj(wavelet_fn(w)) / w, w=0..inf)
+        integral(conj(psihfn(w)) / w, w=0..inf)
 
     # References:
-        1. G. Thakur, E. Brevdo, N.-S. Fučkar, and H.-T. Wu,
-        "The Synchrosqueezing algorithm for time-varying spectral analysis:
-        robustness properties and new paleoclimate applications",
-        Signal Processing, 93:1079-1094, 2013.
+        1. The Synchrosqueezing algorithm for time-varying spectral analysis:
+        robustness properties and new paleoclimate applications. G. Thakur,
+        E. Brevdo, N.-S. Fučkar, and H.-T. Wu.
+        https://arxiv.org/abs/1105.0010
 
-        2. I. Daubechies, J. Lu, H.T. Wu, "Synchrosqueezed Wavelet Transforms:
-        an empricial mode decomposition-like tool",
-        Applied and Computational Harmonic Analysis 30(2):243-261, 2011.
+        2. Synchrosqueezed Wavelet Transforms: a Tool for Empirical Mode
+        Decomposition. I. Daubechies, J. Lu, H.T. Wu.
+        https://arxiv.org/pdf/0912.2437.pdf
     """
     psihfn = Wavelet(wavelet)
     Css = quadgk(lambda w: np.conj(psihfn(w)) / w, 0., np.inf)[0]
@@ -180,10 +221,13 @@ def adm_ssq(wavelet):
 
 
 def adm_cwt(wavelet):
-    """Calculate cwt admissibility constant int(|f(w)|^2/w, w=0..inf) as
-    per Eq. (4.67) of [1].
+    """Calculates the cwt admissibility constant as per Eq. (4.67) of [1].
+    Uses numerical integration.
 
-    1. Mallat, S., Wavelet Tour of Signal Processing 3rd ed.
+        integral(|psihfn(w)|^2/w, w=0..inf)
+
+    1. Wavelet Tour of Signal Processing, 3rd ed. S. Mallat.
+    https://www.di.ens.fr/~mallat/papiers/WaveletTourChap1-2-3.pdf
 	"""
     wavelet = wavelet if isinstance(wavelet, tuple) else (wavelet, {})
     wavelet, opts = wavelet
@@ -265,20 +309,20 @@ def process_scales(scales, len_x, nv=None, na=None, get_params=False):
 
         - Ensures, if array,  `scales` is 1D, or 2D with last dim == 1
         - Ensures, if string, `scales` is one of ('log', 'linear')
-        - If `get_params`, also returns (`freqscale`, `nv`, `na`)
-           - `freqscale`: inferred from `scales` if it's an array
+        - If `get_params`, also returns (`ssq_freqs`, `nv`, `na`)
+           - `ssq_freqs`: inferred from `scales` if it's an array
            - `nv`, `na`: computed newly only if not already passed
     """
-    def _infer_freqscale(scales):
+    def _infer_ssq_freqs(scales):
         th = 1e-15 if scales.dtype == np.float64 else 2e-7
         if np.mean(np.abs(np.diff(scales, 2, axis=0))) < th:
-            freqscale = 'linear'
+            ssq_freqs = 'linear'
         elif np.mean(np.abs(np.diff(np.log(scales), 2, axis=0))) < th:
-            freqscale = 'log'
+            ssq_freqs = 'log'
         else:
-            raise ValueError("could not infer `freqscale` from `scales`; "
+            raise ValueError("could not infer `ssq_freqs` from `scales`; "
                              "`scales` array must be linear or logarithmic.")
-        return freqscale
+        return ssq_freqs
 
     def _process_args(scales, nv, na):
         if isinstance(scales, str):
@@ -288,22 +332,22 @@ def process_scales(scales, len_x, nv=None, na=None, get_params=False):
             elif (na is None and nv is None):
                 raise ValueError("must pass one of `na`, `nv`, if `scales` "
                                  "isn't array")
-            freqscale = scales
+            ssq_freqs = scales
         elif isinstance(scales, np.ndarray):
             if scales.squeeze().ndim != 1:
                 raise ValueError("`scales`, if array, must be 1D "
                                  "(got shape %s)" % scales.shape)
 
-            freqscale = _infer_freqscale(scales)
+            ssq_freqs = _infer_ssq_freqs(scales)
             if na is not None:
                 print(WARN, "`na` is ignored if `scales` is an array")
             na = len(scales)
         else:
             raise TypeError("`scales` must be a string or Numpy array "
                             "(got %s)" % type(scales))
-        return freqscale, na
+        return ssq_freqs, na
 
-    freqscale, na = _process_args(scales, nv, na)
+    ssq_freqs, na = _process_args(scales, nv, na)
 
     # compute params
     n_up, *_ = p2up(len_x)
@@ -317,11 +361,11 @@ def process_scales(scales, len_x, nv=None, na=None, get_params=False):
 
     # make `scales` if passed string
     if isinstance(scales, str):
-        if freqscale == 'log':
+        if ssq_freqs == 'log':
             scales = np.power(2 ** (1 / nv), np.arange(1, na + 1))
-        elif freqscale == 'linear':
+        elif ssq_freqs == 'linear':
             scales = np.linspace(1, na, na)  # ??? should `1` be included?
     scales = scales.reshape(-1, 1)  # ensure 2D for mult / div later
 
     return (scales if not get_params else
-            (scales, freqscale, na, nv))
+            (scales, ssq_freqs, na, nv))

@@ -4,50 +4,108 @@ from .ssqueezing import ssqueeze, phase_cwt, phase_cwt_num
 from ._cwt import cwt
 
 
-def ssq_cwt(x, wavelet='morlet', scales='log', t=None, freqscale=None,
-            fs=None, nv=None, difftype='direct', difforder=None,
-            padtype='symmetric', squeezing='full', gamma=None):
-    """Calculates the synchrosqueezed continuous wavelet transform of `x`,
-    with samples taken at times given in `t`. Uses `nv` voices. Implements the
-    algorithm described in Sec. III of [1].
+def ssq_cwt(x, wavelet='morlet', scales='log', nv=None, t=None, fs=None,
+            ssq_freqs=None, padtype='symmetric', squeezing='full',
+            difftype='direct', difforder=None, gamma=None):
+    """Calculates the synchrosqueezed Continuous Wavelet Transform of `x`.
+    Implements the algorithm described in Sec. III of [1].
 
     # Arguments:
-        x: np.ndarray. Vector of signal samples (e.g. x = np.cos(20 * np.pi * t))
-        wavelet: wavelet
-        scales: CWT scales. np.ndarray or ('log', 'linear')
-                !!! beware of scales='linear'; bad current default scheme for
-                capturing low frequencies for sequences longer than 2048.
-                Recommended scales='log' with freqscale='linear' instead.
-        t: np.ndarray / None. Vector of times samples are taken
-           (e.g. np.linspace(0, 1, n)). If None, defaults to np.arange(len(x)).
-           Overrides `fs` if not None.
-        freqscale: synchrosqueezing plane scales. np.ndarray or ('log', 'linear')
-        fs: float. Sampling frequency of `x`; overridden by `t`, if provided.
-        nv: int. Number of voices. Recommended 32 or 64 by [1].
-        opts: dict. Options specifying how synchrosqueezing is computed.
-           'type': str. type of wavelet. See `wfiltfn` docstring.
-           'gamma': float / None. Wavelet hard thresholding value. If None,
-                    is estimated automatically.
-           'difftype': str. 'direct', 'phase', or 'numerical' differentiation.
-                    'numerical' uses MEX differentiation, which is faster and
-                    uses less memory, but may be less accurate.
+        x: np.ndarray
+            Vector of signal samples (e.g. x = np.cos(20 * np.pi * t))
+        wavelet: str / tuple[str, dict] / `wavelets.Wavelet`
+            Wavelet sampled in Fourier frequency domain.
+                - str: name of builtin wavelet. `ssqueezepy.wavs()`
+                - tuple[str, dict]: name of builtin wavelet and its configs.
+                  E.g. `('morlet', {'mu': 5})`.
+                - `wavelets.Wavelet` instance. Can use for custom wavelet.
+        scales: str['log', 'linear'] / np.ndarray
+            CWT scales.
+                - 'log': exponentially distributed scales, as pow of 2:
+                         `[2^(1/nv), 2^(2/nv), ...]`
+                - 'linear': linearly distributed scales.
+                  !!! EXPERIMENTAL; default scheme for len(x)>2048 performs
+                  poorly (and there may not be a good non-piecewise scheme).
+        nv: int / None
+            Number of voices (CWT only). Suggested >= 32.
+        t: np.ndarray / None
+            Vector of times at which samples are taken (eg np.linspace(0, 1, n)).
+            Must be uniformly-spaced.
+            Defaults to np.linspace(0, len(x)/fs, len(x)).
+            Overrides `fs` if not None.
+        fs: float / None
+            Sampling frequency of `x`. Defaults to len(x).
+            Overridden by `t`, if provided.
+        ssq_freqs: str['log', 'linear'] / np.ndarray / None
+            Frequencies to synchrosqueeze CWT scales onto. Scale-frequency
+            mapping is only approximate and wavelet-dependent.
+            If None, will infer from and set to same distribution as `scales`.
+        padtype: str
+            Pad scheme to apply on input. One of:
+                ('zero', 'symmetric', 'replicate').
+            'zero' is most naive, while 'symmetric' (default) partly mitigates
+            boundary effects. See `padsignal`.
+        squeezing: str['full', 'measure']
+                - 'full' = standard synchrosqueezing using `Wx`.
+                - 'measure' = as in [4], setting `Wx=ones()`, which is not
+                invertible but has better robustness properties in some cases.
+                Not recommended unless you know what you're doing.
+        difftype: str['direct', 'phase', 'numerical']
+            Method by which to differentiate Wx (default='direct') to obtain
+            instantaneous frequencies:
+                    w(a,b) = Im( (1/2pi) * (1/Wx(a,b)) * d/db[Wx(a,b)] )
+
+                - 'direct': use `dWx`, obtained via frequency-domain
+                differentiation (see `cwt`, `phase_cwt`).
+                - 'phase': differentiate by taking forward finite-difference of
+                unwrapped angle of `Wx` (see `phase_cwt`).
+                - 'numerical': first-, second-, or fourth-order (set by
+                `difforder`) numeric differentiation (see `phase_cwt_num`).
+        difforder: int[1, 2, 4]
+            Order of differentiation for difftype='numerical' (default=4).
+        gamma: float
+            CWT phase threshold. Sets `w=inf` for small values of `Wx` where
+            phase computation is unstable and inaccurate (like in DFT):
+                w[abs(Wx) < beta] = inf
+            This is used to zero `Wx` where `w=0` in computing `Tx` to ignore
+            contributions from points with indeterminate phase.
+            Default = est_riskshrink_thresh(Wx, nv)
 
     # Returns:
-        Tx: Synchrosqueeze-transformed `x`, columns associated w/ `t`
-        fs: Frequencies associated with rows of `Tx`.
-        Wx: Wavelet transform of `x` (see `cwt`)
-        scales: scales associated with rows of `Wx`.
-        w: Phase transform for each element of `Wx`.
+        Tx: np.ndarray [nf x n]
+            Synchrosqueezed CWT of `x`. (rows=~frequencies, cols=timeshifts)
+            (nf = len(ssq_freqs); n = len(x))
+            `nf = na` by default, where `na = len(scales)`.
+        fs: np.ndarray [nf]
+            Frequencies associated with rows of `Tx`.
+        Wx: np.ndarray [na x n]
+            Continuous Wavelet Transform of `x` (see `cwt`)
+        scales: np.ndarray [na]
+            Scales associated with rows of `Wx`.
+        w: np.ndarray [na x n]
+            Phase transform for each element of `Wx`.
 
     # References:
-        1. G. Thakur, E. Brevdo, N.-S. Fučkar, and H.-T. Wu,
-        "The Synchrosqueezing algorithm for time-varying spectral analysis:
-        robustness properties and new paleoclimate applications",
-        Signal Processing, 93:1079-1094, 2013.
+        1. The Synchrosqueezing algorithm for time-varying spectral analysis:
+        robustness properties and new paleoclimate applications.
+        G. Thakur, E. Brevdo, N.-S. Fučkar, and H.-T. Wu.
+        https://arxiv.org/abs/1105.0010
 
-        2. I. Daubechies, J. Lu, H.T. Wu, "Synchrosqueezed Wavelet Transforms:
-        an empricial mode decomposition-like tool",
-        Applied and Computational Harmonic Analysis, 30(2):243-261, 2011.
+        2. A Nonlinear squeezing of the CWT Based on Auditory Nerve Models.
+        I. Daubechies, S. Maes.
+        https://services.math.duke.edu/%7Eingrid/publications/DM96.pdf
+
+        3. Synchrosqueezed Wavelet Transforms: a Tool for Empirical Mode
+        Decomposition. I. Daubechies, J. Lu, H.T. Wu.
+        https://arxiv.org/pdf/0912.2437.pdf
+
+        4. Synchrosqueezing-based Recovery of Instantaneous Frequency from
+        Nonuniform Samples. G. Thakur and H.-T. Wu.
+        https://arxiv.org/abs/1006.2533
+
+        5. Synchrosqueezing Toolbox, (C) 2014--present. E. Brevdo, G. Thakur.
+        https://github.com/ebrevdo/synchrosqueezing/blob/master/synchrosqueezing/
+        synsq_cwt_fw.m
     """
     def _process_args(x, t, fs, nv, difftype, difforder, squeezing):
         if difftype not in ('direct', 'phase', 'numerical'):
@@ -99,7 +157,7 @@ def ssq_cwt(x, wavelet='morlet', scales='log', t=None, freqscale=None,
     rpadded = (difftype == 'numerical')
 
     dt = t[1] - t[0]  # sampling period, assuming uniform spacing
-    scales, _freqscale, *_ = process_scales(scales, N, nv=nv, get_params=True)
+    scales, _ssq_freqs, *_ = process_scales(scales, N, nv=nv, get_params=True)
     Wx, scales, dWx, _ = cwt(x, wavelet, scales=scales, dt=dt, l1_norm=False,
                              padtype=padtype, rpadded=rpadded)
 
@@ -107,12 +165,11 @@ def ssq_cwt(x, wavelet='morlet', scales='log', t=None, freqscale=None,
 
     gamma = gamma or est_riskshrink_thresh(Wx, nv)
 
-    if freqscale is None:
+    if ssq_freqs is None:
         # default to same scheme used by `scales`
-        # !!! scales='linear' not recommended for len(x)>2048; see docstr
-        freqscale = _freqscale
+        ssq_freqs = _ssq_freqs
     # calculate the synchrosqueezed frequency decomposition
-    Tx, fs = ssqueeze(Wx, w, scales, t, freqscale, transform='cwt',
+    Tx, fs = ssqueeze(Wx, w, scales, t, ssq_freqs, transform='cwt',
                       squeezing=squeezing)
 
     if difftype == 'numerical':
@@ -122,56 +179,74 @@ def ssq_cwt(x, wavelet='morlet', scales='log', t=None, freqscale=None,
     return Tx, fs, Wx, scales, w
 
 
-def issq_cwt(Tx, wavelet, Cs=None, freqband=None):
+def issq_cwt(Tx, wavelet, cc=None, cw=None):
     """Inverse synchrosqueezing transform of `Tx` with associated frequencies
     in `fs` and curve bands in time-frequency plane specified by `Cs` and
     `freqband`. This implements Eq. 15 of [1].
 
     # Arguments:
-        Tx: np.ndarray. Synchrosqueeze-transformed `x` (see `synsq_cwt`).
-        fs: np.ndarray. Frequencies associated with rows of Tx.
-            (see `synsq_cwt`).
-        opts: dict. Options (see `synsq_cwt`):
-            'type': type of wavelet used in `synsq_cwt`
-
-            other wavelet options ('mu', 's') should also match
-            those used in `synsq_cwt`
-            'Cs': (optional) curve centerpoints
-            'freqs': (optional) curve bands
+        Tx: np.ndarray
+            Synchrosqueezed CWT of `x` (see `ssq_cwt`).
+            (rows=~frequencies, cols=timeshifts)
+        wavelet: str / tuple[str, dict] / `wavelets.Wavelet`
+            Wavelet that was used to compute Tx, sampled in Fourier
+            frequency domain.
+                - str: name of builtin wavelet. `ssqueezepy.wavs()`
+                - tuple[str, dict]: name of builtin wavelet and its configs.
+                  E.g. `('morlet', {'mu': 5})`.
+                - `wavelets.Wavelet` instance. Can use for custom wavelet.
+        cc, cw: np.ndarray / None
+            Curve centerpoints, and curve (vertical) widths (bandwidths),
+            together defining the portion of Tx to invert over to extract
+            K "components" per Modulation Model:
+                        x_k(t) = A_k(t) cos(phi_k(t)) + res;  k=0,...,K-1
+            where K=len(c)==len(cw), and `res` is residual error (inversion
+            over portion leftover/uncovered by cc, cw).
+            None = full inversion.
 
     # Returns:
-        x: components of reconstructed signal, and residual error
+        x: np.ndarray [K x Tx.shape[1]]
+            Components of reconstructed signal, and residual error.
+            If cb & cw are None, x.shape == (Tx.shape[1],). See `cb, cw`.
 
     # Example:
-        Tx, fs = synsq_cwt(t, x, 32)  # synchrosqueeizing
-        Txf = synsq_filter_pass(Tx, fs, -np.inf, 1)  # pass band filter
-        xf = synsq_cwt_inv(Txf, fs)  # filtered signal reconstruction
+        Tx, *_ = ssq_cwt(x, 'morlet')    # synchrosqueezed CWT
+        x      = issq_cwt(Tx, 'morlet')  # reconstruction
 
     # References:
-        1. G. Thakur, E. Brevdo, N.-S. Fučkar, and H.-T. Wu,
-        "The Synchrosqueezing algorithm for time-varying spectral analysis:
-        robustness properties and new paleoclimate applications",
-        Signal Processing, 93:1079-1094, 2013.
+        1. The Synchrosqueezing algorithm for time-varying spectral analysis:
+        robustness properties and new paleoclimate applications.
+        G. Thakur, E. Brevdo, N.-S. Fučkar, and H.-T. Wu.
+        https://arxiv.org/abs/1105.0010
 
-        2. Mallat, S., Wavelet Tour of Signal Processing 3rd ed.
+        2. A Nonlinear squeezing of the CWT Based on Auditory Nerve Models.
+        I. Daubechies, S. Maes.
+        https://services.math.duke.edu/%7Eingrid/publications/DM96.pdf
+
+        3. Wavelet Tour of Signal Processing, 3rd ed. S. Mallat.
+        https://www.di.ens.fr/~mallat/papiers/WaveletTourChap1-2-3.pdf
+
+        4. Synchrosqueezing Toolbox, (C) 2014--present. E. Brevdo, G. Thakur.
+        https://github.com/ebrevdo/synchrosqueezing/blob/master/synchrosqueezing/
+        synsq_cwt_iw.m
     """
-    def _invert_components(Tx, Cs, freqband):
+    def _invert_components(Tx, cc, cw):
         # Invert Tx around curve masks in the time-frequency plane to recover
         # individual components; last one is the remaining signal
-        x = np.zeros((Cs.shape[1] + 1, Cs.shape[0]))
+        x = np.zeros((cc.shape[1] + 1, cc.shape[0]))
         TxRemainder = Tx.copy()
 
-        for n in range(Cs.shape[1]):
+        for n in range(cc.shape[1]):
             TxMask = np.zeros(Tx.shape, dtype='complex128')
-            UpperCs = np.clip(Cs[:, n] + freqband[:, n], 0, len(Tx))
-            LowerCs = np.clip(Cs[:, n] - freqband[:, n], 0, len(Tx))
+            upper_cc = np.clip(cc[:, n] + cw[:, n], 0, len(Tx))
+            lower_cc = np.clip(cc[:, n] - cw[:, n], 0, len(Tx))
 
-            # Cs==-1 denotes no curve at that time,
+            # cc==-1 denotes no curve at that time,
             # removing such points from inversion
-            UpperCs[np.where(Cs[:, n] == -1)] = 0
-            LowerCs[np.where(Cs[:, n] == -1)] = 1
+            upper_cc[np.where(cc[:, n] == -1)] = 0
+            lower_cc[np.where(cc[:, n] == -1)] = 1
             for m in range(Tx.shape[1]):
-                idxs = slice(LowerCs[m], UpperCs[m] + 1)
+                idxs = slice(lower_cc[m], upper_cc[m] + 1)
                 TxMask[idxs, m] = Tx[idxs, m]
                 TxRemainder[idxs, m] = 0
             x[n] = TxMask.real.sum(axis=0).T
@@ -179,24 +254,24 @@ def issq_cwt(Tx, wavelet, Cs=None, freqband=None):
         x[n + 1] = TxRemainder.real.sum(axis=0).T
         return x
 
-    def _process_args(Cs, freqband):
-        if (Cs is None and freqband is None):
+    def _process_args(cc, cw):
+        if (cc is None) and (cw is None):
             return None, None, True
-        if Cs.ndim == 1:
-            Cs = Cs.reshape(-1, 1)
-        if freqband.ndim == 1:
-            freqband = freqband.reshape(-1, 1)
-        Cs = Cs.astype('int32')
-        freqband = freqband.astype('int32')
-        return Cs, freqband, False
+        if cc.ndim == 1:
+            cc = cc.reshape(-1, 1)
+        if cw.ndim == 1:
+            cw = cw.reshape(-1, 1)
+        cc = cc.astype('int32')
+        cw = cw.astype('int32')
+        return cc, cw, False
 
-    Cs, freqband, full_inverse = _process_args(Cs, freqband)
+    cc, cw, full_inverse = _process_args(cc, cw)
 
     if full_inverse:
         # Integration over all frequencies recovers original signal
         x = Tx.real.sum(axis=0)
     else:
-        x = _invert_components(Tx, Cs, freqband)
+        x = _invert_components(Tx, cc, cw)
 
     Css = adm_ssq(wavelet)  # admissibility coefficient
     # *2 per analytic wavelet & taking real part; Theorem 4.5 [2]
