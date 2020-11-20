@@ -1,5 +1,5 @@
 import numpy as np
-from .utils import WARN, est_riskshrink_thresh, p2up, adm_ssq, process_scales
+from .utils import WARN, EPS, p2up, adm_ssq, process_scales
 from .ssqueezing import ssqueeze, phase_cwt, phase_cwt_num
 from ._cwt import cwt
 
@@ -27,14 +27,16 @@ def ssq_cwt(x, wavelet='morlet', scales='log', nv=None, t=None, fs=None,
                   !!! EXPERIMENTAL; default scheme for len(x)>2048 performs
                   poorly (and there may not be a good non-piecewise scheme).
         nv: int / None
-            Number of voices (CWT only). Suggested >= 32.
+            Number of voices (CWT only). Suggested >= 32 (default=32).
         t: np.ndarray / None
             Vector of times at which samples are taken (eg np.linspace(0, 1, n)).
             Must be uniformly-spaced.
             Defaults to np.linspace(0, len(x)/fs, len(x)).
             Overrides `fs` if not None.
         fs: float / None
-            Sampling frequency of `x`. Defaults to len(x).
+            Sampling frequency of `x`. Defaults to 1, which makes ssq
+            frequencies range from 1/dT to 0.5, i.e. as fraction of reference
+            sampling rate up to Nyquist limit; dT = total duration (t[-1] - t[0]).
             Overridden by `t`, if provided.
         ssq_freqs: str['log', 'linear'] / np.ndarray / None
             Frequencies to synchrosqueeze CWT scales onto. Scale-frequency
@@ -69,7 +71,7 @@ def ssq_cwt(x, wavelet='morlet', scales='log', nv=None, t=None, fs=None,
                 w[abs(Wx) < beta] = inf
             This is used to zero `Wx` where `w=0` in computing `Tx` to ignore
             contributions from points with indeterminate phase.
-            Default = est_riskshrink_thresh(Wx, nv)
+            Default = sqrt(machine epsilon) = np.sqrt(np.finfo(np.float64).eps)
 
     # Returns:
         Tx: np.ndarray [nf x n]
@@ -123,8 +125,8 @@ def ssq_cwt(x, wavelet='morlet', scales='log', nv=None, t=None, fs=None,
             raise ValueError("`squeezing` must be one of: full, measure "
                              "(got %s)" % squeezing)
         if t is None:
-            fs = fs or len(x)  # if None, assume t=[0, ..., 1]
-            t = np.linspace(0., len(x) / fs, len(x))
+            fs = fs or 1
+            t = np.linspace(0., len(x) / fs, len(x), endpoint=False)
         elif not np.mean(np.abs(np.diff(t, 2, axis=0))) < 1e-7:  # float32 thresh
             raise Exception("Time vector `t` must be uniformly sampled.")
         elif len(t) != len(x):
@@ -157,17 +159,18 @@ def ssq_cwt(x, wavelet='morlet', scales='log', nv=None, t=None, fs=None,
     rpadded = (difftype == 'numerical')
 
     dt = t[1] - t[0]  # sampling period, assuming uniform spacing
-    scales, _ssq_freqs, *_ = process_scales(scales, N, nv=nv, get_params=True)
-    Wx, scales, dWx, _ = cwt(x, wavelet, scales=scales, dt=dt, l1_norm=False,
-                             padtype=padtype, rpadded=rpadded)
+    scales, cwt_scaletype, *_ = process_scales(scales, N, nv=nv, get_params=True)
+    # l1_norm=False to spare a multiplication; for SSWT L1 & L2 are exactly same
+    # anyway since we're inverting CWT over time-frequency plane
+    Wx, scales, _, dWx = cwt(x, wavelet, scales=scales, dt=dt, l1_norm=False,
+                             derivative=True, padtype=padtype, rpadded=rpadded)
 
+    gamma = gamma or np.sqrt(EPS)
     Wx, w = _phase_transform(Wx, dWx, gamma, n1, dt, difftype, difforder)
-
-    gamma = gamma or est_riskshrink_thresh(Wx, nv)
 
     if ssq_freqs is None:
         # default to same scheme used by `scales`
-        ssq_freqs = _ssq_freqs
+        ssq_freqs = cwt_scaletype
     # calculate the synchrosqueezed frequency decomposition
     Tx, fs = ssqueeze(Wx, w, scales, t, ssq_freqs, transform='cwt',
                       squeezing=squeezing)

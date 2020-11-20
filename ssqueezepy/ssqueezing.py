@@ -1,12 +1,10 @@
 import numpy as np
 from .algos import find_closest, indexed_sum, replace_at_inf
-from .utils import process_scales
+from .utils import EPS, pi, process_scales, _infer_scaletype
 
 
-EPS = np.finfo(np.float64).eps  # machine epsilon for float64  # TODO float32?
-pi = np.pi
-
-
+# TODO ssq_freqs checks only string
+# TODO scales required
 def ssqueeze(Wx, w, scales, t, ssq_freqs=None, transform='cwt', squeezing='full'):
     """Calculates the synchrosqueezed CWT or STFT of `x`. Used internally by
     `synsq_cwt` and `synsq_stft_fwd`.
@@ -15,7 +13,7 @@ def ssqueeze(Wx, w, scales, t, ssq_freqs=None, transform='cwt', squeezing='full'
         Wx or Sx: np.ndarray
             CWT or STFT of `x`.
         w: np.ndarray
-            Phase transform of `Wx` or `Sx`.
+            Phase transform of `Wx` or `Sx`. Must be >=0.
         scales: str['log', 'linear'] / np.ndarray
             CWT scales. Ignored if transform='stft'.
                 - 'log': exponentially distributed scales, as pow of 2:
@@ -24,8 +22,9 @@ def ssqueeze(Wx, w, scales, t, ssq_freqs=None, transform='cwt', squeezing='full'
                   !!! EXPERIMENTAL; default scheme for len(x)>2048 performs
                   poorly (and there may not be a good non-piecewise scheme).
         t: np.ndarray
-            Vector of times at which samples are taken (eg np.linspace(0, 1, n)).
-            Must be uniformly-spaced.
+            Vector of times at which samples are taken (eg linspace(0, 1, n)).
+            Must be uniformly-spaced. Must be consistent with `fs` or `t`
+            used in CWT that computed `Wx` to map frequencies correctly.
         ssq_freqs: str['log', 'linear'] / np.ndarray / None
             Frequencies to synchrosqueeze CWT scales onto. Scale-frequency
             mapping is only approximate and wavelet-dependent.
@@ -33,8 +32,8 @@ def ssqueeze(Wx, w, scales, t, ssq_freqs=None, transform='cwt', squeezing='full'
         transform: str['cwt', 'stft']
             Whether `Wx` is from CWT or STFT (`Sx`).
         squeezing: str['full', 'measure']
-                - 'full' = standard synchrosqueezing using `Wx`.
-                - 'measure' = as in [3], setting `Wx=ones()`, which is not
+                - 'full': standard synchrosqueezing using `Wx`.
+                - 'measure': as in [3], setting `Wx=ones()`, which is not
                 invertible but has better robustness properties in some cases.
                 Not recommended unless you know what you're doing.
 
@@ -64,33 +63,33 @@ def ssqueeze(Wx, w, scales, t, ssq_freqs=None, transform='cwt', squeezing='full'
         https://github.com/ebrevdo/synchrosqueezing/blob/master/synchrosqueezing/
         synsq_squeeze.m
     """
-    def _ssqueeze(w, Wx, fs, transform, ssq_freqs):
+    def _ssqueeze(w, Wx, nv, ssq_freqs, transform, ssq_scaletype, cwt_scaletype):
         # incorporate threshold by zeroing out Inf values, so they get ignored
         Wx = replace_at_inf(Wx, ref=w, replacement=0)
-        # reassign indeterminate (ignored per above anyway) to avoid warnings
-        w  = replace_at_inf(w, replacement=fs[-1])
 
         # do squeezing by finding which frequency bin each phase transform point
-        # w[a, b] lands in (i.e. to which f in fs each w[a, b] is closest to)
-        # equivalent to argmin(abs(w[a, b] - fs)) for every a, b
-        k = (find_closest(w, fs) if ssq_freqs != 'log' else
-             find_closest(np.log2(w), np.log2(fs)))
+        # w[a, b] lands in (i.e. to which f in ssq_freqs each w[a, b] is closest)
+        # equivalent to argmin(abs(w[a, b] - ssq_freqs)) for every a, b
+        with np.errstate(divide='ignore'):
+            k = (find_closest(w, ssq_freqs) if ssq_scaletype != 'log' else
+                 find_closest(np.log2(w), np.log2(ssq_freqs)))
 
         # Tx[k[i, j], j] += Wx[i, j] * norm
         if transform == 'cwt':
             # Eq 14 [2]; Eq 2.3 [1]
-            if ssq_freqs == 'log':
+            if cwt_scaletype == 'log':
                 # ln(2)/nv == diff(ln(scales))[0] == ln(2**(1/nv))
                 Tx = indexed_sum(Wx / scales**(1/2) * np.log(2) / nv, k)
-            elif ssq_freqs == 'linear':
+            elif cwt_scaletype == 'linear':
                 # omit /dw since it's cancelled by *dw in inversion anyway
                 da = (scales[1] - scales[0])
                 Tx = indexed_sum(Wx / scales**(3/2) * da, k)
         else:  # 'stft'
-            Tx = indexed_sum(Wx * (fs[1] - fs[0]), k)  # TODO validate
+            # TODO validate
+            Tx = indexed_sum(Wx * (ssq_freqs[1] - ssq_freqs[0]), k)
         return Tx
 
-    def _compute_associated_frequencies(t, na, N, transform, ssq_freqs):
+    def _compute_associated_frequencies(t, na, N, transform, ssq_scaletype):
         dT = t[-1] - t[0]
         dt = t[1]  - t[0]
         # normalized frequencies to map discrete-domain to physical:
@@ -101,17 +100,18 @@ def ssqueeze(Wx, w, scales, t, ssq_freqs=None, transform='cwt', squeezing='full'
         fm = 1 / dT
 
         # frequency divisions `w_l` to search over in Synchrosqueezing
-        if ssq_freqs == 'log':
-            fs = fm * np.power(fM / fm, np.arange(na) / (na - 1))  # [fm,...,fM]
+        if ssq_scaletype == 'log':
+            # [fm, ..., fM]
+            ssq_freqs = fm * np.power(fM / fm, np.arange(na) / (na - 1))
         else:
             if transform == 'cwt':
-                fs = np.linspace(fm, fM, na)
+                ssq_freqs = np.linspace(fm, fM, na)
             else:  # 'stft'
                 # ??? seems to be 0 to f_sampling/2, but why use N?
                 # what about fm and fM?
-                fs = np.linspace(0, 1, N) / dt
-                fs = fs[:N // 2]
-        return fs
+                ssq_freqs = np.linspace(0, 1, N) / dt
+                ssq_freqs = ssq_freqs[:N // 2]
+        return ssq_freqs
 
     def _process_args(w, transform, squeezing):
         if w.min() < 0:
@@ -126,20 +126,26 @@ def ssqueeze(Wx, w, scales, t, ssq_freqs=None, transform='cwt', squeezing='full'
     _process_args(w, transform, squeezing)
 
     na, N = Wx.shape
-    scales, _ssq_freqs, _, nv = process_scales(scales, N, get_params=True)
-    if ssq_freqs is None:
-        # default to same scheme used by `scales`
-        # !!! scales='linear' not recommended for len(x)>2048; see docstr
-        ssq_freqs = _ssq_freqs
-    fs = _compute_associated_frequencies(t, na, N, transform, ssq_freqs)
+    scales, cwt_scaletype, _, nv = process_scales(scales, N, get_params=True)
+
+    if not isinstance(ssq_freqs, np.ndarray):
+        if isinstance(ssq_freqs, str):
+            ssq_scaletype = ssq_freqs
+        else:
+            # default to same scheme used by `scales`
+            ssq_scaletype = cwt_scaletype
+        ssq_freqs = _compute_associated_frequencies(t, na, N, transform,
+                                                    ssq_scaletype)
+    else:
+        ssq_scaletype = _infer_scaletype(ssq_freqs)
 
     if squeezing == 'measure':  # from reference [3]
         # !!! not recommended unless having specific reason;
         # no reconstruction; not validated
         Wx = np.ones(Wx.shape) / len(Wx)
 
-    Tx = _ssqueeze(w, Wx, fs, transform, ssq_freqs)
-    return Tx, fs
+    Tx = _ssqueeze(w, Wx, nv, ssq_freqs, transform, ssq_scaletype, cwt_scaletype)
+    return Tx, ssq_freqs
 
 
 def phase_cwt(Wx, dWx, difftype='direct', gamma=None):
@@ -197,16 +203,15 @@ def phase_cwt(Wx, dWx, difftype='direct', gamma=None):
     """
     # Calculate phase transform for each `ai`, normalize by 2pi
     if difftype == 'phase':
-        # TODO gives bad results; shouldn't we divide by Wx? also gives w < 0
+        # TODO gives bad results; shouldn't we divide by Wx?
         u = np.unwrap(np.angle(Wx)).T
-        w = np.vstack([np.diff(u, axis=0), u[-1] - u[0]]).T
-        w = np.abs(w)  # !!! <- forced step, messes up values
+        w = np.vstack([np.diff(u, axis=0), u[-1] - u[0]]).T / (2 * pi)
     else:
-        w = np.abs(np.imag(dWx / Wx))
-    w /= (2 * pi)
+        with np.errstate(divide='ignore'):
+            w = np.imag(dWx / Wx) / (2 * pi)
 
     gamma = gamma or np.sqrt(EPS)
-    w[np.abs(Wx) < gamma] = np.inf
+    w[(np.abs(Wx) < gamma) | (w < 0)] = np.inf
     return w
 
 

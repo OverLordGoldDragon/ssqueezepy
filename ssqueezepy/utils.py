@@ -10,6 +10,7 @@ logging.basicConfig(format='')
 WARN = lambda msg: logging.warning("WARNING: %s" % msg)
 NOTE = lambda msg: logging.info("NOTE: %s" % msg)
 pi = np.pi
+EPS = np.finfo(np.float64).eps  # machine epsilon for float64  # TODO float32?
 
 
 
@@ -20,6 +21,8 @@ def mad(data, axis=None):
 
 def est_riskshrink_thresh(Wx, nv):
     """Estimate the RiskShrink hard thresholding level, based on [1].
+    This has a denoising effect, but risks losing much of the signal; it's larger
+    the more high-frequency content there is, even if not noise.
 
     # Arguments:
         Wx: np.ndarray
@@ -309,21 +312,10 @@ def process_scales(scales, len_x, nv=None, na=None, get_params=False):
 
         - Ensures, if array,  `scales` is 1D, or 2D with last dim == 1
         - Ensures, if string, `scales` is one of ('log', 'linear')
-        - If `get_params`, also returns (`ssq_freqs`, `nv`, `na`)
-           - `ssq_freqs`: inferred from `scales` if it's an array
+        - If `get_params`, also returns (`scaletype`, `nv`, `na`)
+           - `scaletype`: inferred from `scales` ('linear' or 'log') if array
            - `nv`, `na`: computed newly only if not already passed
     """
-    def _infer_ssq_freqs(scales):
-        th = 1e-15 if scales.dtype == np.float64 else 2e-7
-        if np.mean(np.abs(np.diff(scales, 2, axis=0))) < th:
-            ssq_freqs = 'linear'
-        elif np.mean(np.abs(np.diff(np.log(scales), 2, axis=0))) < th:
-            ssq_freqs = 'log'
-        else:
-            raise ValueError("could not infer `ssq_freqs` from `scales`; "
-                             "`scales` array must be linear or logarithmic.")
-        return ssq_freqs
-
     def _process_args(scales, nv, na):
         if isinstance(scales, str):
             if scales not in ('log', 'linear'):
@@ -332,22 +324,22 @@ def process_scales(scales, len_x, nv=None, na=None, get_params=False):
             elif (na is None and nv is None):
                 raise ValueError("must pass one of `na`, `nv`, if `scales` "
                                  "isn't array")
-            ssq_freqs = scales
+            scaletype = scales
         elif isinstance(scales, np.ndarray):
             if scales.squeeze().ndim != 1:
                 raise ValueError("`scales`, if array, must be 1D "
                                  "(got shape %s)" % scales.shape)
 
-            ssq_freqs = _infer_ssq_freqs(scales)
+            scaletype = _infer_scaletype(scales)
             if na is not None:
                 print(WARN, "`na` is ignored if `scales` is an array")
             na = len(scales)
         else:
             raise TypeError("`scales` must be a string or Numpy array "
                             "(got %s)" % type(scales))
-        return ssq_freqs, na
+        return scaletype, na
 
-    ssq_freqs, na = _process_args(scales, nv, na)
+    scaletype, na = _process_args(scales, nv, na)
 
     # compute params
     n_up, *_ = p2up(len_x)
@@ -361,11 +353,26 @@ def process_scales(scales, len_x, nv=None, na=None, get_params=False):
 
     # make `scales` if passed string
     if isinstance(scales, str):
-        if ssq_freqs == 'log':
+        if scaletype == 'log':
             scales = np.power(2 ** (1 / nv), np.arange(1, na + 1))
-        elif ssq_freqs == 'linear':
+        elif scaletype == 'linear':
             scales = np.linspace(1, na, na)  # ??? should `1` be included?
     scales = scales.reshape(-1, 1)  # ensure 2D for mult / div later
 
     return (scales if not get_params else
-            (scales, ssq_freqs, na, nv))
+            (scales, scaletype, na, nv))
+
+
+def _infer_scaletype(ipt):
+    """Infer whether `ipt` is linearly or exponentially distributed.
+    Used internally on `scales` and `ssq_freqs`.
+    """
+    th = 1e-15 if ipt.dtype == np.float64 else 2e-7
+    if np.mean(np.abs(np.diff(ipt, 2, axis=0))) < th:
+        scaletype = 'linear'
+    elif np.mean(np.abs(np.diff(np.log(ipt), 2, axis=0))) < th:
+        scaletype = 'log'
+    else:
+        raise ValueError("could not infer `scaletype` from `ipt`; "
+                         "`ipt` array must be linear or exponential.")
+    return scaletype
