@@ -3,8 +3,6 @@
 
 # Synchrosqueezing in Python
 
-Synchrosqueezed Wavelet Transform implemented in Python.
-
 Synchrosqueezing is a powerful _reassignment method_ that focuses time-frequency representations, and allows extraction of instantaneous amplitudes and frequencies. [Friendly overview.](https://dsp.stackexchange.com/a/71399/50076)
 
 Significant changes to some code structure are expected until v0.6.0, but whatever's not explicitly marked as problematic will work as intended.
