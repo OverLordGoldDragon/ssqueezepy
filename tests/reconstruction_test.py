@@ -2,7 +2,6 @@ import pytest
 import numpy as np
 from ssqueezepy import ssq_cwt, issq_cwt
 from ssqueezepy import cwt, icwt
-from ssqueezepy.toolkit import mad_rms
 
 
 #### Helper methods ##########################################################
@@ -12,6 +11,11 @@ def _t(min, max, N):
 def cos_f(freqs, N=128, phi=0):
     return np.concatenate([np.cos(2 * np.pi * f * (_t(i, i + 1, N) + phi))
                            for i, f in enumerate(freqs)])
+
+def mad_rms(x, xrec):
+    """Reconstruction error metric; scale-invariant, robust to outliers
+    and partly sparsity. https://stats.stackexchange.com/q/495242/239063"""
+    return np.mean(np.abs(x - xrec)) / np.sqrt(np.mean(x**2))
 
 #### Test signals ############################################################
 def fast_transitions(N):
