@@ -74,6 +74,4 @@ viz(x, Tx, Wx)
 
 ## License
 
-ssqueezepy is MIT licensed, as found in the [LICENSE](https://github.com/OverLordGoldDragon/ssqueezepy/blob/master/LICENSE) file.
-
-Some source functions may be under other authorship/licenses; see [NOTICE.txt](https://github.com/OverLordGoldDragon/ssqueezepy/blob/master/NOTICE.txt).
+ssqueezepy is MIT licensed, as found in the [LICENSE](https://github.com/OverLordGoldDragon/ssqueezepy/blob/master/LICENSE) file. Some source functions may be under other authorship/licenses; see [NOTICE.txt](https://github.com/OverLordGoldDragon/ssqueezepy/blob/master/NOTICE.txt).
