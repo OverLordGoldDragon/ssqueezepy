@@ -81,7 +81,8 @@ def ssq_cwt(x, wavelet='morlet', scales='log', nv=None, t=None, fs=None,
         fs: np.ndarray [nf]
             Frequencies associated with rows of `Tx`.
         Wx: np.ndarray [na x n]
-            Continuous Wavelet Transform of `x` (see `cwt`)
+            Continuous Wavelet Transform of `x` L2-normed (see `cwt`);
+            to L1-norm, `Wx /= np.sqrt(scales)`
         scales: np.ndarray [na]
             Scales associated with rows of `Wx`.
         w: np.ndarray [na x n]

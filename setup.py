@@ -29,7 +29,7 @@ setup(
     version=find_version('ssqueezepy', '__init__.py'),
     packages=find_packages(exclude=['tests', 'examples']),
     url="https://github.com/OverLordGoldDragon/ssqueezepy",
-    license="TBD",
+    license="MIT",
     author="OverLordGoldDragon",
     author_email="16495490+OverLordGoldDragon@users.noreply.github.com",
     description=("Synchrosqueezing and wavelet transforms in Python"),

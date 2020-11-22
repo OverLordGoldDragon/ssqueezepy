@@ -1,0 +1,89 @@
+Included Software
+#################
+
+
+General Information
+===================
+
+
+ssqueezepy incorporates code assets from various external sources,
+each of which is covered by its own license and copyright notice.
+These files are listed here with their corresponding authors,
+permission notices, disclaimers, and copyright statements; these are also
+included in the files' directory and/or their headers, as appropriate.
+
+Any file+function not listed here is covered by ssqueezepy's Apache 2.0 license,
+described in the LICENSE file in this repository.
+
+================================================================================
+
+
+
+Source Code
+===========
+
+
+Synchrosqueezing Toolbox
+------------------------
+
+
+Copyright (c) 2014-present, Synchrosqueezing contributors
+
+
+Author: Eugene Brevdo, Gaurav Thakur
+Source: https://github.com/ebrevdo/synchrosqueezing
+License: BSD (2-clause) License | https://opensource.org/licenses/BSD-2-Clause
+
+Modifications were made, significant and minor, to functionality, 
+documentation, and style.
+
+This project is licensed under the terms of the 2-Clause BSD.
+
+See below for the full text of the 2-Clause BSD.
+
+The current license can be viewed at:
+https://github.com/ebrevdo/synchrosqueezing/blob/master/LICENSE
+
+
+Files covered (for functions whose docstrings reference Source):
+
+ssqueezepy/_cwt.py
+ssqueezepy/_ssq_cwt.py
+ssqueezepy/ssqueezing.py
+ssqueezepy/stft_transforms.py
+ssqueezepy/synsq_stft.py
+ssqueezepy/utils.py
+
+
+-------------------------------------------------------------------------------
+
+
+
+
+Full License Text
+=================
+
+
+2-Clause BSD License
+--------------------
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+this list of conditions and the following disclaimer in the documentation
+and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
