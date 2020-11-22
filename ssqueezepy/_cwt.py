@@ -8,7 +8,7 @@ from .wavelets import Wavelet
 
 def cwt(x, wavelet, scales='log', dt=None, nv=32, l1_norm=True,
         derivative=False, padtype='symmetric', rpadded=False):
-    """Forward continuous wavelet transform, discretized, as described in
+    """Continuous Wavelet Transform, discretized, as described in
     Sec. 4.3.3 of [1] and Sec. IIIA of [2]. Uses a form of discretized
     convolution theorem via wavelets in the Fourier domain and FFT of input.
 
@@ -110,29 +110,24 @@ def cwt(x, wavelet, scales='log', dt=None, nv=32, l1_norm=True,
 
     x -= x.mean()
     xh = fft(x)
-
     pn = (-1) ** np.arange(N)
     psihfn = Wavelet(wavelet, N=N)
 
-    # TODO redefine xi and remove fftshift / ifftshift?
     # TODO vectorize? can FFT all at once if all `psih` are precomputed
     # but keep loop option in case of OOM
     for i, a in enumerate(scales):
         # sample FT of wavelet at scale `a`
         # `* pn` = freq-domain spectral reversal to center time-domain wavelet
         psih = psihfn(a) * pn
-
-        xcpsi = ifftshift(ifft(xh * psih))
-        Wx[i] = xcpsi
+        Wx[i] = ifftshift(ifft(xh * psih))
 
         if derivative:
             dpsih = (1j * psihfn.xi / dt) * psih
-            dxcpsi = ifftshift(ifft(dpsih * xh))
-            dWx[i] = dxcpsi
+            dWx[i] = ifftshift(ifft(dpsih * xh))
 
     if not rpadded:
         # shorten to pre-padded size
-        Wx  = Wx[ :, n1:n1 + n]
+        Wx  = Wx[:, n1:n1 + n]
         if derivative:
             dWx = dWx[:, n1:n1 + n]
     if not l1_norm:

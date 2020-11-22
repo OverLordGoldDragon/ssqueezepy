@@ -18,6 +18,7 @@ class Wavelet():
     bump              yes               s (1), mu (5)
     _______________________________________________________________________
 
+    # TODO force analyticity @ neg frequencies if Morse also fails to?
     # Example:
         psihfn = Wavelet(('bump', {'s': .5, 'mu': 1}), N=1024)
         plt.plot(psihfn(scale=8))
