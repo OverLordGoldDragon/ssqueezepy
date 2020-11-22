@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import numpy as np
 from .utils import WARN, EPS, p2up, adm_ssq, process_scales
 from .ssqueezing import ssqueeze, phase_cwt, phase_cwt_num
@@ -31,13 +32,14 @@ def ssq_cwt(x, wavelet='morlet', scales='log', nv=None, t=None, fs=None,
         t: np.ndarray / None
             Vector of times at which samples are taken (eg np.linspace(0, 1, n)).
             Must be uniformly-spaced.
-            Defaults to np.linspace(0, len(x)/fs, len(x)).
+            Defaults to `np.linspace(0, len(x)/fs, len(x), endpoint=False)`.
             Overrides `fs` if not None.
         fs: float / None
             Sampling frequency of `x`. Defaults to 1, which makes ssq
             frequencies range from 1/dT to 0.5, i.e. as fraction of reference
-            sampling rate up to Nyquist limit; dT = total duration (t[-1] - t[0]).
+            sampling rate up to Nyquist limit; dT = total duration (N/fs).
             Overridden by `t`, if provided.
+            Relevant on `t` and `dT`: https://dsp.stackexchange.com/a/71580/50076
         ssq_freqs: str['log', 'linear'] / np.ndarray / None
             Frequencies to synchrosqueeze CWT scales onto. Scale-frequency
             mapping is only approximate and wavelet-dependent.

@@ -1,8 +1,4 @@
-# Ported from the Synchrosqueezing Toolbox, authored by
-# Eugine Brevdo, Gaurav Thakur
-#    (http://www.math.princeton.edu/~ebrevdo/)
-#    (https://github.com/ebrevdo/synchrosqueezing/)
-
+# -*- coding: utf-8 -*-
 import numpy as np
 from .wavelets import Wavelet
 from .stft_transforms import stft_fwd, phase_stft

@@ -62,7 +62,7 @@ def test_cwt():
             # 'linear' default can't handle low frequencies for large N
             kw = dict(wavelet=wavelet, scales='log', l1_norm=l1_norm)
 
-            Wx, *_ = cwt(x, dt=(ts[1] - ts[0]), **kw)
+            Wx, *_ = cwt(x, t=ts, **kw)
             xrec = icwt(Wx, one_int=True, **kw)
 
             errs.append(round(mad_rms(x, xrec), 5))

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import numpy as np
 from numpy.fft import fft, ifft, ifftshift
 from .utils import pi, adm_cwt

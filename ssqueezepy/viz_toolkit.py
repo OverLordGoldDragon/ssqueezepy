@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Convenience visual methods"""
 import numpy as np
 import matplotlib.pyplot as plt

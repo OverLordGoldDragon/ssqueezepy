@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import numpy as np
 from .algos import find_closest, indexed_sum, replace_at_inf
 from .utils import EPS, pi, process_scales, _infer_scaletype
@@ -90,8 +91,8 @@ def ssqueeze(Wx, w, scales, t, ssq_freqs=None, transform='cwt', squeezing='full'
         return Tx
 
     def _compute_associated_frequencies(t, na, N, transform, ssq_scaletype):
-        dT = t[-1] - t[0]
-        dt = t[1]  - t[0]
+        dt = t[1] - t[0]
+        dT = dt * len(t)  # see https://dsp.stackexchange.com/a/71580/50076
         # normalized frequencies to map discrete-domain to physical:
         #     f[[cycles/samples]] -> f[[cycles/second]]
         # maximum measurable (Nyquist) frequency of data

@@ -6,7 +6,7 @@ from .algos import replace_at_inf_or_nan
 from .wavelets import Wavelet
 
 
-def cwt(x, wavelet, scales='log', dt=None, nv=32, l1_norm=True,
+def cwt(x, wavelet, scales='log', t=None, fs=None, nv=32, l1_norm=True,
         derivative=False, padtype='symmetric', rpadded=False):
     """Continuous Wavelet Transform, discretized, as described in
     Sec. 4.3.3 of [1] and Sec. IIIA of [2]. Uses a form of discretized
@@ -30,17 +30,25 @@ def cwt(x, wavelet, scales='log', dt=None, nv=32, l1_norm=True,
                   poorly (and there may not be a good non-piecewise scheme).
         nv: int
             Number of voices. Suggested >= 32.
-        dt: float / None
-            Sampling period. t[1] - t[0], if `t` = vector of sampling times.
-            Defaults to 1, which makes associated ssq frequencies range from
-            1/dT to 0.5, i.e. as fraction of reference sampling rate up to
-            Nyquist limit;  dT = total duration (t[-1] - t[0]).
+        t: np.ndarray / None
+            Vector of times at which samples are taken (eg np.linspace(0, 1, n)).
+            Must be uniformly-spaced.
+            Defaults to `np.linspace(0, len(x)/fs, len(x), endpoint=False)`.
+            Used to compute `dt`, which is only used if `derivative=True`.
+            Overrides `fs` if not None.
+        fs: float / None
+            Sampling frequency of `x`. Defaults to 1, which makes ssq
+            frequencies range from 1/dT to 0.5, i.e. as fraction of reference
+            sampling rate up to Nyquist limit; dT = total duration (N/fs).
+            Used to compute `dt`, which is only used if `derivative=True`.
+            Overridden by `t`, if provided.
+            Relevant on `t` and `dT`: https://dsp.stackexchange.com/a/71580/50076
         l1_norm: bool (default True)
             Whether to L1-normalize the CWT, which yields a more representative
             distribution of energies and component amplitudes than L2 (see [3]).
             If False (default True), uses L2 norm.
         derivative: bool (default False)
-            Whether to compute and return `dWx`.
+            Whether to compute and return `dWx`. Requires `fs` or `t`.
         padtype: str
             Pad scheme to apply on input. One of:
                 ('zero', 'symmetric', 'replicate').
@@ -54,11 +62,11 @@ def cwt(x, wavelet, scales='log', dt=None, nv=32, l1_norm=True,
     # Returns:
         Wx: [na x n] np.ndarray (na = number of scales; n = len(x))
             The CWT of `x`. (rows=scales, cols=timeshifts)
-        scales: [na] np.ndarray.
+        scales: [na] np.ndarray
             Scales at which CWT was computed.
-        x_mean: float.
+        x_mean: float
             mean of `x` to use in inversion (CWT needs scale=inf to capture).
-        dWx: [na x n] np.ndarray.
+        dWx: [na x n] np.ndarray
             Returned only if `derivative=True`.
             Time-derivative of the CWT of `x`, computed via frequency-domain
             differentiation (effectively, derivative of trigonometric
@@ -85,17 +93,24 @@ def cwt(x, wavelet, scales='log', dt=None, nv=32, l1_norm=True,
         https://github.com/ebrevdo/synchrosqueezing/blob/master/synchrosqueezing/
         cwt_fw.m
     """
-    def _process_args(x, scales, dt):
-        if dt is None:
-            dt = 1
-        elif dt <= 0:
-            raise ValueError("`dt` must be > 0")
+    def _process_args(x, scales, fs, t):
+        if t is not None:
+            if not np.mean(np.abs(np.diff(t, 2, axis=0))) < 1e-7:  # float32 thr.
+                raise Exception("Time vector `t` must be uniformly sampled.")
+            fs = 1 / (t[1] - t[0])
+        else:
+            if fs is None:
+                fs = 1
+            elif fs <= 0:
+                raise ValueError("`fs` must be > 0")
+
         if np.isnan(x.max()) or np.isinf(x.max()) or np.isinf(x.min()):
             print(WARN, "found NaN or inf values in `x`; will zero")
             replace_at_inf_or_nan(x, replacement=0.)
-        return dt
+        return fs
 
-    dt = _process_args(x, scales, dt)
+    fs = _process_args(x, scales, fs, t)
+    dt = 1 / fs
 
     x_mean = x.mean()  # store original mean
     n = len(x)         # store original length
