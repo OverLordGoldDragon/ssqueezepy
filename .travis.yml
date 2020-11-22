@@ -28,5 +28,4 @@ before_install:
   - pip install quadpy
   
 script:
- - pycodestyle --max-line-length=89 --ignore=E221,E241,E225,E226,E402,E722,E741,E272,W503,W504 ssqueezepy tests
  - pytest -s
