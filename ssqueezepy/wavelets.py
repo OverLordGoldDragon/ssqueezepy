@@ -11,19 +11,19 @@ class Wavelet():
     Fourier domain.
 
     _______________________________________________________________________
-    Filter types      Use for synsq?    Parameters (default)
+    Wavelets          Use for ssq?      Parameters (default)
 
-    cmhat             yes               s (1), mu (1)
-    morlet            yes               mu (2*pi)
-    hhhat             yes               mu (5)
+    morlet            yes               mu (6)
     bump              yes               s (1), mu (5)
+    cmhat             yes               s (1), mu (1)
+    hhhat             yes               mu (5)
     _______________________________________________________________________
 
-    # TODO force analyticity @ neg frequencies if Morse also fails to?
     # Example:
-        psihfn = Wavelet(('bump', {'s': .5, 'mu': 1}), N=1024)
+        psihfn = Wavelet(('morlet', {'mu': 7}), N=1024)
         plt.plot(psihfn(scale=8))
     """
+    # TODO force analyticity @ neg frequencies if Morse also fails to?
     SUPPORTED = ('morlet', 'bump', 'cmhat', 'hhhat')
     def __init__(self, wavelet='morlet', N=128):
         self._validate_and_set_wavelet(wavelet)
@@ -87,11 +87,10 @@ def _xi(scale, N):
     return xi
 
 #### Wavelet functions ######################################################
-def morlet(mu=5.):
+def morlet(mu=6.):
     cs = (1 + np.exp(-mu**2) - 2 * np.exp(-3/4 * mu**2)) ** (-.5)
     ks = np.exp(-.5 * mu**2)
     return lambda w: _morlet(w, mu, cs, ks)
-
 
 @njit
 def _morlet(w, mu, cs, ks):
@@ -101,7 +100,6 @@ def _morlet(w, mu, cs, ks):
 
 def bump(mu=5., s=1., om=0.):
     return lambda w: _bump(w, (w - mu) / s, om, s)
-
 
 @njit
 def _bump(w, _w, om, s):
@@ -113,7 +111,6 @@ def _bump(w, _w, om, s):
 def cmhat(mu=1., s=1.):
     return lambda w: _cmhat(w - mu, s)
 
-
 @njit
 def _cmhat(_w, s):
     return 2 * np.sqrt(2/3) * pi**(-1/4) * (
@@ -122,7 +119,6 @@ def _cmhat(_w, s):
 
 def hhhat(mu=5.):
     return lambda w: _hhhat(w - mu)
-
 
 @njit
 def _hhhat(_w):

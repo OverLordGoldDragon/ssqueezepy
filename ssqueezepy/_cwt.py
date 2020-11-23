@@ -1,12 +1,12 @@
 import numpy as np
 from numpy.fft import fft, ifft, ifftshift
-from .utils import WARN, p2up, adm_cwt, adm_ssq, wfilth
+from .utils import WARN, p2up, adm_cwt, adm_ssq, wfilth, _process_fs_and_t
 from .utils import padsignal, process_scales
 from .algos import replace_at_inf_or_nan
 from .wavelets import Wavelet
 
 
-def cwt(x, wavelet, scales='log', t=None, fs=None, nv=32, l1_norm=True,
+def cwt(x, wavelet, scales='log', fs=None, t=None, nv=32, l1_norm=True,
         derivative=False, padtype='symmetric', rpadded=False):
     """Continuous Wavelet Transform, discretized, as described in
     Sec. 4.3.3 of [1] and Sec. IIIA of [2]. Uses a form of discretized
@@ -30,12 +30,6 @@ def cwt(x, wavelet, scales='log', t=None, fs=None, nv=32, l1_norm=True,
                   poorly (and there may not be a good non-piecewise scheme).
         nv: int
             Number of voices. Suggested >= 32.
-        t: np.ndarray / None
-            Vector of times at which samples are taken (eg np.linspace(0, 1, n)).
-            Must be uniformly-spaced.
-            Defaults to `np.linspace(0, len(x)/fs, len(x), endpoint=False)`.
-            Used to compute `dt`, which is only used if `derivative=True`.
-            Overrides `fs` if not None.
         fs: float / None
             Sampling frequency of `x`. Defaults to 1, which makes ssq
             frequencies range from 1/dT to 0.5, i.e. as fraction of reference
@@ -43,6 +37,12 @@ def cwt(x, wavelet, scales='log', t=None, fs=None, nv=32, l1_norm=True,
             Used to compute `dt`, which is only used if `derivative=True`.
             Overridden by `t`, if provided.
             Relevant on `t` and `dT`: https://dsp.stackexchange.com/a/71580/50076
+        t: np.ndarray / None
+            Vector of times at which samples are taken (eg np.linspace(0, 1, n)).
+            Must be uniformly-spaced.
+            Defaults to `np.linspace(0, len(x)/fs, len(x), endpoint=False)`.
+            Used to compute `dt`, which is only used if `derivative=True`.
+            Overrides `fs` if not None.
         l1_norm: bool (default True)
             Whether to L1-normalize the CWT, which yields a more representative
             distribution of energies and component amplitudes than L2 (see [3]).
@@ -94,23 +94,13 @@ def cwt(x, wavelet, scales='log', t=None, fs=None, nv=32, l1_norm=True,
         cwt_fw.m
     """
     def _process_args(x, scales, fs, t):
-        if t is not None:
-            if not np.mean(np.abs(np.diff(t, 2, axis=0))) < 1e-7:  # float32 thr.
-                raise Exception("Time vector `t` must be uniformly sampled.")
-            fs = 1 / (t[1] - t[0])
-        else:
-            if fs is None:
-                fs = 1
-            elif fs <= 0:
-                raise ValueError("`fs` must be > 0")
-
         if np.isnan(x.max()) or np.isinf(x.max()) or np.isinf(x.min()):
             print(WARN, "found NaN or inf values in `x`; will zero")
             replace_at_inf_or_nan(x, replacement=0.)
-        return fs
+        dt, *_ = _process_fs_and_t(fs, t, N=len(x))
+        return dt  # == 1 / fs
 
-    fs = _process_args(x, scales, fs, t)
-    dt = 1 / fs
+    dt = _process_args(x, scales, fs, t)
 
     x_mean = x.mean()  # store original mean
     n = len(x)         # store original length

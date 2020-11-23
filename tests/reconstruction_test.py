@@ -18,11 +18,6 @@ def mad_rms(x, xrec):
     return np.mean(np.abs(x - xrec)) / np.sqrt(np.mean(x**2))
 
 #### Test signals ############################################################
-def fast_transitions(N):
-    x = cos_f([.3, .3, 127, 40, 20, 4, 2, 1], N)
-    ts = _t(0, len(x) / N, len(x))
-    return x, ts
-
 def echirp(N):
     t = _t(0, 10, N)
     return np.cos(2 * np.pi * 3 * np.exp(t / 3)), t
@@ -30,6 +25,12 @@ def echirp(N):
 def lchirp(N):
     t = _t(0, 10, N)
     return np.cos(np.pi * t**2), t
+
+def fast_transitions(N):
+    freqs = [.3, .3, 127, 40, 20, 4, 2, 1]
+    x = cos_f(freqs, N // len(freqs))
+    ts = _t(0, len(x) / N, len(x))
+    return x, ts
 
 #### Tests ###################################################################
 test_fns = (echirp, lchirp, fast_transitions)
@@ -51,7 +52,7 @@ def test_ssq_cwt():
 
             errs.append(round(mad_rms(x, xrec), 5))
             assert errs[-1] < th, (errs[-1], fn.__name__, scales)
-    print("ssq_cwt PASSED\nerrs:", ', '.join(map(str, errs)))
+    print("\nssq_cwt PASSED\nerrs:", ', '.join(map(str, errs)))
 
 
 def test_cwt():
@@ -67,7 +68,7 @@ def test_cwt():
 
             errs.append(round(mad_rms(x, xrec), 5))
             assert errs[-1] < th, (errs[-1], fn.__name__, f"l1_norm: {l1_norm}")
-    print("cwt PASSED\nerrs:", ', '.join(map(str, errs)))
+    print("\ncwt PASSED\nerrs:", ', '.join(map(str, errs)))
 
 
 if __name__ == '__main__':
