@@ -1,11 +1,11 @@
+# -*- coding: utf-8 -*-
 import numpy as np
 from .algos import find_closest, indexed_sum, replace_at_inf
-from .utils import EPS, pi, process_scales, _infer_scaletype
+from .utils import EPS, pi, process_scales, _infer_scaletype, _process_fs_and_t
 
 
-# TODO ssq_freqs checks only string
-# TODO scales required
-def ssqueeze(Wx, w, scales, t, ssq_freqs=None, transform='cwt', squeezing='full'):
+def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt',
+             squeezing='full'):
     """Calculates the synchrosqueezed CWT or STFT of `x`. Used internally by
     `synsq_cwt` and `synsq_stft_fwd`.
 
@@ -14,6 +14,10 @@ def ssqueeze(Wx, w, scales, t, ssq_freqs=None, transform='cwt', squeezing='full'
             CWT or STFT of `x`.
         w: np.ndarray
             Phase transform of `Wx` or `Sx`. Must be >=0.
+        ssq_freqs: str['log', 'linear'] / np.ndarray / None
+            Frequencies to synchrosqueeze CWT scales onto. Scale-frequency
+            mapping is only approximate and wavelet-dependent.
+            If None, will infer from and set to same distribution as `scales`.
         scales: str['log', 'linear'] / np.ndarray
             CWT scales. Ignored if transform='stft'.
                 - 'log': exponentially distributed scales, as pow of 2:
@@ -21,14 +25,17 @@ def ssqueeze(Wx, w, scales, t, ssq_freqs=None, transform='cwt', squeezing='full'
                 - 'linear': linearly distributed scales.
                   !!! EXPERIMENTAL; default scheme for len(x)>2048 performs
                   poorly (and there may not be a good non-piecewise scheme).
-        t: np.ndarray
-            Vector of times at which samples are taken (eg linspace(0, 1, n)).
-            Must be uniformly-spaced. Must be consistent with `fs` or `t`
-            used in CWT that computed `Wx` to map frequencies correctly.
-        ssq_freqs: str['log', 'linear'] / np.ndarray / None
-            Frequencies to synchrosqueeze CWT scales onto. Scale-frequency
-            mapping is only approximate and wavelet-dependent.
-            If None, will infer from and set to same distribution as `scales`.
+        fs: float / None
+            Sampling frequency of `x`. Defaults to 1, which makes ssq
+            frequencies range from 1/dT to 0.5, i.e. as fraction of reference
+            sampling rate up to Nyquist limit; dT = total duration (N/fs).
+            Overridden by `t`, if provided.
+            Relevant on `t` and `dT`: https://dsp.stackexchange.com/a/71580/50076
+        t: np.ndarray / None
+            Vector of times at which samples are taken (eg np.linspace(0, 1, n)).
+            Must be uniformly-spaced.
+            Defaults to `np.linspace(0, len(x)/fs, len(x), endpoint=False)`.
+            Overrides `fs` if not None.
         transform: str['cwt', 'stft']
             Whether `Wx` is from CWT or STFT (`Sx`).
         squeezing: str['full', 'measure']
@@ -42,7 +49,7 @@ def ssqueeze(Wx, w, scales, t, ssq_freqs=None, transform='cwt', squeezing='full'
             Synchrosqueezed CWT of `x`. (rows=~frequencies, cols=timeshifts)
             (nf = len(ssq_freqs); n = len(x))
             `nf = na` by default, where `na = len(scales)`.
-        fs: np.ndarray [nf]
+        ssq_freqs: np.ndarray [nf]
             Frequencies associated with rows of `Tx`.
 
     # References:
@@ -89,9 +96,8 @@ def ssqueeze(Wx, w, scales, t, ssq_freqs=None, transform='cwt', squeezing='full'
             Tx = indexed_sum(Wx * (ssq_freqs[1] - ssq_freqs[0]), k)
         return Tx
 
-    def _compute_associated_frequencies(t, na, N, transform, ssq_scaletype):
-        dT = t[-1] - t[0]
-        dt = t[1]  - t[0]
+    def _compute_associated_frequencies(dt, na, N, transform, ssq_scaletype):
+        dT = dt * N
         # normalized frequencies to map discrete-domain to physical:
         #     f[[cycles/samples]] -> f[[cycles/second]]
         # maximum measurable (Nyquist) frequency of data
@@ -113,7 +119,7 @@ def ssqueeze(Wx, w, scales, t, ssq_freqs=None, transform='cwt', squeezing='full'
                 ssq_freqs = ssq_freqs[:N // 2]
         return ssq_freqs
 
-    def _process_args(w, transform, squeezing):
+    def _process_args(w, fs, t, N, transform, squeezing, scales):
         if w.min() < 0:
             raise ValueError("found negatives in `w`")
         if transform not in ('cwt', 'stft'):
@@ -122,10 +128,14 @@ def ssqueeze(Wx, w, scales, t, ssq_freqs=None, transform='cwt', squeezing='full'
         if squeezing not in ('full', 'measure'):
             raise ValueError("`squeezing` must be one of: full, measure "
                              "(got %s)" % squeezing)
-
-    _process_args(w, transform, squeezing)
+        if scales is None and transform == 'cwt':
+            raise ValueError("`scales` can't be None if `transform == 'cwt'`")
+        dt, *_ = _process_fs_and_t(fs, t, N)
+        return dt
 
     na, N = Wx.shape
+    dt = _process_args(w, fs, t, N, transform, squeezing, scales)
+
     scales, cwt_scaletype, _, nv = process_scales(scales, N, get_params=True)
 
     if not isinstance(ssq_freqs, np.ndarray):
@@ -134,7 +144,7 @@ def ssqueeze(Wx, w, scales, t, ssq_freqs=None, transform='cwt', squeezing='full'
         else:
             # default to same scheme used by `scales`
             ssq_scaletype = cwt_scaletype
-        ssq_freqs = _compute_associated_frequencies(t, na, N, transform,
+        ssq_freqs = _compute_associated_frequencies(dt, na, N, transform,
                                                     ssq_scaletype)
     else:
         ssq_scaletype = _infer_scaletype(ssq_freqs)
@@ -288,5 +298,5 @@ def phase_cwt_num(Wx, dt, difforder=4, gamma=None):
     # calculate inst. freq for each scale
     # 2*pi norm per discretized inverse FT rather than inverse DFT
     w = np.real(-1j * w / Wx) / (2 * pi)
-    w = np.abs(w)  # ??? not in original implem., but otherwise w may be < 0
+    w[w < 0] = np.inf
     return w

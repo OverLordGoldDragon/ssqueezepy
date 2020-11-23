@@ -28,7 +28,7 @@ plot(axf, show=1)
 #%%# Synchrosqueeze ##########################################################
 kw = dict(wavelet=('morlet', {'mu': 4.5}), nv=32, scales='log')
 Tx, *_ = ssq_cwt(x, t=ts, **kw)
-Wx, *_ = cwt(x, dt=(ts[1] - ts[0]), **kw)
+Wx, *_ = cwt(x, t=ts, **kw)
 #%%# Visualize ###############################################################
 pkw = dict(abs=1, w=.86, h=.9, aspect='auto', cmap='bone')
 _Tx = np.pad(Tx, [[4, 4]])  # improve display of top- & bottom-most freqs

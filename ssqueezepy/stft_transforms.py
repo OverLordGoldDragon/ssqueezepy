@@ -1,8 +1,4 @@
-# Ported from the Synchrosqueezing Toolbox, authored by
-# Eugine Brevdo, Gaurav Thakur
-#    (http://www.math.princeton.edu/~ebrevdo/)
-#    (https://github.com/ebrevdo/synchrosqueezing/)
-
+# -*- coding: utf-8 -*-
 import numpy as np
 from .utils import padsignal, buffer
 from quadpy import quad as quadgk

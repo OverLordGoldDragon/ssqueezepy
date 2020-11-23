@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import numpy as np
 import numpy.matlib
 import logging
@@ -376,3 +377,23 @@ def _infer_scaletype(ipt):
         raise ValueError("could not infer `scaletype` from `ipt`; "
                          "`ipt` array must be linear or exponential.")
     return scaletype
+
+
+def _process_fs_and_t(fs, t, N):
+    """Ensures `t` is uniformly-spaced and of same length as `x` (==N)
+    and returns `fs` and `dt` based on it, or from defaults if `t` is None.
+    """
+    if t is not None:
+        if len(t) != N:
+            # not explicitly used anywhere but ensures wrong `t` wasn't supplied
+            raise Exception("`t` must be of same length as `x`.")
+        elif not np.mean(np.abs(np.diff(t, 2, axis=0))) < 1e-7:  # float32 thr.
+            raise Exception("Time vector `t` must be uniformly sampled.")
+        fs = 1 / (t[1] - t[0])
+    else:
+        if fs is None:
+            fs = 1
+        elif fs <= 0:
+            raise ValueError("`fs` must be > 0")
+    dt = 1 / fs
+    return dt, fs, t
