@@ -3,7 +3,7 @@ import numpy as np
 import numpy.matlib
 import logging
 from scipy import integrate
-from .algos import replace_at_inf_or_nan
+from .algos import replace_at_inf_or_nan, _min_neglect_idx
 from .wavelets import Wavelet
 
 
@@ -139,8 +139,7 @@ def padsignal(x, padtype='symmetric', padlength=None):
     return xpad, n_up, n1, n2
 
 
-# TODO default dt = 1/N? one sample per sec unlikely
-def wfilth(wavelet, N, a=1, dt=1, derivative=False, l1_norm=True):
+def wfilth(wavelet, N, a=1, fs=1, derivative=False, l1_norm=True):
     """Computes the discretized (sampled) wavelets in Fourier frequency domain.
     Used in CWT for discretized convolution theorem via FFT.
 
@@ -155,8 +154,8 @@ def wfilth(wavelet, N, a=1, dt=1, derivative=False, l1_norm=True):
             Number of samples to calculate.
         a: float
             Wavelet scale parameter (default=1). Higher -> lower frequency.
-        dt: float
-            Sampling period (of input signal `x`), used to scale `dpsih`.
+        fs: float
+            Sampling frequency (of input signal `x`), used to scale `dpsih`.
         derivative: bool (default False)
             Whether to compute and return derivative of same wavelet.
             Computed via frequency-domain differentiation (effectively,
@@ -197,7 +196,7 @@ def wfilth(wavelet, N, a=1, dt=1, derivative=False, l1_norm=True):
         psih = replace_at_inf_or_nan(psih, 0)
 
     if derivative:
-        dpsih = (1j * psihfn.xi / dt) * psih  # `dt` relevant for phase transform
+        dpsih = (1j * psihfn.xi * fs) * psih  # `dt` relevant for phase transform
         return psih, dpsih
     else:
         return psih
@@ -220,9 +219,7 @@ def adm_ssq(wavelet):
         https://arxiv.org/pdf/0912.2437.pdf
     """
     psihfn = Wavelet(wavelet)
-    # no need to integrate to inf or to start from exactly 0;
-    # results very close and avert instability for certain psihfn
-    Css = integrate.quad(lambda w: np.conj(psihfn(w)) / w, 1e-8, 100)[0]
+    Css = _integrate(lambda w: np.conj(psihfn(w)) / w)
     return Css
 
 
@@ -235,18 +232,8 @@ def adm_cwt(wavelet):
     1. Wavelet Tour of Signal Processing, 3rd ed. S. Mallat.
     https://www.di.ens.fr/~mallat/papiers/WaveletTourChap1-2-3.pdf
 	"""
-    wavelet = wavelet if isinstance(wavelet, tuple) else (wavelet, {})
-    wavelet, opts = wavelet
-
-    if wavelet == 'sombrero':
-        s = opts.get('s', 1)
-        Cpsi = (4/3) * s * np.sqrt(pi)
-    elif wavelet == 'shannon':
-        Cpsi = np.log(2)
-    else:
-        psihfn = Wavelet(wavelet)
-        Cpsi = integrate.quad(lambda w: np.conj(psihfn(w)) * psihfn(w) / w,
-                              1e-8, 100)[0]
+    psihfn = Wavelet(wavelet)
+    Cpsi = _integrate(lambda w: np.conj(psihfn(w)) * psihfn(w) / w)
     return Cpsi
 
 
@@ -302,6 +289,37 @@ def buffer(x, n, p=0, opt=None):
         i += (n - p)
 
     return np.vstack(result).T
+
+
+def _integrate(int_fn):
+    """Assumes analytic wavelet; psihfn(w<0)=0, psihfn->0 as w->inf.
+    Integrates using trapezoidal rule, from 0 to inf (equivalently).
+    """
+    def _est_arr(mxlim, N):
+        t = np.linspace(1e-15, mxlim, N)
+        arr = int_fn(t)
+
+        max_idx = np.argmax(arr)
+        min_neglect_idx = _min_neglect_idx(np.abs(arr[max_idx:]),
+                                           th=1e-15) + max_idx
+        return arr, t, max_idx, min_neglect_idx
+
+    def _find_convergent_array(intfn):
+        for i in (1, 2, 4, 8):
+            arr, t, max_idx, min_neglect_idx = _est_arr(mxlim=20*i, N=10000*i)
+            # ensure sufficient decay between peak and right endpoint, and
+            # that `arr` isn't a flatline (contains wavelet peak)
+            if ((len(t) - min_neglect_idx > 1000 * i) and
+                np.sum(np.abs(arr)) > 1e-5):
+                break
+        else:
+            raise Exception("Could not force admissibility coefficient to "
+                            "converge, or wavelet (in Fourier domain) values "
+                            "are too small; check the wavelet function")
+        return arr[:min_neglect_idx], t[:min_neglect_idx]
+
+    arr, t = _find_convergent_array(int_fn)
+    return integrate.trapz(arr, t)
 
 
 def _assert_positive_integer(g, name=''):

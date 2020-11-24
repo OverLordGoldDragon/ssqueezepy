@@ -122,4 +122,11 @@ def _replace_at_value(x, ref, value=0., replacement=0.):
                     x[i, j, k] = replacement
     return x
 
-#############################################################################
+#### misc ####################################################################
+@njit
+def _min_neglect_idx(arr, th=1e-12):
+    """Used in utils.integrate_wavelet"""
+    for i, x in enumerate(arr):
+        if x < th:
+            return i
+    return i
