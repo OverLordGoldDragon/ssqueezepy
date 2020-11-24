@@ -123,7 +123,7 @@ def cwt(x, wavelet, scales='log', fs=None, t=None, nv=32, l1_norm=True,
     for i, a in enumerate(scales):
         # sample FT of wavelet at scale `a`
         # `* pn` = freq-domain spectral reversal to center time-domain wavelet
-        psih = psihfn(a) * pn
+        psih = psihfn(scale=a) * pn
         Wx[i] = ifftshift(ifft(xh * psih))
 
         if derivative:

@@ -2,7 +2,7 @@
 import numpy as np
 import numpy.matlib
 import logging
-from quadpy import quad as quadgk
+from scipy import integrate
 from .algos import replace_at_inf_or_nan
 from .wavelets import Wavelet
 
@@ -190,7 +190,7 @@ def wfilth(wavelet, N, a=1, dt=1, derivative=False, l1_norm=True):
     # `* (-1)^[0,1,...]` = frequency-domain spectral reversal
     #                      to center time-domain wavelet
     norm = 1 if l1_norm else np.sqrt(a)
-    psih = psihfn(a) * norm * (-1)**np.arange(N)
+    psih = psihfn(scale=a) * norm * (-1)**np.arange(N)
 
     # Sometimes bump gives a NaN when it means 0
     if 'bump' in wavelet:
@@ -220,7 +220,9 @@ def adm_ssq(wavelet):
         https://arxiv.org/pdf/0912.2437.pdf
     """
     psihfn = Wavelet(wavelet)
-    Css = quadgk(lambda w: np.conj(psihfn(w)) / w, 0., np.inf)[0]
+    # no need to integrate to inf or to start from exactly 0;
+    # results very close and avert instability for certain psihfn
+    Css = integrate.quad(lambda w: np.conj(psihfn(w)) / w, 1e-8, 100)[0]
     return Css
 
 
@@ -228,7 +230,7 @@ def adm_cwt(wavelet):
     """Calculates the cwt admissibility constant as per Eq. (4.67) of [1].
     Uses numerical integration.
 
-        integral(|psihfn(w)|^2/w, w=0..inf)
+        integral(psihfn(w) * conj(psihfn(w)) / w, w=0..inf)
 
     1. Wavelet Tour of Signal Processing, 3rd ed. S. Mallat.
     https://www.di.ens.fr/~mallat/papiers/WaveletTourChap1-2-3.pdf
@@ -243,8 +245,8 @@ def adm_cwt(wavelet):
         Cpsi = np.log(2)
     else:
         psihfn = Wavelet(wavelet)
-        Cpsi = quadgk(lambda w: np.conj(psihfn(w)) * psihfn(w) / w,
-                      0., np.inf)[0]
+        Cpsi = integrate.quad(lambda w: np.conj(psihfn(w)) * psihfn(w) / w,
+                              1e-8, 100)[0]
     return Cpsi
 
 
@@ -333,7 +335,7 @@ def process_scales(scales, len_x, nv=None, na=None, get_params=False):
 
             scaletype = _infer_scaletype(scales)
             if na is not None:
-                print(WARN, "`na` is ignored if `scales` is an array")
+                WARN("`na` is ignored if `scales` is an array")
             na = len(scales)
         else:
             raise TypeError("`scales` must be a string or Numpy array "
@@ -343,6 +345,9 @@ def process_scales(scales, len_x, nv=None, na=None, get_params=False):
     scaletype, na = _process_args(scales, nv, na)
 
     # compute params
+    # TODO `noct` scheme here is inoptimal; MATLAB's is more well-grounded,
+    # setting to log2(fmax/fmin), wavelet-dependent
+    # https://www.mathworks.com/help/wavelet/ref/cwtfreqbounds.html
     n_up, *_ = p2up(len_x)
     noct = np.log2(n_up) - 1
     if nv is None:

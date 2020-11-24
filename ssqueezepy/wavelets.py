@@ -30,15 +30,15 @@ class Wavelet():
 
         self.xi = _xi(scale=1, N=N)
 
-    def __call__(self, ipt, N=None):
-        """psihfn(ipt) if ipt is np.ndarray, else ipt = scale, and computes
+    def __call__(self, w=None, *, scale=None, N=None):
+        """psihfn(w) if called with positional argument, w = float or array, else
            psihfn(scale * xi), where `xi` is recomputed if `N` is not None.
         """
-        if isinstance(ipt, np.ndarray) and ipt.size > 1:
-            return self.fn(ipt)
+        if w is not None:
+            return self.fn(w)
         elif N is None:
-            return self.fn(ipt * self.xi)
-        return self.fn(_xi(ipt, N))
+            return self.fn(scale * self.xi)
+        return self.fn(_xi(scale, N))
 
     def _validate_and_set_wavelet(self, wavelet):
         if isinstance(wavelet, FunctionType):
