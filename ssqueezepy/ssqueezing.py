@@ -5,19 +5,22 @@ from .utils import EPS, pi, process_scales, _infer_scaletype, _process_fs_and_t
 
 
 def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt',
-             squeezing='full'):
+             squeezing='sum'):
     """Calculates the synchrosqueezed CWT or STFT of `x`. Used internally by
     `synsq_cwt` and `synsq_stft_fwd`.
 
     # Arguments:
         Wx or Sx: np.ndarray
             CWT or STFT of `x`.
+
         w: np.ndarray
             Phase transform of `Wx` or `Sx`. Must be >=0.
+
         ssq_freqs: str['log', 'linear'] / np.ndarray / None
             Frequencies to synchrosqueeze CWT scales onto. Scale-frequency
             mapping is only approximate and wavelet-dependent.
             If None, will infer from and set to same distribution as `scales`.
+
         scales: str['log', 'linear'] / np.ndarray
             CWT scales. Ignored if transform='stft'.
                 - 'log': exponentially distributed scales, as pow of 2:
@@ -25,24 +28,28 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
                 - 'linear': linearly distributed scales.
                   !!! EXPERIMENTAL; default scheme for len(x)>2048 performs
                   poorly (and there may not be a good non-piecewise scheme).
+
         fs: float / None
             Sampling frequency of `x`. Defaults to 1, which makes ssq
             frequencies range from 1/dT to 0.5, i.e. as fraction of reference
             sampling rate up to Nyquist limit; dT = total duration (N/fs).
             Overridden by `t`, if provided.
             Relevant on `t` and `dT`: https://dsp.stackexchange.com/a/71580/50076
+
         t: np.ndarray / None
             Vector of times at which samples are taken (eg np.linspace(0, 1, n)).
             Must be uniformly-spaced.
             Defaults to `np.linspace(0, len(x)/fs, len(x), endpoint=False)`.
             Overrides `fs` if not None.
+
         transform: str['cwt', 'stft']
             Whether `Wx` is from CWT or STFT (`Sx`).
-        squeezing: str['full', 'measure']
-                - 'full': standard synchrosqueezing using `Wx`.
-                - 'measure': as in [3], setting `Wx=ones()`, which is not
-                invertible but has better robustness properties in some cases.
-                Not recommended unless you know what you're doing.
+
+        squeezing: str['sum', 'lebesgue']
+                - 'sum' = standard synchrosqueezing using `Wx`.
+                - 'lebesgue' = as in [4], setting `Wx=ones()/len(Wx)`, which is
+                not invertible but has better robustness properties in some cases.
+                Not recommended unless purpose is understood.
 
     # Returns:
         Tx: np.ndarray [nf x n]
@@ -112,7 +119,7 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
         else:
             if transform == 'cwt':
                 ssq_freqs = np.linspace(fm, fM, na)
-            else:  # 'stft'
+            elif transform == 'stft':
                 # ??? seems to be 0 to f_sampling/2, but why use N?
                 # what about fm and fM?
                 ssq_freqs = np.linspace(0, 1, N) / dt
@@ -125,8 +132,8 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
         if transform not in ('cwt', 'stft'):
             raise ValueError("`transform` must be one of: cwt, stft "
                              "(got %s)" % squeezing)
-        if squeezing not in ('full', 'measure'):
-            raise ValueError("`squeezing` must be one of: full, measure "
+        if squeezing not in ('sum', 'lebesgue'):
+            raise ValueError("`squeezing` must be one of: sum, lebesgue "
                              "(got %s)" % squeezing)
         if scales is None and transform == 'cwt':
             raise ValueError("`scales` can't be None if `transform == 'cwt'`")
@@ -149,9 +156,7 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
     else:
         ssq_scaletype = _infer_scaletype(ssq_freqs)
 
-    if squeezing == 'measure':  # from reference [3]
-        # !!! not recommended unless having specific reason;
-        # no reconstruction; not validated
+    if squeezing == 'lebesgue':  # from reference [3]
         Wx = np.ones(Wx.shape) / len(Wx)
 
     Tx = _ssqueeze(w, Wx, nv, ssq_freqs, transform, ssq_scaletype, cwt_scaletype)
@@ -166,9 +171,11 @@ def phase_cwt(Wx, dWx, difftype='direct', gamma=None):
     # Arguments:
         Wx: np.ndarray
             CWT of `x` (see `cwt`).
+
         dWx: np.ndarray.
             Time-derivative of `Wx`, computed via frequency-domain differentiation
             (effectively, derivative of trigonometric interpolation; see [4]).
+
         difftype: str['direct', 'phase']
             Method by which to differentiate Wx (default='direct') to obtain
             instantaneous frequencies:
@@ -177,7 +184,8 @@ def phase_cwt(Wx, dWx, difftype='direct', gamma=None):
                 - 'direct': using `dWx` (see `dWx`).
                 - 'phase': differentiate by taking forward finite-difference of
                 unwrapped angle of `Wx` (see `phase_cwt`).
-        gamma: float
+
+        gamma: float / None
             CWT phase threshold. Sets `w=inf` for small values of `Wx` where
             phase computation is unstable and inaccurate (like in DFT):
                 w[abs(Wx) < beta] = inf
@@ -233,9 +241,12 @@ def phase_cwt_num(Wx, dt, difforder=4, gamma=None):
 
     # Arguments:
         Wx: np.ndarray. Wavelet transform of `x` (see `cwt`).
+
         dt: int. Sampling period (e.g. t[1] - t[0]).
+
         difforder: int[1, 2, 4]
             Order of differentiation (default=4).
+
         gamma: float
             CWT phase threshold. Sets `w=inf` for small values of `Wx` where
             phase computation is unstable and inaccurate (like in DFT):

@@ -7,7 +7,7 @@ from .wavelets import Wavelet
 
 
 def cwt(x, wavelet, scales='log', fs=None, t=None, nv=32, l1_norm=True,
-        derivative=False, padtype='symmetric', rpadded=False):
+        derivative=False, padtype='symmetric', rpadded=False, vectorized=True):
     """Continuous Wavelet Transform, discretized, as described in
     Sec. 4.3.3 of [1] and Sec. IIIA of [2]. Uses a form of discretized
     convolution theorem via wavelets in the Fourier domain and FFT of input.
@@ -15,12 +15,14 @@ def cwt(x, wavelet, scales='log', fs=None, t=None, nv=32, l1_norm=True,
     # Arguments:
         x: np.ndarray
             Input signal vector.
+
         wavelet: str / tuple[str, dict] / `wavelets.Wavelet`
             Wavelet sampled in Fourier frequency domain.
                 - str: name of builtin wavelet. `ssqueezepy.wavs()`
                 - tuple[str, dict]: name of builtin wavelet and its configs.
                   E.g. `('morlet', {'mu': 5})`.
                 - `wavelets.Wavelet` instance. Can use for custom wavelet.
+
         scales: str['log', 'linear'] / np.ndarray
             CWT scales vector.
                 - 'log': exponentially distributed scales, as pow of 2:
@@ -28,8 +30,10 @@ def cwt(x, wavelet, scales='log', fs=None, t=None, nv=32, l1_norm=True,
                 - 'linear': linearly distributed scales.
                   !!! EXPERIMENTAL; default scheme for len(x)>2048 performs
                   poorly (and there may not be a good non-piecewise scheme).
+
         nv: int
             Number of voices. Suggested >= 32.
+
         fs: float / None
             Sampling frequency of `x`. Defaults to 1, which makes ssq
             frequencies range from 1/dT to 0.5, i.e. as fraction of reference
@@ -37,27 +41,36 @@ def cwt(x, wavelet, scales='log', fs=None, t=None, nv=32, l1_norm=True,
             Used to compute `dt`, which is only used if `derivative=True`.
             Overridden by `t`, if provided.
             Relevant on `t` and `dT`: https://dsp.stackexchange.com/a/71580/50076
+
         t: np.ndarray / None
             Vector of times at which samples are taken (eg np.linspace(0, 1, n)).
             Must be uniformly-spaced.
             Defaults to `np.linspace(0, len(x)/fs, len(x), endpoint=False)`.
             Used to compute `dt`, which is only used if `derivative=True`.
             Overrides `fs` if not None.
+
         l1_norm: bool (default True)
             Whether to L1-normalize the CWT, which yields a more representative
             distribution of energies and component amplitudes than L2 (see [3]).
             If False (default True), uses L2 norm.
+
         derivative: bool (default False)
             Whether to compute and return `dWx`. Requires `fs` or `t`.
+
         padtype: str
             Pad scheme to apply on input. One of:
                 ('zero', 'symmetric', 'replicate').
             'zero' is most naive, while 'symmetric' (default) partly mitigates
             boundary effects. See `padsignal`.
+
         rpadded: bool (default False)
              Whether to return padded Wx and dWx.
              `False` drops the added padding per `padtype` to return Wx and dWx
              of .shape[1] == len(x).
+
+        vectorized: bool (default True)
+            Whether to compute quantities for all scales at once, which is
+            faster but uses more memory.
 
     # Returns:
         Wx: [na x n] np.ndarray (na = number of scales; n = len(x))
@@ -93,6 +106,32 @@ def cwt(x, wavelet, scales='log', fs=None, t=None, nv=32, l1_norm=True,
         https://github.com/ebrevdo/synchrosqueezing/blob/master/synchrosqueezing/
         cwt_fw.m
     """
+    def _vectorized(xh, scales, psihfn, pn, derivative):
+        Wx = (psihfn(scale=scales) * pn).astype('complex128')
+        if derivative:
+            dWx = (1j * psihfn.xi / dt) * Wx
+
+        Wx = ifftshift(ifft(Wx * xh, axis=-1), axes=-1)
+        if derivative:
+            dWx = ifftshift(ifft(dWx * xh, axis=-1), axes=-1)
+        return (Wx, dWx) if derivative else (Wx, None)
+
+    def _for_loop(xh, scales, psihfn, pn, derivative):
+        Wx = np.zeros((len(scales), psihfn.N)).astype('complex128')
+        if derivative:
+            dWx = Wx.copy()
+
+        for i, a in enumerate(scales):
+            # sample FT of wavelet at scale `a`
+            # * pn = freq-domain spectral reversal to center time-domain wavelet
+            psih = psihfn(scale=a) * pn
+            Wx[i] = ifftshift(ifft(psih * xh))
+
+            if derivative:
+                dpsih = (1j * psihfn.xi / dt) * psih
+                dWx[i] = ifftshift(ifft(dpsih * xh))
+        return (Wx, dWx) if derivative else (Wx, None)
+
     def _process_args(x, scales, fs, t):
         if np.isnan(x.max()) or np.isinf(x.max()) or np.isinf(x.min()):
             print(WARN, "found NaN or inf values in `x`; will zero")
@@ -106,38 +145,23 @@ def cwt(x, wavelet, scales='log', fs=None, t=None, nv=32, l1_norm=True,
     n = len(x)         # store original length
     x, N, n1, n2 = padsignal(x, padtype)
 
-    scales = process_scales(scales, n, nv=nv)
-
-    # must cast to complex else value assignment discards imaginary component
-    Wx = np.zeros((len(scales), N)).astype('complex128')  # N == len(x) (padded)
-    if derivative:
-        dWx = Wx.copy()
-
     x -= x.mean()
     xh = fft(x)
-    pn = (-1) ** np.arange(N)
+    scales = process_scales(scales, n, nv=nv)
     psihfn = Wavelet(wavelet, N=N)
+    pn = (-1) ** np.arange(N)
 
-    # TODO vectorize? can FFT all at once if all `psih` are precomputed
-    # but keep loop option in case of OOM
-    for i, a in enumerate(scales):
-        # sample FT of wavelet at scale `a`
-        # `* pn` = freq-domain spectral reversal to center time-domain wavelet
-        psih = psihfn(scale=a) * pn
-        Wx[i] = ifftshift(ifft(xh * psih))
-
-        if derivative:
-            dpsih = (1j * psihfn.xi / dt) * psih
-            dWx[i] = ifftshift(ifft(dpsih * xh))
+    Wx, dWx = (_vectorized(xh, scales, psihfn, pn, derivative) if vectorized else
+               _for_loop(  xh, scales, psihfn, pn, derivative))
 
     if not rpadded:
         # shorten to pre-padded size
-        Wx  = Wx[:, n1:n1 + n]
+        Wx = Wx[:, n1:n1 + n]
         if derivative:
             dWx = dWx[:, n1:n1 + n]
     if not l1_norm:
         # normalize energy per L2 wavelet norm, else already L1-normalized
-        Wx  *= np.sqrt(scales)
+        Wx *= np.sqrt(scales)
         if derivative:
             dWx *= np.sqrt(scales)
 
@@ -153,29 +177,36 @@ def icwt(Wx, wavelet, scales='log', one_int=True, x_len=None, x_mean=0,
     # Arguments:
         Wx: np.ndarray
             CWT computed via `ssqueezepy.cwt`.
+
         wavelet: str / tuple[str, dict] / `wavelets.Wavelet`
             Wavelet sampled in Fourier frequency domain.
                 - str: name of builtin wavelet. `ssqueezepy.wavs()`
                 - tuple[str, dict]: name of builtin wavelet and its configs.
                   E.g. `('morlet', {'mu': 5})`.
                 - `wavelets.Wavelet` instance. Can use for custom wavelet.
+
         one_int: bool (default True)
             Whether to use one-integral iCWT or double.
             Current one-integral implementation performs best.
                 - True: Eq 2.6, modified, of [3]. Explained in [4].
                 - False: Eq 4.67 of [1]. Explained in [5].
+
         x_len: int / None. Length of `x` used in forward CWT, if different
             from Wx.shape[1] (default if None).
+
         x_mean: float. mean of original `x` (not picked up in CWT since it's an
             infinite scale component). Default 0.
+
         padtype: str
             Pad scheme to apply on input. One of:
                 ('zero', 'symmetric', 'replicate').
             'zero' is most naive, while 'symmetric' (default) partly mitigates
             boundary effects. See `padsignal`.
             !!! currently uses only 'zero'
+
         rpadded: bool (default False)
             True if Wx is padded (e.g. if used `cwt(, rpadded=True)`).
+
         l1_norm: bool (default True)
             True if Wx was obtained via `cwt(, l1_norm=True)`.
 

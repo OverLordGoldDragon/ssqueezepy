@@ -120,8 +120,7 @@ def padsignal(x, padtype='symmetric', padlength=None):
         n_up, n1, n2 = p2up(n)
     else:
         n_up = n + 2 * padlength
-        n1 = padlength + 1  # TODO why n1 >= n2 here but n2 >= n1 in p2up
-        n2 = padlength
+        n1 = n2 = padlength
     n_up, n1, n2 = int(n_up), int(n1), int(n2)
 
     # comments use (n=4, n1=3, n2=4) as example, but this combination can't occur
@@ -130,12 +129,13 @@ def padsignal(x, padtype='symmetric', padlength=None):
         xpad = np.hstack([x[::-1][-n1:], x, x[::-1][:n2]])
     elif padtype == 'replicate':
         # [1,2,3,4] -> [1,1,1, 1,2,3,4, 4,4,4,4]
-        x = np.pad(x, [n1, n2], mode='edge')
+        xpad = np.pad(x, [n1, n2], mode='edge')
     elif padtype == 'zero':
         # [1,2,3,4] -> [0,0,0, 1,2,3,4, 0,0,0,0]
-        x = np.pad(x, [n1, n2])
+        xpad = np.pad(x, [n1, n2])
 
-    assert len(xpad) == n_up == n1 + n + n2
+    _ = (len(xpad), n_up, n1, n, n2)
+    assert (len(xpad) == n_up == n1 + n + n2), "%s ?= %s ?= %s + %s + %s" % _
     return xpad, n_up, n1, n2
 
 
@@ -150,16 +150,21 @@ def wfilth(wavelet, N, a=1, fs=1, derivative=False, l1_norm=True):
                 - tuple[str, dict]: name of builtin wavelet and its configs.
                   E.g. `('morlet', {'mu': 5})`.
                 - `wavelets.Wavelet` instance. Can use for custom wavelet.
+
         N: int
             Number of samples to calculate.
+
         a: float
             Wavelet scale parameter (default=1). Higher -> lower frequency.
+
         fs: float
             Sampling frequency (of input signal `x`), used to scale `dpsih`.
+
         derivative: bool (default False)
             Whether to compute and return derivative of same wavelet.
             Computed via frequency-domain differentiation (effectively,
             derivative of trigonometric interpolation; see [1]).
+
         l1_norm: bool (default True)
             Whether to L1-normalize the wvelet, which yields a CWT with more
             representative distribution of energies and component amplitudes
@@ -237,11 +242,52 @@ def adm_cwt(wavelet):
     return Cpsi
 
 
+def _integrate(int_fn):
+    """Assumes analytic wavelet; psihfn(w<0)=0, psihfn->0 as w->inf.
+    Integrates using trapezoidal rule, from 0 to inf (equivalently).
+    """
+    def _est_arr(mxlim, N):
+        t = np.linspace(mxlim, .1, N, endpoint=False)[::-1]
+        arr = int_fn(t)
+
+        max_idx = np.argmax(arr)
+        min_neglect_idx = _min_neglect_idx(np.abs(arr[max_idx:]),
+                                           th=1e-15) + max_idx
+        return arr, t, max_idx, min_neglect_idx
+
+    def _find_convergent_array():
+        for i in (1, 4, 8):
+            arr, t, max_idx, min_neglect_idx = _est_arr(mxlim=20*i, N=10000*i)
+            # ensure sufficient decay between peak and right endpoint, and
+            # that `arr` isn't a flatline (contains wavelet peak)
+            if ((len(t) - min_neglect_idx > 1000 * i) and
+                np.sum(np.abs(arr)) > 1e-5):
+                break
+        else:
+            raise Exception("Could not force admissibility coefficient to "
+                            "converge, or (Fourier-domain) wavelet values "
+                            "are too small; check the wavelet function")
+        return arr[:min_neglect_idx], t[:min_neglect_idx]
+
+    def _integrate_near_zero():
+        # sample `intfn` more finely as it might be extremely narrow near zero.
+        # this still doesn't work well as float64 zeros the numerator before /w,
+        # but the true integral will be negligibly small most of the time anyway
+        # (.001 to .1 may not be negligible, however; better captured by logspace)
+        t = np.logspace(-15, -1, 1000)
+        arr = int_fn(t)
+        return integrate.trapz(arr, t)
+
+    int_nz = _integrate_near_zero()
+    arr, t = _find_convergent_array()
+    return integrate.trapz(arr, t) + int_nz
+
+
 # TODO never reviewed
+# TODO inefficient; rewrite
 def buffer(x, n, p=0, opt=None):
     """Mimic MATLAB routine to generate buffer array
-
-    MATLAB docs here: https://se.mathworks.com/help/signal/ref/buffer.html
+    https://se.mathworks.com/help/signal/ref/buffer.html
 
     # Arguments:
         x: np.ndarray. Signal array.
@@ -270,56 +316,25 @@ def buffer(x, n, p=0, opt=None):
         result = np.hstack([np.zeros(p), x[:n-p]])
         i = n - p
 
-    # Make 2D array
-    result = np.expand_dims(result, axis=0)
+    # Make into list for appending with first element holding x[:n] (or w/ zeros)
+    result = result.reshape(1, -1)
     result = list(result)
 
     while i < len(x):
-        # Create next column, add `p` results from last col if given
+        # Create next column, add right-most `p` results from last col if p!=0
         col = x[i:i+(n-p)]
         if p != 0:
             col = np.hstack([result[-1][-p:], col])
 
         # Append zeros if last row and not length `n`
-        if len(col):
+        if len(col) < n:
             col = np.hstack([col, np.zeros(n - len(col))])
 
         # Combine result with next row
-        result.append(np.array(col))
+        result.append(np.asarray(col))
         i += (n - p)
 
     return np.vstack(result).T
-
-
-def _integrate(int_fn):
-    """Assumes analytic wavelet; psihfn(w<0)=0, psihfn->0 as w->inf.
-    Integrates using trapezoidal rule, from 0 to inf (equivalently).
-    """
-    def _est_arr(mxlim, N):
-        t = np.linspace(1e-15, mxlim, N)
-        arr = int_fn(t)
-
-        max_idx = np.argmax(arr)
-        min_neglect_idx = _min_neglect_idx(np.abs(arr[max_idx:]),
-                                           th=1e-15) + max_idx
-        return arr, t, max_idx, min_neglect_idx
-
-    def _find_convergent_array(intfn):
-        for i in (1, 2, 4, 8):
-            arr, t, max_idx, min_neglect_idx = _est_arr(mxlim=20*i, N=10000*i)
-            # ensure sufficient decay between peak and right endpoint, and
-            # that `arr` isn't a flatline (contains wavelet peak)
-            if ((len(t) - min_neglect_idx > 1000 * i) and
-                np.sum(np.abs(arr)) > 1e-5):
-                break
-        else:
-            raise Exception("Could not force admissibility coefficient to "
-                            "converge, or wavelet (in Fourier domain) values "
-                            "are too small; check the wavelet function")
-        return arr[:min_neglect_idx], t[:min_neglect_idx]
-
-    arr, t = _find_convergent_array(int_fn)
-    return integrate.trapz(arr, t)
 
 
 def _assert_positive_integer(g, name=''):

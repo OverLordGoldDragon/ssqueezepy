@@ -1,3 +1,11 @@
+# -*- coding: utf-8 -*-
+"""Test accuracy and stability of computing `adm_cwt` and `adm_ssq`
+via numeric integration.
+
+Unstable integration will yield values close to zero, whereass admissibility
+coefficients for majority of wavelet configurations will evaluate to a
+'not very small' value (set to 1e-3 here).
+"""
 import pytest
 import numpy as np
 from ssqueezepy.utils import adm_cwt, adm_ssq

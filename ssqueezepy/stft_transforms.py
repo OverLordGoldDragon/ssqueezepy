@@ -1,7 +1,10 @@
 # -*- coding: utf-8 -*-
+"""NOT FOR USE; will be ready for v0.6.0"""
 import numpy as np
+from numpy.fft import fft, ifft
+from scipy import integrate
 from .utils import padsignal, buffer
-from quadpy import quad as quadgk
+
 
 pi = np.pi
 EPS = np.finfo(np.float64).eps  # machine epsilon for float64
@@ -60,12 +63,11 @@ def stft_fwd(x, dt, opts={}):
     # Pre-pad signal; this only works well for 'normal' STFT
     n = len(x)
     if opts['stft_type'] == 'normal':
-        x, N_old, n1, n2 = padsignal(x, opts['padtype'], opts['winlen'])
+        x, N, n1, n2 = padsignal(x, opts['padtype'], opts['winlen'])
         n1 = n1 // 2
     else:
+        N = n
         n1 = 0
-
-    N = len(x)
 
     if opts['stft_type'] == 'normal':
         # set up window
@@ -74,7 +76,7 @@ def stft_fwd(x, dt, opts={}):
             diff_window = diff_windowfunc(np.linspace(-1, 1, opts['winlen']))
         else:
             window = np.hamming(opts['winlen'])
-            diff_window = np.hstack([np.diff(np.hamming(opts['winlen'])), 0])
+            diff_window = np.hstack([np.diff(window), 0])
         diff_window[np.where(np.isnan(diff_window))] = 0
 
         # frequency range
@@ -84,17 +86,17 @@ def stft_fwd(x, dt, opts={}):
         # compute STFT and keep only the positive frequencies
         xbuf = buffer(x, opts['winlen'], opts['winlen'] - 1, 'nodelay')
         xbuf = np.diag(window) @ xbuf
-        Sx = np.fft.fft(xbuf, None, axis=0)
+        Sx = fft(xbuf, None, axis=0)
         Sx = Sx[:opts['winlen'] // 2 + 1] / np.sqrt(N)
 
         # same steps for STFT derivative
         dxbuf = buffer(x, opts['winlen'], opts['winlen'] - 1, 'nodelay')
         dxbuf = np.diag(diff_window) @ dxbuf
-        dSx = np.fft.fft(dxbuf, None, axis=0)
+        dSx = fft(dxbuf, None, axis=0)
         dSx = dSx[:opts['winlen'] // 2 + 1] / np.sqrt(N)
         dSx /= dt
 
-    elif opts['stfttype'] == 'modified':
+    elif opts['stft_type'] == 'modified':
         # modified STFt is more accurately done in the frequency domain,
         # like a filter bank over different frequency bands
         # uses a lot of memory, so best used on small blocks
@@ -105,8 +107,8 @@ def stft_fwd(x, dt, opts={}):
 
         halfN = np.round(N / 2)
         halfwin = np.floor((opts['winlen'] - 1) / 2)
-        window = windowfunc(np.linspace(-1, 1, opts['winlen'])).T # TODO chk dim
-        diff_window = diff_windowfunc(np.linspace(-1, 1, opts['winlen'])).T * (
+        window = windowfunc(np.linspace(-1, 1, opts['winlen'])) # TODO chk dim
+        diff_window = diff_windowfunc(np.linspace(-1, 1, opts['winlen'])) * (
             2 / opts['winlen'] / dt)
 
         for k in range(N):
@@ -116,8 +118,8 @@ def stft_fwd(x, dt, opts={}):
             Sx[indices, k]  = x[k + freqs] * window(halfwin + freqs + 1)
             dSx[indices, k] = x[k + freqs] * diff_window(halfwin + freqs + 1)
 
-        Sx  = np.fft.fft(Sx)  / np.sqrt(N)
-        dSx = np.fft.fft(dSx) / np.sqrt(N)
+        Sx  = fft(Sx)  / np.sqrt(N)
+        dSx = fft(dSx) / np.sqrt(N)
 
         # only keep the positive frequencies
         Sx  = Sx[:halfN]
@@ -126,8 +128,8 @@ def stft_fwd(x, dt, opts={}):
 
     # Shorten Sx to proper size (remove padding)
     if not opts['rpadded']:
-        Sx  = Sx[:,  range(n1, n1 + n)]
-        dSx = dSx[:, range(n1, n1 + n)]
+        Sx  = Sx[:,  n1:n1 + n]
+        dSx = dSx[:, n1:n1 + n]
 
     return Sx, Sfs, dSx
 
@@ -218,7 +220,7 @@ def stft_inv(Sx, opts={}):
         np.floor((n_win + 1) / 2), 3, -1)])])
 
     # take the inverse fft over the columns
-    xbuf = np.real(np.fft.ifft(Sx, None, axis=0))
+    xbuf = np.real(ifft(Sx, None, axis=0))
 
     # apply the window to the columns
     xbuf *= np.matlib.repmat(window.flatten(), 1, xbuf.shape[1])
@@ -231,7 +233,7 @@ def stft_inv(Sx, opts={}):
 
     # compute L2-norm of window to normalize STFT with
     windowfunc = wfiltfn(opts['type'], opts, derivative=False)
-    C = lambda x: quadgk(windowfunc(x) ** 2, -np.inf, np.inf)
+    C = lambda x: integrate.quad(windowfunc(x) ** 2, -np.inf, np.inf)
 
     # `quadgk` is a bit inaccurate with the 'bump' function,
     # this scales it correctly
@@ -320,7 +322,6 @@ def wfiltfn(wavelet, derivative=False):
         raise ValueError(("Unsupported wavelet '{}'; must be one of: {}"
                           ).format(wavelet, ", ".join(supported)))
 
-    # TODO make wavelets into functions in own .py?
     if wavelet == 'bump':
         mu = wavopts.get('mu', 5)
         s  = wavopts.get('s',  1)
