@@ -67,7 +67,7 @@ def test_energy_center_frequency():
 
     args = (wc0, mu0, scale0, N0)
     _test_mu_dependence(   *args, th=1e-7)
-    _test_scale_dependence(*args, th=1e-10)
+    _test_scale_dependence(*args, th=1e-9)
     _test_N_dependence(    *args, th=1e-14)
 
 
@@ -145,7 +145,7 @@ def test_time_resolution():
 
     args = (std_t_nd0, std_t_d0, mu0, scale0, N0)
     _test_mu_dependence(   *args, th=1e-6)
-    _test_scale_dependence(*args, th=2e-2)
+    _test_scale_dependence(*args, th=2e-3)
     _test_N_dependence(    *args, th=1e-9)
 
 
