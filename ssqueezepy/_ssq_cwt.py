@@ -6,8 +6,8 @@ from ._cwt import cwt
 
 
 def ssq_cwt(x, wavelet='morlet', scales='log', nv=None, fs=None, t=None,
-            ssq_freqs=None, padtype='symmetric', squeezing='sum',
-            difftype='direct', difforder=None, gamma=None):
+            ssq_freqs=None, padtype='reflect', minbounds=False, squeezing='sum',
+            difftype='direct', difforder=None, mapkind='maximal', gamma=None):
     """Calculates the synchrosqueezed Continuous Wavelet Transform of `x`.
     Implements the algorithm described in Sec. III of [1].
 
@@ -53,9 +53,16 @@ def ssq_cwt(x, wavelet='morlet', scales='log', nv=None, fs=None, t=None,
 
         padtype: str
             Pad scheme to apply on input. One of:
-                ('zero', 'symmetric', 'replicate').
-            'zero' is most naive, while 'symmetric' (default) partly mitigates
+                ('zero', 'reflect', 'symmetric', 'replicate').
+            'zero' is most naive, while 'reflect' (default) partly mitigates
             boundary effects. See `padsignal`.
+
+        minbounds: bool (default True)
+            True will mimic MATLAB's setting of min and max CWT `scale`, min set
+            such that time-domain wavelet's one stddev spans the N-point signal,
+            and max set such that freq-domain wavelet peaks at Nyquist. These
+            differ a bit with MATLAB's thresholding, favoring more scales
+            (https://www.mathworks.com/help/wavelet/ref/cwtfreqbounds.html)
 
         squeezing: str['sum', 'lebesgue']
                 - 'sum' = standard synchrosqueezing using `Wx`.
@@ -77,6 +84,26 @@ def ssq_cwt(x, wavelet='morlet', scales='log', nv=None, fs=None, t=None,
 
         difforder: int[1, 2, 4]
             Order of differentiation for difftype='numerical' (default=4).
+
+        mapkind: str['maximal', 'peak', 'energy']
+            Kind of frequency mapping used, determining the range of frequencies
+            spanned (fm to fM, min to max).
+
+                - 'maximal': fm=1/dT, fM=1/(2*dt), always. Data's fundamental
+                and Nyquist frequencies, determined from `fs` (or `t`).
+                Other mappings can never span outside this range.
+                - ('peak', 'energy'): sets fm and fM based on center frequency
+                associated with `wavelet` at maximum and minimum scale,
+                respectively. See help(wavelets.center_frequency)
+                - 'peak': the frequency-domain trimmed bell will have its peak
+                at Nyquist, meaning all other frequencies are beneath, so each
+                scale is still correctly resolved but with downscaled energies.
+                With sufficiently-spanned `scales`, coincides with 'maximal'.
+                - 'energy': however, the bell's spectral energy is centered
+                elsewhere, as right-half of bell is partly or entirely trimmed
+                (left-half can be trimmed too). Use for energy-centric mapping,
+                which for sufficiently-spanned `scales` will always have lesser
+                fM (but ~same fM).
 
         gamma: float / None
             CWT phase threshold. Sets `w=inf` for small values of `Wx` where
@@ -163,7 +190,8 @@ def ssq_cwt(x, wavelet='morlet', scales='log', nv=None, fs=None, t=None,
     N = len(x)
     dt, fs, difforder, nv = _process_args(N, fs, t, nv, difftype, difforder,
                                           squeezing)
-    scales, cwt_scaletype, *_ = process_scales(scales, N, nv=nv, get_params=True)
+    scales, cwt_scaletype, *_ = process_scales(
+        scales, N, wavelet, nv=nv, minbounds=minbounds, get_params=True)
 
     # l1_norm=False to spare a multiplication; for SSWT L1 & L2 are exactly same
     # anyway since we're inverting CWT over time-frequency plane
@@ -179,7 +207,8 @@ def ssq_cwt(x, wavelet='morlet', scales='log', nv=None, fs=None, t=None,
         ssq_freqs = cwt_scaletype
 
     Tx, ssq_freqs = ssqueeze(Wx, w, scales=scales, fs=fs, ssq_freqs=ssq_freqs,
-                             transform='cwt', squeezing=squeezing)
+                             transform='cwt', squeezing=squeezing,
+                             mapkind=mapkind, wavelet=wavelet)
 
     if difftype == 'numerical':
         Wx = Wx[:, 4:-4]

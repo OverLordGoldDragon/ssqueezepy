@@ -7,7 +7,8 @@ from .wavelets import Wavelet
 
 
 def cwt(x, wavelet, scales='log', fs=None, t=None, nv=32, l1_norm=True,
-        derivative=False, padtype='symmetric', rpadded=False, vectorized=True):
+        derivative=False, padtype='reflect', minbounds=False, rpadded=False,
+        vectorized=True):
     """Continuous Wavelet Transform, discretized, as described in
     Sec. 4.3.3 of [1] and Sec. IIIA of [2]. Uses a form of discretized
     convolution theorem via wavelets in the Fourier domain and FFT of input.
@@ -59,9 +60,17 @@ def cwt(x, wavelet, scales='log', fs=None, t=None, nv=32, l1_norm=True,
 
         padtype: str
             Pad scheme to apply on input. One of:
-                ('zero', 'symmetric', 'replicate').
-            'zero' is most naive, while 'symmetric' (default) partly mitigates
+                ('zero', 'reflect', 'symmetric', 'replicate').
+            'zero' is most naive, while 'reflect' (default) partly mitigates
             boundary effects. See `padsignal`.
+
+        minbounds: bool (default False)
+            True will mimic MATLAB's setting of min and max CWT `scale`, min set
+            such that time-domain wavelet's one stddev spans the N-point signal,
+            and max set such that freq-domain wavelet peaks at Nyquist. These
+            differ a bit with MATLAB's thresholding, favoring more scales
+            (https://www.mathworks.com/help/wavelet/ref/cwtfreqbounds.html)
+            Default is False since low frequencies # TODO
 
         rpadded: bool (default False)
              Whether to return padded Wx and dWx.
@@ -143,13 +152,14 @@ def cwt(x, wavelet, scales='log', fs=None, t=None, nv=32, l1_norm=True,
 
     x_mean = x.mean()  # store original mean
     n = len(x)         # store original length
-    x, N, n1, n2 = padsignal(x, padtype)
+    x, nup, n1, n2 = padsignal(x, padtype)
 
     x -= x.mean()
     xh = fft(x)
-    scales = process_scales(scales, n, nv=nv)
-    psihfn = Wavelet(wavelet, N=N)
-    pn = (-1) ** np.arange(N)
+    scales = process_scales(scales, n, wavelet, nv=nv, minbounds=minbounds)
+    psihfn = (Wavelet(wavelet, N=nup) if not isinstance(wavelet, Wavelet) else
+              wavelet)
+    pn = (-1) ** np.arange(nup)
 
     Wx, dWx = (_vectorized(xh, scales, psihfn, pn, derivative) if vectorized else
                _for_loop(  xh, scales, psihfn, pn, derivative))
@@ -169,8 +179,9 @@ def cwt(x, wavelet, scales='log', fs=None, t=None, nv=32, l1_norm=True,
             (Wx, scales, x_mean))
 
 
-def icwt(Wx, wavelet, scales='log', one_int=True, x_len=None, x_mean=0,
-         padtype='zero', rpadded=False, l1_norm=True):
+# TODO `scales` aren't needed with `l1_norm=True`
+def icwt(Wx, wavelet, scales='log', nv=None, one_int=True, x_len=None, x_mean=0,
+         padtype='zero', minbounds=False, rpadded=False, l1_norm=True):
     """The inverse continuous wavelet transform of Wx, via double or
     single integral.
 
@@ -184,6 +195,19 @@ def icwt(Wx, wavelet, scales='log', one_int=True, x_len=None, x_mean=0,
                 - tuple[str, dict]: name of builtin wavelet and its configs.
                   E.g. `('morlet', {'mu': 5})`.
                 - `wavelets.Wavelet` instance. Can use for custom wavelet.
+
+        scales: str['log', 'linear'] / np.ndarray
+            CWT scales vector used in forward-CWT. Alternatively pass
+            same set of kwargs (e.g. scales='log', minbounds=False)
+                - 'log': exponentially distributed scales, as pow of 2:
+                         `[2^(1/nv), 2^(2/nv), ...]`
+                - 'linear': linearly distributed scales.
+                  !!! EXPERIMENTAL; default scheme for len(x)>2048 performs
+                  poorly (and there may not be a good non-piecewise scheme).
+
+        nv: int / None
+            Number of voices. Suggested >= 32. Needed if `scales` isn't array
+            (will default to `cwt`'s).
 
         one_int: bool (default True)
             Whether to use one-integral iCWT or double.
@@ -200,9 +224,12 @@ def icwt(Wx, wavelet, scales='log', one_int=True, x_len=None, x_mean=0,
         padtype: str
             Pad scheme to apply on input. One of:
                 ('zero', 'symmetric', 'replicate').
-            'zero' is most naive, while 'symmetric' (default) partly mitigates
+            'zero' is most naive, while 'reflect' (default) partly mitigates
             boundary effects. See `padsignal`.
             !!! currently uses only 'zero'
+
+        minbounds: bool (default False)
+            See `help(cwt)`.
 
         rpadded: bool (default False)
             True if Wx is padded (e.g. if used `cwt(, rpadded=True)`).
@@ -240,21 +267,19 @@ def icwt(Wx, wavelet, scales='log', one_int=True, x_len=None, x_mean=0,
     #### Prepare for inversion ###############################################
     na, n = Wx.shape
     x_len = x_len or n
-    N, n1, n2 = p2up(x_len)
+    if not isinstance(scales, np.ndarray) and nv is None:
+        nv = 32  # must match forward's; default to `cwt`'s
 
-    scales, scaletype, _, nv = process_scales(scales, x_len, na=na,
-                                              get_params=True)
-    # add CWT padding if it doesn't exist  # TODO symmetric & other?
-    if not rpadded:
-        Wx = np.pad(Wx, [[0, 0], [n1, n2]])  # pad time axis, left=n1, right=n2
-    else:
-        n = x_len
+    scales, scaletype, _, nv = process_scales(
+        scales, x_len, wavelet, nv=nv, minbounds=minbounds, get_params=True)
+    assert (len(scales) == na), "%s != %s" % (len(scales), na)
 
     #### Invert ##############################################################
     if one_int:
         x = _icwt_1int(Wx, scales, scaletype, l1_norm)
     else:
-        x = _icwt_2int(Wx, scales, wavelet, N, scaletype, l1_norm)
+        x = _icwt_2int(Wx, scales, scaletype, l1_norm,
+                       wavelet, x_len, padtype, rpadded)
 
     # admissibility coefficient
     Cpsi = (adm_ssq(wavelet) if one_int else
@@ -266,26 +291,33 @@ def icwt(Wx, wavelet, scales='log', one_int=True, x_len=None, x_mean=0,
     else:
         x *= (2 / Cpsi)
 
-    x += x_mean       # CWT doesn't capture mean (infinite scale)
-    x = x[n1:n1 + n]  # keep the unpadded part
+    x += x_mean  # CWT doesn't capture mean (infinite scale)
     return x
 
 
-def _icwt_2int(Wx, scales, wavelet, N, scaletype, l1_norm):
+def _icwt_2int(Wx, scales, scaletype, l1_norm, wavelet, x_len,
+               padtype='zero', rpadded=False):
     """Double-integral iCWT; works with any(?) wavelet."""
+    nup, n1, n2 = p2up(x_len)
+    # add CWT padding if it doesn't exist  # TODO symmetric & other?
+    if not rpadded:
+        Wx = np.pad(Wx, [[0, 0], [n1, n2]])  # pad time axis, left=n1, right=n2
+
     norm = _icwt_norm(scaletype, l1_norm, one_int=False)
-    x = np.zeros(N)
+    x = np.zeros(nup)
     for a, Wxa in zip(scales, Wx):  # TODO vectorize?
-        psih = wfilth(wavelet, N, a, l1_norm=l1_norm)
-        xa = ifftshift(ifft(fft(Wxa) * psih)).real  # convolution theorem
-        x += xa / norm(a)
+        psih = wfilth(wavelet, nup, a, l1_norm=l1_norm)
+        xa = ifftshift(ifft(fft(Wxa) * psih))  # convolution theorem
+        x += xa.real / norm(a)
+
+    x = x[n1:n1 + x_len]  # keep the unpadded part
     return x
 
 
 def _icwt_1int(Wx, scales, scaletype, l1_norm):
     """One-integral iCWT; assumes analytic wavelet."""
     norm = _icwt_norm(scaletype, l1_norm, one_int=True)
-    return (Wx.real / (norm(scales))).sum(axis=0)
+    return (Wx.real / norm(scales)).sum(axis=0)
 
 
 def _icwt_norm(scaletype, l1_norm, one_int):

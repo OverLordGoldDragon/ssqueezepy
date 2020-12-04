@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 """NOT FOR USE; will be ready for v0.6.0"""
 import numpy as np
-from numpy.fft import fft, ifft
+from numpy.fft import fft, ifft, rfft, irfft
 from scipy import integrate
+import scipy.signal as sig
 from .utils import padsignal, buffer
 
 
@@ -10,7 +11,8 @@ pi = np.pi
 EPS = np.finfo(np.float64).eps  # machine epsilon for float64
 
 
-def stft_fwd(x, dt, opts={}):
+def stft_fwd(x, window=None, n_fft=None, win_len=None, hop_len=1, dt=1,
+             padtype='reflect', stft_type='normal', rpadded=False):
     """Compute the short-time Fourier transform and modified short-time
     Fourier transform from [1]. The former is very closely based on Steven
     Schimmel's stft.m and istft.m from his SPHSC 503: Speech Signal Processing
@@ -28,6 +30,7 @@ def stft_fwd(x, dt, opts={}):
             'rpadded': bool. Whether to return padded `Sx` and `dSx`
                        (default = True)
             's', 'mu', ... : window options (see `wfiltfn`)
+        # 'padtype' is one of: 'symmetric', 'replicate', 'circular'
 
     # Returns:
         Sx: (na x n) size matrix (rows = scales, cols = times) containing
@@ -36,100 +39,115 @@ def stft_fwd(x, dt, opts={}):
         dSx: (na x n) size matrix containing samples of the time-derivatives
              of the STFT of `x`.
 
+    Recommended:
+        - odd win_len with odd n_fft and even with even, not vice versa
+        These make the ('periodic') window's left=right pad len which gives
+        it zero phase, desired in some applications
+
+
     # References:
         1. G. Thakur and H.-T. Wu,
         "Synchrosqueezing-based Recovery of Instantaneous Frequency
         from Nonuniform Samples",
         SIAM Journal on Mathematical Analysis, 43(5):2078-2095, 2011.
     """
-    def _process_opts(opts, x):
-        # opts['window'] is window length; opts['type'] overrides the
-        # default hamming window
-        opts['stft_type'] = opts.get('stft_type', 'normal')
-        opts['winlen']    = opts.get('winlen',    int(np.round(len(x) / 8)))
-        # 'padtype' is one of: 'symmetric', 'replicate', 'circular'
-        opts['padtype']   = opts.get('padtype',  'symmetric')
-        opts['rpadded']   = opts.get('rpadded',  False)
+    def _process_args(x, n_fft, window, win_len):
+        n_fft = n_fft or len(x)
+        win_len = win_len or len(x) // 8
 
-        windowfunc, diff_windowfunc = None, None
-        if 'type' in opts:
-            windowfunc      = wfiltfn(opts['type'], opts, derivative=False)
-            diff_windowfunc = wfiltfn(opts['type'], opts, derivative=True)
+        if window is not None:
+            windowfunc      = wfiltfn(window, derivative=False)
+            diff_windowfunc = wfiltfn(window, derivative=True)
+        else:
+            windowfunc, diff_windowfunc = None, None
+        return n_fft, win_len, windowfunc, diff_windowfunc
 
-        return opts, windowfunc, diff_windowfunc
-
-    opts, windowfunc, diff_windowfunc = _process_opts(opts, x)
+    (n_fft, win_len, windowfunc, diff_windowfunc
+     ) = _process_args(x, n_fft, window, win_len)
 
     # Pre-pad signal; this only works well for 'normal' STFT
     n = len(x)
-    if opts['stft_type'] == 'normal':
-        x, N, n1, n2 = padsignal(x, opts['padtype'], opts['winlen'])
+    if stft_type == 'normal':
+        padlength = n_fft // 2  # == actual (padded) window length
+        x = np.pad(x, padlength, mode='reflect')
+        _, N, n1, _ = padsignal(x, padtype, padlength=padlength)
         n1 = n1 // 2
     else:
         N = n
         n1 = 0
 
-    if opts['stft_type'] == 'normal':
-        # set up window
-        if 'type' in opts:
-            window = windowfunc(np.linspace(-1, 1, opts['winlen']))
-            diff_window = diff_windowfunc(np.linspace(-1, 1, opts['winlen']))
-        else:
-            window = np.hamming(opts['winlen'])
-            diff_window = np.hstack([np.diff(window), 0])
-        diff_window[np.where(np.isnan(diff_window))] = 0
+    # set up window
+    pl = (n_fft - win_len) // 2
+    pr = (n_fft - win_len - pl)
+    if window is not None:
+        window = windowfunc(np.linspace(-1, 1, win_len))
+        window = np.pad(window, [pl, pr])
+        diff_window = diff_windowfunc(np.linspace(-1, 1, win_len))
+    else:
+        # fftbins=True -> 'periodic' window -> narrower main side-lobe and
+        # closer to zero-phase in left=right padded case
+        # for windows edging at 0
+        window = sig.get_window('hann', win_len, fftbins=True)
+        window = np.pad(window, [pl, pr])
+        diff_window = np.diff(window)
+        # repeating last value is more accurate than assuming zero
+        diff_window = np.hstack([diff_window, diff_window[-1]])
 
-        # frequency range
-        Sfs = np.linspace(0, 1, opts['winlen'] + 1)
-        Sfs = Sfs[:np.floor(opts['winlen'] / 2).astype('int64') + 1] / dt
-
+    if stft_type == 'normal':
         # compute STFT and keep only the positive frequencies
-        xbuf = buffer(x, opts['winlen'], opts['winlen'] - 1, 'nodelay')
+        xbuf = buffer(x, n_fft, n_fft - hop_len)
+        # TODO no point to np.diag(window)? just do row-wise vector product
         xbuf = np.diag(window) @ xbuf
-        Sx = fft(xbuf, None, axis=0)
-        Sx = Sx[:opts['winlen'] // 2 + 1] / np.sqrt(N)
+        Sx = rfft(xbuf, axis=0) / np.sqrt(N)
 
         # same steps for STFT derivative
-        dxbuf = buffer(x, opts['winlen'], opts['winlen'] - 1, 'nodelay')
+        dxbuf = buffer(x, n_fft, n_fft - 1)
         dxbuf = np.diag(diff_window) @ dxbuf
-        dSx = fft(dxbuf, None, axis=0)
-        dSx = dSx[:opts['winlen'] // 2 + 1] / np.sqrt(N)
-        dSx /= dt
+        dSx = rfft(dxbuf, axis=0) / (np.sqrt(N) * dt)
 
-    elif opts['stft_type'] == 'modified':
+    elif stft_type == 'modified':
         # modified STFt is more accurately done in the frequency domain,
         # like a filter bank over different frequency bands
         # uses a lot of memory, so best used on small blocks
         # (<5000 samples) at a time
-        Sfs = np.linspace(0, 1, N) / dt
-        Sx  = np.zeros((N, N))
-        dSx = np.zeros((N, N))
+        Sx  = np.zeros((N, N))  # TODO astype complex128?
+        dSx = Sx.copy()
 
-        halfN = np.round(N / 2)
-        halfwin = np.floor((opts['winlen'] - 1) / 2)
-        window = windowfunc(np.linspace(-1, 1, opts['winlen'])) # TODO chk dim
-        diff_window = diff_windowfunc(np.linspace(-1, 1, opts['winlen'])) * (
-            2 / opts['winlen'] / dt)
+        halfN = N // 2
+        halfwin = (win_len - 1) // 2
+        # window = windowfunc(np.linspace(-1, 1, win_len)) # TODO chk dim
+        # diff_window = diff_windowfunc(np.linspace(-1, 1, win_len))
+        diff_window *= 2 / (win_len / dt)
 
         for k in range(N):
-            freqs = np.arange(-min(halfN - 1, halfwin, k - 1),
-                              min(halfN - 1, halfwin, N- k) + 1)
-            indices = np.mod(freqs, N)
-            Sx[indices, k]  = x[k + freqs] * window(halfwin + freqs + 1)
-            dSx[indices, k] = x[k + freqs] * diff_window(halfwin + freqs + 1)
+            # TODO check indices, freqs
+    		# freqs = [-min([halfN-1,halfwin,k-1]):
+            #           min([halfN-1,halfwin,N-k])];
+    		# indices = mod(freqs,N)+1;
+            freqs = np.arange(-min(halfN-1, halfwin, k-1),
+                               min(halfN-1, halfwin, N-k) + 0*1, dtype='int64')
+            indices = np.mod(freqs, N).astype('int64')
+            Sx[indices,  k] = x[k + freqs] * window[     halfwin + freqs]
+            dSx[indices, k] = x[k + freqs] * diff_window[halfwin + freqs]
+            if k > 200:
+                1==1
 
-        Sx  = fft(Sx)  / np.sqrt(N)
-        dSx = fft(dSx) / np.sqrt(N)
+        Sx  = rfft(Sx)  / np.sqrt(N)
+        dSx = rfft(dSx) / np.sqrt(N)
 
-        # only keep the positive frequencies
-        Sx  = Sx[:halfN]
-        dSx = dSx[:halfN]
+    # frequency range
+    if stft_type == 'normal':
+        Sfs = np.linspace(0, 1, win_len + 1)
+        Sfs = Sfs[:win_len // 2 + 1] / dt
+    elif stft_type == 'modified':
+        Sfs = np.linspace(0, 1, N) / dt
         Sfs = Sfs[:halfN]
 
     # Shorten Sx to proper size (remove padding)
-    if not opts['rpadded']:
-        Sx  = Sx[:,  n1:n1 + n]
-        dSx = dSx[:, n1:n1 + n]
+    # TODO not needed?
+    # if not rpadded:
+    #     Sx  = Sx[:,  n1:n1 + n]
+    #     dSx = dSx[:, n1:n1 + n]
 
     return Sx, Sfs, dSx
 
@@ -140,6 +158,9 @@ def stft_inv(Sx, opts={}):
     Very closely based on Steven Schimel's stft.m and istft.m from his
     SPHSC 503: Speech Signal Processing course at Univ. Washington.
     Adapted for use with Synchrosqueeing Toolbox.
+
+    Nice visuals and explanations on istft:
+        https://www.mathworks.com/help/signal/ref/iscola.html
 
     # Arguments:
         Sx: np.ndarray. Wavelet transform of a signal (see `stft_fwd`).

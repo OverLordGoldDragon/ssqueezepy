@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import pytest
 import numpy as np
 from ssqueezepy import ssq_cwt, issq_cwt
@@ -61,7 +62,7 @@ def test_cwt():
         x, ts = fn(2048)
         for l1_norm in (True, False):
             # 'linear' default can't handle low frequencies for large N
-            kw = dict(wavelet=wavelet, scales='log', l1_norm=l1_norm)
+            kw = dict(wavelet=wavelet, scales='log', l1_norm=l1_norm, nv=32)
 
             Wx, *_ = cwt(x, t=ts, **kw)
             xrec = icwt(Wx, one_int=True, **kw)
