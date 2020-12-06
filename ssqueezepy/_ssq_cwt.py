@@ -55,7 +55,7 @@ def ssq_cwt(x, wavelet='morlet', scales='log', nv=None, fs=None, t=None,
             Pad scheme to apply on input. One of:
                 ('zero', 'reflect', 'symmetric', 'replicate').
             'zero' is most naive, while 'reflect' (default) partly mitigates
-            boundary effects. See `padsignal`.
+            boundary effects. See `help(utils.padsignal)`.
 
         minbounds: bool (default True)
             True will mimic MATLAB's setting of min and max CWT `scale`, min set
@@ -150,7 +150,7 @@ def ssq_cwt(x, wavelet='morlet', scales='log', nv=None, fs=None, t=None,
         https://github.com/ebrevdo/synchrosqueezing/blob/master/synchrosqueezing/
         synsq_cwt_fw.m
     """
-    def _process_args(N, fs, t, nv, difftype, difforder, squeezing):
+    def _process_args(N, scales, fs, t, nv, difftype, difforder, squeezing):
         if difftype not in ('direct', 'phase', 'numerical'):
             raise ValueError("`difftype` must be one of: direct, phase, numerical"
                              " (got %s)" % difftype)
@@ -165,9 +165,10 @@ def ssq_cwt(x, wavelet='morlet', scales='log', nv=None, fs=None, t=None,
         if squeezing not in ('sum', 'lebesgue'):
             raise ValueError("`squeezing` must be one of: sum, lebesgue "
                              "(got %s)" % squeezing)
+        if nv is None and not isinstance(scales, np.ndarray):
+            nv = 32
 
         dt, fs, t = _process_fs_and_t(fs, t, N)
-        nv = nv or 32
         return dt, fs, difforder, nv
 
     def _phase_transform(Wx, dWx, N, dt, gamma, difftype, difforder):
@@ -188,16 +189,17 @@ def ssq_cwt(x, wavelet='morlet', scales='log', nv=None, fs=None, t=None,
         return Wx, w
 
     N = len(x)
-    dt, fs, difforder, nv = _process_args(N, fs, t, nv, difftype, difforder,
-                                          squeezing)
+    dt, fs, difforder, nv = _process_args(N, scales, fs, t, nv, difftype,
+                                          difforder, squeezing)
     scales, cwt_scaletype, *_ = process_scales(
         scales, N, wavelet, nv=nv, minbounds=minbounds, get_params=True)
 
     # l1_norm=False to spare a multiplication; for SSWT L1 & L2 are exactly same
     # anyway since we're inverting CWT over time-frequency plane
     rpadded = (difftype == 'numerical')
-    Wx, scales, _, dWx = cwt(x, wavelet, scales=scales, fs=fs, l1_norm=False,
-                             derivative=True, padtype=padtype, rpadded=rpadded)
+    Wx, scales, _, dWx = cwt(x, wavelet, scales=scales, fs=fs, nv=nv,
+                             l1_norm=False, derivative=True, padtype=padtype,
+                             rpadded=rpadded)
 
     gamma = gamma or np.sqrt(EPS)
     Wx, w = _phase_transform(Wx, dWx, N, dt, gamma, difftype, difforder)

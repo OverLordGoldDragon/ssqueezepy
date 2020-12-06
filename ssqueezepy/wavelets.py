@@ -30,6 +30,7 @@ class Wavelet():
     """
     # TODO force analyticity @ neg frequencies if Morse also fails to?
     SUPPORTED = ('morlet', 'bump', 'cmhat', 'hhhat')
+    VISUALS = ('time-frequency',)
     def __init__(self, wavelet='morlet', N=1024):
         self._validate_and_set_wavelet(wavelet)
 
@@ -122,6 +123,16 @@ class Wavelet():
                ).format(self.name, cfg, self.wc,
                         std_t, dim_t, std_w, dim_w, harea))
 
+    def viz(self, name='time-frequency', **kw):
+        """`Wavelet.VISUALS` for list of supported `name`"""
+        if name == 'time-frequency':
+            from .viz_toolkit import viz_wavelet_tf
+            kw['wavelet'] = kw.get('wavelet', self)
+            viz_wavelet_tf(**kw)
+        else:
+            raise ValueError(f"visual '{name}' not supported; must be one of: "
+                             + ', '.join(Wavelet.VISUALS))
+
     #### Properties ##########################################################
     @property
     def name(self):
@@ -180,10 +191,10 @@ class Wavelet():
     @property
     def std_t_d(self):
         """Dimensional time resolution [samples/(cycles*radians)]"""
-        if self._std_t is None:
-            self._std_t = time_resolution(self.fn, scale=10, N=self.N,
-                                          nondim=False)
-        return self._std_t
+        if self._std_t_d is None:
+            self._std_t_d = time_resolution(self.fn, scale=10, N=self.N,
+                                            nondim=False)
+        return self._std_t_d
 
     @property
     def std_w_d(self):
@@ -220,8 +231,8 @@ def morlet(mu=6.):
 
 @njit
 def _morlet(w, mu, cs, ks):
-    return cs * pi**(-1/4) * (np.exp(-.5 * (mu - w)**2)
-                              - ks * np.exp(-.5 * w**2))
+    return np.sqrt(2) * cs * pi**.25 * (np.exp(-.5 * (mu - w)**2)
+                                        - ks * np.exp(-.5 * w**2))
 
 
 def bump(mu=5., s=1., om=0.):
@@ -267,6 +278,10 @@ def center_frequency(psihfn, scale=10, N=1024, kind='energy', force_int=True,
 
     For very high scales, 'energy' w/ `force_int=True` will match 'peak'; for
     very low scales, 'energy' will always be less than 'peak'.
+
+    Note that the integral assumes the wavelet definition includes the
+    sqrt(1/(2pi)) radian normalizing factor, as all `wavelets.py` wavelets do,
+    else this function computes std_f.
 
     To convert to Hz:
         wc [(cycles*radians)/samples] / (2pi [radians]) * fs [samples/second]
@@ -354,7 +369,12 @@ def freq_resolution(psihfn, scale=10, N=1024, nondim=True, viz=False):
     apsih2 = np.abs(psih)**2
     var_w = (integrate.trapz((w - wc)**2 * apsih2, w) /
              integrate.trapz(apsih2, w))
+
     std_w = np.sqrt(var_w)
+    if 0:
+        num = integrate.trapz((w - wc)**2 * apsih2, w)
+        den = integrate.trapz(apsih2, w)
+        print(std_w, num, den)
 
     if nondim:
         std_w /= wc
@@ -362,8 +382,33 @@ def freq_resolution(psihfn, scale=10, N=1024, nondim=True, viz=False):
         _viz()
     return std_w
 
+if 0:
+    w,N,psih,apsih2,plt,wc,std_w=None
 
-def time_resolution(psihfn, scale=10, N=1024, min_decay=1e6, max_mult=9,
+    _w = w[N//2-1:]; _psih = psih[N//2-1:]; _apsih2 = apsih2[N//2-1:]
+    wg, ag, psihg = _w[:100], _apsih2[:100], psih[:100]
+    plot(wg, ag)
+    [plt.axvline(v, color='tab:red', linestyle='--') for v in
+     (wc - std_w, wc + std_w)]
+
+    ixc = np.argmin(np.abs(_w - wc))
+    ixl = np.argmin(np.abs(_w - (wc - std_w)))
+    ixr = ixc + (ixc - ixl)
+    print(ixc, ixl, ixr)
+
+    wgs, ags = wg[ixl:ixr], ag[ixl:ixr]
+    plot(wgs, ags)
+
+    area = integrate.trapz(ags, wgs)
+    frac = area / integrate.trapz(apsih2, w)
+    print(area, frac)
+    plt.ylim(0, 3.6)
+
+
+# TODO(viz): (w-wc)*apsih2 rescaled by area
+# TODO(viz): time-frequency widths in same plot as in Mallat
+
+def time_resolution(psihfn, scale=10, N=1024, min_decay=1e6, max_mult=2,
                     force_int=False, nondim=True, viz=False):
     """Compute wavelet time resolution for a given scale and N; larger N
     -> less discretization error, but same N as in application should suffice.
@@ -423,7 +468,7 @@ def time_resolution(psihfn, scale=10, N=1024, min_decay=1e6, max_mult=9,
 
     def _make_integration_t(psihfn, scale, N, min_decay, max_mult):
         """Ensure `psi` decays sufficiently at integration bounds"""
-        for mult in np.arange(1, max_mult + 1, step=2):
+        for mult in np.arange(1, max_mult + 1):
             Nt = int(mult * N)
             apsi2 = np.abs(ifft(psihfn(_xi(scale, Nt))))**2
             # ensure sufficient decay at endpoints (in middle without ifftshift)
@@ -468,6 +513,29 @@ def time_resolution(psihfn, scale=10, N=1024, min_decay=1e6, max_mult=9,
         _viz()
     return std_t
 
+
+#TODO morlet *sqrt(2pi)
+
+if 0:
+    N,t,apsi,std_t,apsi2,psi=None
+
+    a, b = N//2-200, N//2+221
+    tg, agt, psig = t[a:b], apsi2[a:b], psi[a:b]
+    plot(tg, agt)
+    [plt.axvline(v, color='tab:red', linestyle='--') for v in
+     (-std_t, std_t)]
+
+    ixc = np.argmin(np.abs(tg))
+    ixl = np.argmin(np.abs(tg - (0 - std_t)))
+    ixr = ixc + (ixc - ixl)
+    print(ixc, ixl, ixr)
+
+    tgs, agts = tg[ixl:ixr], agt[ixl:ixr]
+    plot(tgs, agts)
+
+    area = integrate.trapz(agts, tgs)
+    frac = area / integrate.trapz(apsi2, t)
+    print(area, frac)
 
 #### Misc ####################################################################
 def afftshift(xh):

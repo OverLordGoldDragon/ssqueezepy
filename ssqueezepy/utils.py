@@ -294,8 +294,8 @@ def cwt_scalebounds(wavelet, N, cutoff=1, stdevs=1, viz=False):
         # cutoff met at edge
         return idx == len(psih) - 1
 
-    psihfn = (Wavelet(wavelet) if not isinstance(wavelet, Wavelet) else
-              wavelet)
+    psihfn = (wavelet if isinstance(wavelet, Wavelet) else
+              Wavelet(wavelet))
     if cutoff < 0 or stdevs <= 0:
         raise ValueError("`cutoff` and `stdevs` must be >=0 and >0, "
                          "respectively (got %s, %s)" % (cutoff, stdevs))

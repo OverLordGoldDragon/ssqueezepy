@@ -4,4 +4,3 @@ coverage
 pytest
 pytest-cov
 pycode
-matplotlib

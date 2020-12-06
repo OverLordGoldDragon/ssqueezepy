@@ -50,10 +50,13 @@ def imshow(data, title=None, show=1, cmap=None, norm=None, complex=None, abs=0,
 
 
 def plot(x, y=None, title=None, show=0, ax_equal=False, complex=0,
-         c_annot=False, w=None, h=None, dx1=False, xlims=None, ylims=None, **kw):
+         c_annot=False, w=None, h=None, dx1=False, xlims=None, ylims=None,
+         vert=False, **kw):
     if y is None:
         y = x
         x = np.arange(len(x))
+    if vert:
+        x, y = y, x
     if complex:
         plt.plot(x, y.real, **kw)
         plt.plot(x, y.imag, **kw)
@@ -177,3 +180,118 @@ def _viz_cwt_scalebounds(psihfn, N, min_scale=None, max_scale=None,
         _viz_max()
     if not (min_scale or max_scale):
         raise ValueError("Must set at least one of `min_scale`, `max_scale`")
+
+
+def viz_wavelet_tf(wavelet, N=2048, scale=100, pnv=None, notext=False,
+                   width=1.1, height=1):
+    """Visualize `wavelet` joint time-frequency resolution. Plots frequency-domain
+    wavelet (psih) along y-axis, and time-domain wavelet (psi) along x-axis.
+
+    Orthogonal units (e.g. y-axis for psi) are meaningless; function values
+    aren't to scale, but *widths* are, so time-frequency uncertainties are
+    accurately captured.
+
+    `wavelet` is instance of `wavelets.Wavelet` or its valid `wavelet` argument.
+    See also: https://www.desmos.com/calculator/nqowgloycy
+    """
+    from .wavelets import Wavelet, _xi, aifftshift
+    from .wavelets import center_frequency, freq_resolution, time_resolution
+
+    psihfn = (wavelet if isinstance(wavelet, Wavelet) else
+              Wavelet(wavelet))
+
+    #### Compute psi & psihfn ################################################
+    psi  = ifft(psihfn(scale * _xi(1, N)) * (-1)**np.arange(N))
+    apsi = np.abs(psi)
+    t = np.arange(-N/2, N/2, step=1)
+
+    w = aifftshift(_xi(1, N))[N//2-1:]
+    psih = psihfn(scale * w)
+
+    #### Compute stdevs & respective indices #################################
+    wc    = center_frequency(psihfn, scale, N)
+    std_w = freq_resolution(psihfn, scale, N, nondim=0)
+    std_t = time_resolution(psihfn, scale, N, nondim=0)
+    _wc = np.pi - wc
+
+    wcix = np.argmin(np.abs(w - _wc))
+    wlix = np.argmin(np.abs(w - (_wc - std_w)))
+    wrix = np.argmin(np.abs(w - (_wc + std_w)))
+    # wrix = wcix + (wcix - wlix)
+    wl, wr = w[wlix], w[wrix]
+
+    tcix = np.argmin(np.abs(t - 0))
+    tlix = np.argmin(np.abs(t - (0 - std_t)))
+    trix = tcix + (tcix - tlix)
+    tl, tr = t[tlix], t[trix]
+
+    ## Rescale psi so that its y-coords span 1/5 of psih's x-coords, & vice-versa
+    frac = 5
+    psig  = psi  * (w.max() / apsi.max()) / frac
+    apsig = apsi * (w.max() / apsi.max()) / frac
+    psihg = psih * (t.max() / psih.max()) / frac
+    # additionally shift psih to psi's left
+    psihg += t.min()
+
+    ## Find intersections
+    w_xminu, w_xmax = psihg[::-1][wlix], tr
+    w_xmind = psihg[::-1][wrix]  # psih not necessarily symmetric
+    w_ymin, w_ymax = wl, wr
+    t_xmin, t_xmax = tl, tr
+    t_yminl, t_ymax = apsig[tlix], wr
+    t_yminr = apsig[trix]  # same for psi
+
+    #### Plot ################################################################
+    plot(t, psig, complex=1, h=1.5)
+    plot(t, apsig, linestyle='--', color='k')
+    plot(psihg[::-1], w, color='purple')
+
+    # bounds lines
+    lkw = dict(color='k', linewidth=1)
+    plot([t_xmin,  t_xmin], [t_yminl, t_ymax], **lkw)
+    plot([t_xmax,  t_xmax], [t_yminr, t_ymax], **lkw)
+    plot([w_xminu, w_xmax], [w_ymin , w_ymin], **lkw)
+    plot([w_xmind, w_xmax], [w_ymax,  w_ymax], **lkw)
+    plt.xlim(t.min()*1.02, t.max()*1.02)
+
+    # radians 0 to pi from top to bottom(=psi's mean)
+    ylabels = np.round(np.linspace(np.pi, 0, 7), 1)
+    plt.yticks(np.linspace(0, np.pi, len(ylabels)), ylabels)
+
+    if notext:
+        plt.gcf().set_size_inches(12*width, 12*height)
+        return
+    #### Title, annotations, labels, styling #################################
+    ## Annotation: info summary
+    txt = ("    wc = {:<6.5f} rad-c/s\n"
+           " std_t = {:<6.4f} s/c-rad\n"
+           " std_w = {:<6.5f} rad-c/s\n"
+           "area/4 = {:.12f}\n"
+           "       = std_t * std_w\n\n"
+           "(rad-c/s=\n radians*cycles/samples)"
+           ).format(wc, std_t, std_w, std_t * std_w)
+    _kw = dict(s=txt, xycoords='axes fraction', xy=(.7, .76), weight='bold',
+               fontsize=16)
+    try:
+        plt.annotate(family='Consolas', **_kw)  # 'Consolas' for vertical align
+    except:
+        plt.annotate(**_kw)  # in case platform lacks 'Consolas'
+
+    ## Title: wavelet name & parameters
+    ptxt = ""
+    if pnv is not None:
+        ptxt = ""
+        for name, value in pnv.items():
+            ptxt += "{}={:.2f}, ".format(name, value)
+    elif psihfn.config_str != "Default configs":
+        ptxt = psihfn.config_str
+    ptxt = ptxt.rstrip(', ')
+
+    title = "{} wavelet | {}, scale={}, N={}".format(psihfn.name, ptxt, scale, N)
+    plt.title(title, loc='left', weight='bold', fontsize=16)
+
+    ## Styling
+    plt.xlabel("samples", weight='bold', fontsize=15)
+    plt.ylabel("radians", weight='bold', fontsize=15)
+
+    plt.gcf().set_size_inches(12*width, 12*height)

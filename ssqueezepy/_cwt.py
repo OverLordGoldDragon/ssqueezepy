@@ -141,14 +141,16 @@ def cwt(x, wavelet, scales='log', fs=None, t=None, nv=32, l1_norm=True,
                 dWx[i] = ifftshift(ifft(dpsih * xh))
         return (Wx, dWx) if derivative else (Wx, None)
 
-    def _process_args(x, scales, fs, t):
+    def _process_args(x, scales, nv, fs, t):
         if np.isnan(x.max()) or np.isinf(x.max()) or np.isinf(x.min()):
             print(WARN, "found NaN or inf values in `x`; will zero")
             replace_at_inf_or_nan(x, replacement=0.)
+        if isinstance(scales, np.ndarray):
+            nv = None
         dt, *_ = _process_fs_and_t(fs, t, N=len(x))
-        return dt  # == 1 / fs
+        return nv, dt  # == 1 / fs
 
-    dt = _process_args(x, scales, fs, t)
+    nv, dt = _process_args(x, scales, nv, fs, t)
 
     x_mean = x.mean()  # store original mean
     n = len(x)         # store original length
