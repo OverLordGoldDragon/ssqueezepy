@@ -379,7 +379,6 @@ def center_frequency(psihfn, scale=10, N=1024, kind='energy', force_int=True,
         apsih2 = np.abs(psih)**2
         return w, psih, apsih2
 
-    # TODO >pi, mu=20
     def _energy_wc(psihfn, scale, N, force_int):
         use_formula = not force_int
         if use_formula:
@@ -435,6 +434,14 @@ def freq_resolution(psihfn, scale=10, N=1024, nondim=True, force_int=True,
         plot(_w, (_w-wce)**2 * _apsih2, show=1,
              title="(w-wc)^2 |psih(w)+|^2 (used to compute var_w)")
         print("std_w={}".format(std_w))
+        if use_formula:
+            NOTE(f"integrated at scale={scale} then used formula; "
+                 "see help(freq_resolution) and try force_int=True")
+
+    use_formula = ((scale < 4 or scale > N / 5) and not force_int)
+    if use_formula:
+        scale_orig = scale
+        scale = 10
 
     w = aifftshift(_xi(1, N))
     psih = psihfn(scale * w)
@@ -445,17 +452,16 @@ def freq_resolution(psihfn, scale=10, N=1024, nondim=True, force_int=True,
              integrate.trapz(apsih2, w))
 
     std_w = np.sqrt(var_w)
-
+    if use_formula:
+        std_w *= (scale / scale_orig)
+        scale = scale_orig
     if nondim:
-        wcp = center_frequency(psihfn, scale, force_int=force_int, kind='peak')
+        wcp = center_frequency(psihfn, scale, kind='peak')
         std_w /= wcp
     if viz:
         _viz()
     return std_w
 
-
-# TODO(viz): (w-wc)*apsih2 rescaled by area
-# TODO(viz): time-frequency widths in same plot as in Mallat
 
 def time_resolution(psihfn, scale=10, N=1024, min_decay=1e6, max_mult=2,
                     force_int=True, nondim=True, viz=False):
@@ -512,8 +518,8 @@ def time_resolution(psihfn, scale=10, N=1024, min_decay=1e6, max_mult=2,
         print("std_t={}\nlen(t), len(t)/N, t_min, t_max = {}, {}, {}, {}".format(
             std_t, len(t), len(t)/N, t.min(), t.max()))
         if use_formula:
-            print(f"NOTE: integrated at scale={scale} then used formula; "
-                  "see help(time_resolution) and try force_int=True")
+            NOTE(f"integrated at scale={scale} then used formula; "
+                 "see help(time_resolution) and try force_int=True")
 
     def _make_integration_t(psihfn, scale, N, min_decay, max_mult):
         """Ensure `psi` decays sufficiently at integration bounds"""
@@ -559,8 +565,8 @@ def time_resolution(psihfn, scale=10, N=1024, min_decay=1e6, max_mult=2,
     if nondim:
         # 'energy' yields values closer to continuous-time counterparts,
         # but we seek accuracy relative to discretized values
-        wc = center_frequency(psihfn, scale, N=N, force_int=force_int,
-                              kind='peak')
+        # TODO which might be 'energy' for a safe scale range...
+        wc = center_frequency(psihfn, scale, N=N, kind='peak')
         std_t *= wc
     if viz:
         _viz()

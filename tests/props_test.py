@@ -13,7 +13,7 @@ from ssqueezepy.wavelets import Wavelet, time_resolution, freq_resolution
 from ssqueezepy.wavelets import center_frequency
 from ssqueezepy.viz_toolkit import scat
 
-VIZ = 1  # set to 1 to enable various visuals and run without pytest
+VIZ = 0  # set to 1 to enable various visuals and run without pytest
 
 
 def test_energy_center_frequency():
