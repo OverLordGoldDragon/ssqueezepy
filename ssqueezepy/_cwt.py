@@ -70,7 +70,7 @@ def cwt(x, wavelet, scales='log', fs=None, t=None, nv=32, l1_norm=True,
             and max set such that freq-domain wavelet peaks at Nyquist. These
             differ a bit with MATLAB's thresholding, favoring more scales
             (https://www.mathworks.com/help/wavelet/ref/cwtfreqbounds.html)
-            Default is False since low frequencies # TODO
+            Default is False since low frequencies # TODO, 1 to N
 
         rpadded: bool (default False)
              Whether to return padded Wx and dWx.
@@ -116,9 +116,10 @@ def cwt(x, wavelet, scales='log', fs=None, t=None, nv=32, l1_norm=True,
         cwt_fw.m
     """
     def _vectorized(xh, scales, psihfn, pn, derivative):
-        Wx = (psihfn(scale=scales) * pn).astype('complex128')
+        Wx = (psihfn(scale=scales, nohalf=False) * pn
+              ).astype('complex128')
         if derivative:
-            dWx = (1j * psihfn.xi / dt) * Wx
+            dWx = (1j * psihfn._xi / dt) * Wx # TODO
 
         Wx = ifftshift(ifft(Wx * xh, axis=-1), axes=-1)
         if derivative:
@@ -126,14 +127,14 @@ def cwt(x, wavelet, scales='log', fs=None, t=None, nv=32, l1_norm=True,
         return (Wx, dWx) if derivative else (Wx, None)
 
     def _for_loop(xh, scales, psihfn, pn, derivative):
-        Wx = np.zeros((len(scales), psihfn.N)).astype('complex128')
+        Wx = np.zeros((len(scales), len(xh))).astype('complex128')
         if derivative:
             dWx = Wx.copy()
 
         for i, a in enumerate(scales):
             # sample FT of wavelet at scale `a`
             # * pn = freq-domain spectral reversal to center time-domain wavelet
-            psih = psihfn(scale=a) * pn
+            psih = psihfn(scale=a, nohalf=False) * pn
             Wx[i] = ifftshift(ifft(psih * xh))
 
             if derivative:
@@ -163,8 +164,11 @@ def cwt(x, wavelet, scales='log', fs=None, t=None, nv=32, l1_norm=True,
               wavelet)
     pn = (-1) ** np.arange(nup)
 
+    N_orig = psihfn.N
+    psihfn.N = nup
     Wx, dWx = (_vectorized(xh, scales, psihfn, pn, derivative) if vectorized else
                _for_loop(  xh, scales, psihfn, pn, derivative))
+    psihfn.N = N_orig
 
     if not rpadded:
         # shorten to pre-padded size

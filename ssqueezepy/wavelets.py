@@ -5,7 +5,6 @@ from numpy.fft import ifft, fftshift, ifftshift
 from numba import njit
 from types import FunctionType
 from scipy import integrate
-from .viz_toolkit import plot
 
 pi = np.pi
 NOTE = lambda msg: logging.info("NOTE: %s" % msg)
@@ -30,18 +29,19 @@ class Wavelet():
     """
     # TODO force analyticity @ neg frequencies if Morse also fails to?
     SUPPORTED = ('morlet', 'bump', 'cmhat', 'hhhat')
-    VISUALS = ('time-frequency',)
+    VISUALS = ('time-frequency', 'heatmap', 'anim:time-frequency')
     def __init__(self, wavelet='morlet', N=1024):
         self._validate_and_set_wavelet(wavelet)
 
-        self.N = N
-        self.xi = _xi(scale=1, N=self.N)
+        self.N = N  # also sets _xi
 
         # initialize properties to None; compute upon request
         for name in "wc std_t std_w std_f harea std_t_d std_w_d std_f_d".split():
             setattr(self, f'_{name}', None)
 
-    def __call__(self, w=None, *, scale=None, N=None, nohalf=False):
+    #### Main methods / properties ###########################################
+    # TODO make nohalf behavior consistent?
+    def __call__(self, w=None, *, scale=None, N=None, nohalf=None):
         """psihfn(w) if called with positional argument, w = float or array, else
            psihfn(scale * xi), where `xi` is recomputed if `N` is not None.
 
@@ -50,88 +50,63 @@ class Wavelet():
             https://github.com/jonathanlilly/jLab/issues/13
         """
         if w is not None:
+            if nohalf is False:
+                return self._halve_nyquist(self.fn(w))
             return self.fn(w)
-        elif N is None:
-            psih = self.fn(scale * self.xi)
-            N = len(psih) if psih.ndim == 1 else psih.shape[1]
         else:
-            psih = self.fn(_xi(scale, N))
+            psih = self.fn(self.xi(scale, N))
 
-        if N % 2 == 0 and not nohalf:
+        if not nohalf:
+            psih = self._halve_nyquist(psih)
+        return psih
+
+    @staticmethod
+    def _halve_nyquist(psih):
+        N = len(psih) if psih.ndim == 1 else psih.shape[1]
+        if N % 2 == 0:
             if psih.ndim == 1:
                 psih[N//2] /= 2
             else:
                 psih[:, N//2] /= 2
         return psih
 
-    def _validate_and_set_wavelet(self, wavelet):
-        if isinstance(wavelet, FunctionType):
-            self.fn = wavelet
-            self.config = {}
-            return
-
-        errmsg = ("`wavelet` must be one of: (1) string name of supported "
-                  "wavelet; (2) tuple of (1) and dict of wavelet parameters "
-                  "(e.g. {'mu': 5}); (3) custom function taking `scale * xi` "
-                  "as input. (got: %s)" % str(wavelet))
-        if not isinstance(wavelet, (tuple, str)):
-            raise TypeError(errmsg)
-        elif isinstance(wavelet, tuple):
-            if not (len(wavelet) == 2 and isinstance(wavelet[1], dict)):
-                raise TypeError(errmsg)
-            wavelet, wavopts = wavelet
-        elif isinstance(wavelet, str):
-            wavopts = {}
-
-        if wavelet not in Wavelet.SUPPORTED:
-            raise ValueError(f"wavelet '{wavelet}' is not supported; pass "
-                             "in fn=custom_fn, or use one of:", ', '.join(
-                                 Wavelet.SUPPORTED))
-        if wavelet == 'morlet':
-            self.fn = morlet(**wavopts)
-        elif wavelet == 'bump':
-            self.fn = bump(**wavopts)
-        elif wavelet == 'cmhat':
-            self.fn = cmhat(**wavopts)
-        elif wavelet == 'hhhat':
-            self.fn = hhhat(**wavopts)
-        self.config = wavopts
-
-    #### Misc ################################################################
-    def info(self, nondim=True):
-        """Refer to pertinent methods' docstrings on how each quantity is
-        computed, and to tests/props_test.py on various dependences (eg std on N).
+    def psifn(self, w=None, *, scale=None, N=None):
+        """Compute time-domain wavelet; simply ifft(psih) with appropriate
+        extra steps
         """
-        if nondim:
-            cfg = self.config_str
-            dim_t = dim_w = "non-dimensional"
-            std_t, std_w = self.std_t, self.std_w
+        psih = self(w, scale=scale, N=N, nohalf=False)
+        if psih.ndim == 1:
+            pn = (-1)**np.arange(len(psih))
+        elif psih.ndim == 2:
+            pn = (-1)**np.arange(psih.shape[1])
         else:
-            cfg = self.config_str + " -- scale=10"
-            dim_t = "samples/(cycles*radians)"
-            dim_w = "(cycles*radians)/samples"
-            std_t, std_w = self.std_t_d, self.std_w_d
-        harea = std_t * std_w
+            raise ValueError("`psih` must yield to 1D or 2D (got %s)" % psih.ndim)
 
-        print(("{} wavelet\n"
-               "\t{}\n"
-               "\tCenter frequency: {:<10.6f} [wc,    (cycles*radians)/samples; "
-               "scale=10]\n"
-               "\tTime resolution:  {:<10.6f} [std_t, {}]\n"
-               "\tFreq resolution:  {:<10.6f} [std_w, {}]\n"
-               "\tHeisenberg area:  {:.12f}"
-               ).format(self.name, cfg, self.wc,
-                        std_t, dim_t, std_w, dim_w, harea))
+        # * pn = freq-domain spectral reversal to center time-domain wavelet
+        psi = ifft(psih * pn, axis=-1)
+        return psi
 
-    def viz(self, name='time-frequency', **kw):
-        """`Wavelet.VISUALS` for list of supported `name`"""
-        if name == 'time-frequency':
-            from .viz_toolkit import viz_wavelet_tf
-            kw['wavelet'] = kw.get('wavelet', self)
-            viz_wavelet_tf(**kw)
+    def xi(self, scale=1, N=None):
+        if isinstance(scale, np.ndarray) and scale.size > 1:
+            if scale.squeeze().ndim > 1:
+                raise ValueError("2D `scale` unsupported")
+            elif scale.ndim == 1:
+                scale = scale.reshape(-1, 1)  # add dim for proper broadcast
+
+        if N is None:
+            xi = scale * self._xi
         else:
-            raise ValueError(f"visual '{name}' not supported; must be one of: "
-                             + ', '.join(Wavelet.VISUALS))
+            xi = scale * _xi(scale=1, N=N)
+        return xi
+
+    @property
+    def N(self):
+        return self._N
+
+    @N.setter
+    def N(self, value):
+        self._N = value
+        self._xi = _xi(scale=1, N=value)  # ensure _xi always matches N
 
     #### Properties ##########################################################
     @property
@@ -209,8 +184,105 @@ class Wavelet():
         """Dimensional frequency resolution [cycles/samples]"""
         return self.std_w_d / (2*pi)
 
+    #### Misc ################################################################
+    def info(self, nondim=True):
+        """Refer to pertinent methods' docstrings on how each quantity is
+        computed, and to tests/props_test.py on various dependences (eg std on N).
+        """
+        if nondim:
+            cfg = self.config_str
+            dim_t = dim_w = "non-dimensional"
+            std_t, std_w = self.std_t, self.std_w
+        else:
+            cfg = self.config_str + " -- scale=10"
+            dim_t = "samples/(cycles*radians)"
+            dim_w = "(cycles*radians)/samples"
+            std_t, std_w = self.std_t_d, self.std_w_d
+        harea = std_t * std_w
+
+        print(("{} wavelet\n"
+               "\t{}\n"
+               "\tCenter frequency: {:<10.6f} [wc,    (cycles*radians)/samples; "
+               "scale=10]\n"
+               "\tTime resolution:  {:<10.6f} [std_t, {}]\n"
+               "\tFreq resolution:  {:<10.6f} [std_w, {}]\n"
+               "\tHeisenberg area:  {:.12f}"
+               ).format(self.name, cfg, self.wc,
+                        std_t, dim_t, std_w, dim_w, harea))
+
+    def viz(self, name='overview', **kw):
+        """`Wavelet.VISUALS` for list of supported `name`"""
+        if name == 'overview':
+            for name in ('heatmap', 'time-frequency'):
+                self._viz(name, **kw)
+        self._viz(name, **kw)
+
+    def _viz(self, name, **kw):
+        from .viz_toolkit import wavelet_tf, wavelet_heatmap, wavelet_tf_anim
+        kw['wavelet'] = kw.get('wavelet', self)
+
+        if name == 'time-frequency':
+            wavelet_tf(**kw)
+        elif name == 'heatmap':
+            wavelet_heatmap(**kw)
+        elif name == 'anim:time-frequency':
+            wavelet_tf_anim(**kw)
+        else:
+            raise ValueError(f"visual '{name}' not supported; must be one of: "
+                             + ', '.join(Wavelet.VISUALS))
+
+    def _desc(self, N=None, scale=None):
+        """Nicely-formatted parameter summary, used in other methods"""
+        if self.config_str != "Default configs":
+            ptxt = self.config_str
+        else:
+            ptxt = ""
+        ptxt = ptxt.rstrip(', ')
+
+        N = N or self.N
+        if scale is None:
+            title = "{} wavelet | {}, N={}".format(self.name, ptxt, N)
+        else:
+            title = "{} wavelet | {}, scale={}, N={}".format(
+                self.name, ptxt, scale, N)
+        return title
+
+    #### Init ################################################################
+    def _validate_and_set_wavelet(self, wavelet):
+        if isinstance(wavelet, FunctionType):
+            self.fn = wavelet
+            self.config = {}
+            return
+
+        errmsg = ("`wavelet` must be one of: (1) string name of supported "
+                  "wavelet; (2) tuple of (1) and dict of wavelet parameters "
+                  "(e.g. {'mu': 5}); (3) custom function taking `scale * xi` "
+                  "as input. (got: %s)" % str(wavelet))
+        if not isinstance(wavelet, (tuple, str)):
+            raise TypeError(errmsg)
+        elif isinstance(wavelet, tuple):
+            if not (len(wavelet) == 2 and isinstance(wavelet[1], dict)):
+                raise TypeError(errmsg)
+            wavelet, wavopts = wavelet
+        elif isinstance(wavelet, str):
+            wavopts = {}
+
+        if wavelet not in Wavelet.SUPPORTED:
+            raise ValueError(f"wavelet '{wavelet}' is not supported; pass "
+                             "in fn=custom_fn, or use one of:", ', '.join(
+                                 Wavelet.SUPPORTED))
+        if wavelet == 'morlet':
+            self.fn = morlet(**wavopts)
+        elif wavelet == 'bump':
+            self.fn = bump(**wavopts)
+        elif wavelet == 'cmhat':
+            self.fn = cmhat(**wavopts)
+        elif wavelet == 'hhhat':
+            self.fn = hhhat(**wavopts)
+        self.config = wavopts
 
 
+# TODO call this _xifn? and class's method xifn
 @njit
 def _xi(scale, N):
     # N=128: [0, 1, 2, ..., 64, -63, -62, ..., -1] * (2*pi / N) * scale
@@ -307,7 +379,8 @@ def center_frequency(psihfn, scale=10, N=1024, kind='energy', force_int=True,
         apsih2 = np.abs(psih)**2
         return w, psih, apsih2
 
-    def _energy_wc(psihfn, scale, N):
+    # TODO >pi, mu=20
+    def _energy_wc(psihfn, scale, N, force_int):
         use_formula = not force_int
         if use_formula:
             scale_orig = scale
@@ -330,7 +403,7 @@ def center_frequency(psihfn, scale=10, N=1024, kind='energy', force_int=True,
         NOTE("`force_int` ignored with `kind=='peak'`")
 
     if kind == 'energy':
-        wc, params = _energy_wc(psihfn, scale, N)
+        wc, params = _energy_wc(psihfn, scale, N, force_int)
     elif kind == 'peak':
         wc, params = _peak_wc(psihfn, scale, N)
 
@@ -382,34 +455,12 @@ def freq_resolution(psihfn, scale=10, N=1024, nondim=True, viz=False):
         _viz()
     return std_w
 
-if 0:
-    w,N,psih,apsih2,plt,wc,std_w=None
-
-    _w = w[N//2-1:]; _psih = psih[N//2-1:]; _apsih2 = apsih2[N//2-1:]
-    wg, ag, psihg = _w[:100], _apsih2[:100], psih[:100]
-    plot(wg, ag)
-    [plt.axvline(v, color='tab:red', linestyle='--') for v in
-     (wc - std_w, wc + std_w)]
-
-    ixc = np.argmin(np.abs(_w - wc))
-    ixl = np.argmin(np.abs(_w - (wc - std_w)))
-    ixr = ixc + (ixc - ixl)
-    print(ixc, ixl, ixr)
-
-    wgs, ags = wg[ixl:ixr], ag[ixl:ixr]
-    plot(wgs, ags)
-
-    area = integrate.trapz(ags, wgs)
-    frac = area / integrate.trapz(apsih2, w)
-    print(area, frac)
-    plt.ylim(0, 3.6)
-
 
 # TODO(viz): (w-wc)*apsih2 rescaled by area
 # TODO(viz): time-frequency widths in same plot as in Mallat
 
 def time_resolution(psihfn, scale=10, N=1024, min_decay=1e6, max_mult=2,
-                    force_int=False, nondim=True, viz=False):
+                    force_int=True, nondim=True, viz=False):
     """Compute wavelet time resolution for a given scale and N; larger N
     -> less discretization error, but same N as in application should suffice.
 
@@ -476,9 +527,9 @@ def time_resolution(psihfn, scale=10, N=1024, min_decay=1e6, max_mult=2,
                 break
         else:
             raise Exception(("Couldn't find decay timespan satisfying "
-                             "`(min_decay, max_mult)` = `({}, {})`; decrease "
-                             "former or increase latter or check `psihfn`".format(
-                                 min_decay, max_mult)))
+                             "`(min_decay, max_mult) = ({}, {})` for `scale={}`; "
+                             "decrease former or increase latter or check "
+                             "`psihfn`".format(min_decay, max_mult, scale)))
 
         # len(t) == mult*N (independent of T)
         # `t` doesn't have zero-mean but that's correct for psi's peak & symmetry
@@ -486,7 +537,7 @@ def time_resolution(psihfn, scale=10, N=1024, min_decay=1e6, max_mult=2,
         t = np.arange(-mult * T/2, mult * T/2, step=T/N)
         return t
 
-    use_formula = (scale < 4 and not force_int)
+    use_formula = ((scale < 4 or scale > N / 5) and not force_int)
     if use_formula:
         scale_orig = scale
         scale = 10
@@ -506,36 +557,15 @@ def time_resolution(psihfn, scale=10, N=1024, min_decay=1e6, max_mult=2,
     std_t = np.sqrt(var_t)
     if use_formula:
         std_t *= (scale_orig / scale)
+        scale = scale_orig
     if nondim:
-        wc = center_frequency(psihfn, scale)
+        wc = center_frequency(psihfn, scale, N=N, force_int=force_int,
+                              kind='peak')
         std_t *= wc
     if viz:
         _viz()
     return std_t
 
-
-#TODO morlet *sqrt(2pi)
-
-if 0:
-    N,t,apsi,std_t,apsi2,psi=None
-
-    a, b = N//2-200, N//2+221
-    tg, agt, psig = t[a:b], apsi2[a:b], psi[a:b]
-    plot(tg, agt)
-    [plt.axvline(v, color='tab:red', linestyle='--') for v in
-     (-std_t, std_t)]
-
-    ixc = np.argmin(np.abs(tg))
-    ixl = np.argmin(np.abs(tg - (0 - std_t)))
-    ixr = ixc + (ixc - ixl)
-    print(ixc, ixl, ixr)
-
-    tgs, agts = tg[ixl:ixr], agt[ixl:ixr]
-    plot(tgs, agts)
-
-    area = integrate.trapz(agts, tgs)
-    frac = area / integrate.trapz(apsi2, t)
-    print(area, frac)
 
 #### Misc ####################################################################
 def afftshift(xh):
@@ -576,3 +606,6 @@ def _aifftshift_even(xh, xhs):
 def _fn_to_name(fn):
     return fn.__qualname__.replace('_', ' ').replace('<locals>', '').replace(
         '<lambda>', '').replace('.', '').title()
+
+##############################################################################
+from .viz_toolkit import plot

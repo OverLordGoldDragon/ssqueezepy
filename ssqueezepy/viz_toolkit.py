@@ -3,6 +3,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from numpy.fft import ifft, ifftshift
+from .algos import find_closest
 
 
 #### Visual tools ## messy code ##############################################
@@ -21,16 +22,15 @@ def imshow(data, title=None, show=1, cmap=None, norm=None, complex=None, abs=0,
 
     if abs:
         plt.imshow(np.abs(data), **_kw)
+    elif complex:
+        fig, axes = plt.subplots(1, 2)
+        axes[0].imshow(data.real, **_kw)
+        axes[0].imshow(data.imag, **_kw)
+        plt.subplots_adjust(left=0, right=1, bottom=0, top=1,
+                            wspace=0, hspace=0)
     else:
-        if (complex is None and np.sum(np.abs(np.imag(data))) < 1e-8) or (
-                complex is False):
-            plt.imshow(data.real, **_kw)
-        else:
-            fig, axes = plt.subplots(1, 2)
-            axes[0].imshow(data.real, **_kw)
-            axes[0].imshow(data.imag, **_kw)
-            plt.subplots_adjust(left=0, right=1, bottom=0, top=1,
-                                wspace=0, hspace=0)
+        plt.imshow(data.real, **_kw)
+
     if w or h:
         plt.gcf().set_size_inches(14 * (w or 1), 8 * (h or 1))
 
@@ -58,8 +58,8 @@ def plot(x, y=None, title=None, show=0, ax_equal=False, complex=0,
     if vert:
         x, y = y, x
     if complex:
-        plt.plot(x, y.real, **kw)
-        plt.plot(x, y.imag, **kw)
+        plt.plot(x, y.real, color='tab:blue', **kw)
+        plt.plot(x, y.imag, color='tab:orange', **kw)
         if c_annot:
             _kw = dict(fontsize=15, xycoords='axes fraction', weight='bold')
             plt.annotate("real", xy=(.93, .95), color='tab:blue', **_kw)
@@ -104,7 +104,7 @@ def _fmt(*nums):
 
 def _maybe_title(title):
     if title is not None:
-        plt.title(str(title), loc='left', weight='bold', fontsize=17)
+        plt.title(str(title), loc='left', weight='bold', fontsize=16)
 
 
 def _scale_plot(fig, ax, show=False, ax_equal=False, w=None, h=None,
@@ -182,8 +182,7 @@ def _viz_cwt_scalebounds(psihfn, N, min_scale=None, max_scale=None,
         raise ValueError("Must set at least one of `min_scale`, `max_scale`")
 
 
-def viz_wavelet_tf(wavelet, N=2048, scale=100, pnv=None, notext=False,
-                   width=1.1, height=1):
+def wavelet_tf(wavelet, N=2048, scale=100, notext=False, width=1.1, height=1):
     """Visualize `wavelet` joint time-frequency resolution. Plots frequency-domain
     wavelet (psih) along y-axis, and time-domain wavelet (psi) along x-axis.
 
@@ -194,13 +193,10 @@ def viz_wavelet_tf(wavelet, N=2048, scale=100, pnv=None, notext=False,
     `wavelet` is instance of `wavelets.Wavelet` or its valid `wavelet` argument.
     See also: https://www.desmos.com/calculator/nqowgloycy
     """
-    from .wavelets import Wavelet, _xi, aifftshift
-    from .wavelets import center_frequency, freq_resolution, time_resolution
-
     psihfn = (wavelet if isinstance(wavelet, Wavelet) else
               Wavelet(wavelet))
 
-    #### Compute psi & psihfn ################################################
+    #### Compute psi & psihf #################################################
     psi  = ifft(psihfn(scale * _xi(1, N)) * (-1)**np.arange(N))
     apsi = np.abs(psi)
     t = np.arange(-N/2, N/2, step=1)
@@ -214,15 +210,12 @@ def viz_wavelet_tf(wavelet, N=2048, scale=100, pnv=None, notext=False,
     std_t = time_resolution(psihfn, scale, N, nondim=0)
     _wc = np.pi - wc
 
-    wcix = np.argmin(np.abs(w - _wc))
     wlix = np.argmin(np.abs(w - (_wc - std_w)))
     wrix = np.argmin(np.abs(w - (_wc + std_w)))
-    # wrix = wcix + (wcix - wlix)
     wl, wr = w[wlix], w[wrix]
 
-    tcix = np.argmin(np.abs(t - 0))
     tlix = np.argmin(np.abs(t - (0 - std_t)))
-    trix = tcix + (tcix - tlix)
+    trix = np.argmin(np.abs(t - (0 + std_t)))
     tl, tr = t[tlix], t[trix]
 
     ## Rescale psi so that its y-coords span 1/5 of psih's x-coords, & vice-versa
@@ -260,6 +253,7 @@ def viz_wavelet_tf(wavelet, N=2048, scale=100, pnv=None, notext=False,
 
     if notext:
         plt.gcf().set_size_inches(12*width, 12*height)
+        plt.show()
         return
     #### Title, annotations, labels, styling #################################
     ## Annotation: info summary
@@ -278,16 +272,7 @@ def viz_wavelet_tf(wavelet, N=2048, scale=100, pnv=None, notext=False,
         plt.annotate(**_kw)  # in case platform lacks 'Consolas'
 
     ## Title: wavelet name & parameters
-    ptxt = ""
-    if pnv is not None:
-        ptxt = ""
-        for name, value in pnv.items():
-            ptxt += "{}={:.2f}, ".format(name, value)
-    elif psihfn.config_str != "Default configs":
-        ptxt = psihfn.config_str
-    ptxt = ptxt.rstrip(', ')
-
-    title = "{} wavelet | {}, scale={}, N={}".format(psihfn.name, ptxt, scale, N)
+    title = psihfn._desc(N=N, scale=scale)
     plt.title(title, loc='left', weight='bold', fontsize=16)
 
     ## Styling
@@ -295,3 +280,177 @@ def viz_wavelet_tf(wavelet, N=2048, scale=100, pnv=None, notext=False,
     plt.ylabel("radians", weight='bold', fontsize=15)
 
     plt.gcf().set_size_inches(12*width, 12*height)
+    plt.show()
+
+
+def wavelet_tf_anim(wavelet, N=2048, scales=None, width=1.1, height=1,
+                    savepath='wavanim.gif'):
+    """This method computes same as `wavelet_tf` but for all scales at once,
+    and animates 'intelligently'. Recommended to leave `scales` to None
+    """
+    def _make_anim_scales(psihfn, N):
+        scales = process_scales('log', N, psihfn, nv=32, minbounds=True)
+
+        # compute early and late scales more densely as they capture more
+        # interesting behavior, so animation will slow down smoothly near ends
+        scales = scales.squeeze()
+        na = len(scales)
+
+        s0 = (25/253)*na  # empircally-determined good value
+
+        srepl = int(s0)  # scales to keep from each end
+        srepr = int(s0)
+        smull = 3        # extension factor
+        smulr = 3
+
+        sright = np.linspace(scales[-srepr], scales[-1],   srepr * smulr)
+        sright = np.hstack([sright, sright[-1].repeat(smulr*2)])  # smooth loop
+        sleft  = np.linspace(scales[0],      scales[srepl], srepl * smull)
+        sleft = np.hstack([sleft[0].repeat(smulr*2), sleft])
+
+        scales = np.hstack([sleft, scales[srepl:-srepr], sright])
+        scales  = scales.reshape(-1, 1)
+        return scales
+
+    from .utils import NOTE, process_scales
+    from matplotlib.animation import FuncAnimation
+    import matplotlib
+    matplotlib.use("Agg")
+    NOTE("Switched matplotlib to 'Agg' backend for animating")
+
+    psihfn = (wavelet if isinstance(wavelet, Wavelet) else
+              Wavelet(wavelet))
+    scales = _make_anim_scales(psihfn, N)
+
+    #### Compute Psi & Psih ##################################################
+    Psi = ifft(psihfn(scales * _xi(1, N), nohalf=False
+                      ) * (-1)**np.arange(N).reshape(1, -1),
+               axis=-1)
+    aPsi = np.abs(Psi)
+    t = np.arange(-N/2, N/2, step=1)
+
+    w = aifftshift(_xi(1, N))[N//2-1:]
+    Psih = psihfn(scales * w)
+
+    #### Compute stdevs & respective indices #################################
+    Wc    = np.zeros(len(scales))
+    std_W = Wc.copy()
+    std_T = Wc.copy()
+
+    for i, scale in enumerate(scales):
+        Wc[i]    = center_frequency(psihfn, float(scale), N, kind='energy')
+        std_W[i] = freq_resolution( psihfn, float(scale), N, nondim=0)
+        std_T[i] = time_resolution( psihfn, float(scale), N, nondim=0)
+    _Wc = np.pi - Wc
+
+    Wcix = find_closest(_Wc.reshape(-1, 1), w).squeeze()
+    Wlix = find_closest((_Wc - std_W).reshape(-1, 1), w).squeeze()
+    Wrix = Wcix + (Wcix - Wlix)
+    Wl, Wr = w[Wlix], w[Wrix]
+
+    Tcix = np.argmin(np.abs(t - 0)).repeat(len(scales))
+    Tlix = find_closest(-std_T.reshape(-1, 1), t).squeeze()
+    Trix = Tcix + (Tcix - Tlix)
+    Tl, Tr = t[Tlix], t[Trix]
+
+    ## Rescale Psi so that its y-coords span 1/5 of Psih's x-coords, & vice-versa
+    frac = 5
+    Psig  = Psi  * (w.max() / aPsi.max(axis=-1)).reshape(-1, 1) / frac
+    aPsig = aPsi * (w.max() / aPsi.max(axis=-1)).reshape(-1, 1) / frac
+    Psihg = Psih * (t.max() / Psih.max(axis=-1)).reshape(-1, 1) / frac
+    # additionally shift Psih to Psi's left
+    Psihg += t.min()
+
+    ## Find intersections ####################################################
+    sidx = np.arange(len(scales))
+
+    W_xminu, W_xmax = Psihg[:, ::-1][sidx, Wlix], Tr
+    W_xmind = Psihg[:, ::-1][sidx, Wrix]  # Psih not necessarily symmetric
+    W_ymin, W_ymax = Wl, Wr
+
+    T_xmin, T_xmax = Tl, Tr
+    T_yminl, T_ymax = aPsig[sidx, Tlix], Wr
+    T_yminr = aPsig[sidx, Trix]  # same for Psi
+
+    ## Set up plot objects ###################################################
+    fig, ax = plt.subplots()
+    ax.set_xlim([t.min()*1.02, t.max()*1.02])
+    ax.set_ylim([-aPsi.max()*1.8, np.pi*1.02])
+
+    ylabels = np.round(np.linspace(np.pi, 0, 7), 1)
+    plt.yticks(np.linspace(0, np.pi, len(ylabels)), ylabels)
+
+    fig.set_size_inches(12*width, 12*height)
+
+    ## Title: wavelet name & parameters
+    title = psihfn._desc(N=N)
+    ax.set_title(title, loc='left', weight='bold', fontsize=16)
+
+    line1, = ax.plot([], [], color='tab:blue')
+    line2, = ax.plot([], [], color='tab:orange')
+    line3, = ax.plot([], [], color='k', linestyle='--')
+    line4, = ax.plot([], [], color='purple')
+
+    lkw = dict(color='k', linewidth=1)
+    line5, = ax.plot([], [], **lkw)
+    line6, = ax.plot([], [], **lkw)
+    line7, = ax.plot([], [], **lkw)
+    line8, = ax.plot([], [], **lkw)
+
+    tkw = dict(horizontalalignment='center', verticalalignment='center',
+               transform=ax.transAxes, fontsize=15, weight='bold')
+    txt = ax.text(.9, .95, "scale=%.2f" % scales[0], **tkw)
+
+    #### Animate #############################################################
+    def animate(i):
+        line1.set_data(t, Psig[i].real)
+        line2.set_data(t, Psig[i].imag)
+        line3.set_data(t, aPsig[i])
+        line4.set_data(Psihg[i][::-1], w)
+
+        line5.set_data([T_xmin[i],  T_xmin[i]], [T_yminl[i], T_ymax[i]])
+        line6.set_data([T_xmax[i],  T_xmax[i]], [T_yminr[i], T_ymax[i]])
+        line7.set_data([W_xminu[i], W_xmax[i]], [W_ymin[i],  W_ymin[i]])
+        line8.set_data([W_xmind[i], W_xmax[i]], [W_ymax[i],  W_ymax[i]])
+
+        txt.set_text("scale=%.2f" % scales[i])
+        return line1, line2, line3, line4, line5, line6, line7, line8
+
+    print("Successfully computed parameters; animating...", flush=True)
+    frames = np.hstack([range(len(scales)), range(len(scales) - 1)[::-1]])
+    anim = FuncAnimation(fig, animate, frames=frames, interval=60,
+                         blit=True, repeat=False)
+
+    anim.save(savepath, writer='imagemagick')
+    print("Animated and saved to", savepath, flush=True)
+
+
+def wavelet_heatmap(wavelet, scales='log', N=2048, minbounds=False):
+    psihfn = (wavelet if isinstance(wavelet, Wavelet) else
+              Wavelet(wavelet))
+    if not isinstance(scales, np.ndarray):
+        from .utils import process_scales
+        scales = process_scales('log', N, wavelet, nv=32, minbounds=minbounds)
+
+    #### Compute time- & freq-domain wavelets for all scales #################
+    _psih = psihfn(scales * _xi(1, N), nohalf=False
+                   ) * (-1)**np.arange(N).reshape(1,-1)
+    Psi = ifft(_psih, axis=-1)
+
+    w = aifftshift(_xi(1, N))[N//2-1:]
+    Psih = psihfn(scales * w)
+
+    #### Plot ################################################################
+    mx = np.abs(Psi).max() * .01
+    title0 = psihfn._desc(N=N)
+
+    imshow(Psi.real,   norm=(-mx, mx), yticks=scales,
+           title=title0 + " | Time-domain; real part")
+    imshow(Psi, abs=1, norm=(0, mx),   yticks=scales,
+           title=title0 + " | Time-domain; abs-val")
+    imshow(Psih, abs=1, cmap='jet', yticks=scales,
+           title=title0 + "| Freq-domain; abs-val")
+
+#############################################################################
+from .wavelets import Wavelet, _xi, aifftshift
+from .wavelets import center_frequency, freq_resolution, time_resolution
