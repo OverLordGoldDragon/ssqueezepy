@@ -97,21 +97,26 @@ def test_energy_center_frequency():
 
 
 def test_time_resolution():
+    """Some thresholds are quite large per center_frequency(, kind='peak') as
+    opposed to 'energy', with force_int=True, especially for large scales.
+    These are per great deviations from continuous-time counterparts,
+    but this is simply a reflection of discretization limitations (trimmed or
+    unsmooth bell) and finite precision error.
+    """
     def _test_mu_dependence(std_t_nd0, std_t_d0, mu0, scale0, N0, th):
         """Nondimensional: std_t ~ 1/mu -- Dimensional: independent"""
         mus = np.arange(mu0 + 1, 21)
-        errs1 = np.zeros(len(mus))
-        errs2 = errs1.copy()
+        errs = np.zeros((2, len(mus)))
 
         for i, mu in enumerate(mus):
             psihfn = Wavelet(('morlet', {'mu': mu}))
             std_t_nd = time_resolution(psihfn, scale0, N0, nondim=True)
             std_t_d  = time_resolution(psihfn, scale0, N0, nondim=False)
 
-            errs1[i] = abs((std_t_nd / std_t_nd0) - (mu / mu0))
-            errs2[i] = abs(std_t_d - std_t_d0)
+            errs[0, i] = abs((std_t_nd / std_t_nd0) - (mu / mu0))
+            errs[1, i] = abs(std_t_d - std_t_d0)
 
-        _assert_and_viz(th, [errs1, errs2], 2*[mus], 'mu',
+        _assert_and_viz(th, errs, 2*[mus], 'mu',
                         "Time resolution, morlet")
 
     def _test_scale_dependence(std_t_nd0, std_t_d0, mu0, scale0, N0, th):
@@ -126,14 +131,10 @@ def test_time_resolution():
         duration in time-domain in (paddded) CWT (but this limitation might be
         undue; I'm unsure. https://dsp.stackexchange.com/q/70810/50076).
 
-        For large scales, force_int=True deviates greatly from continuous-time
-        counterpart, in fact fails to compute at all per previous paragraph.
-
         _nd here is just an extra division by 'peak' center_frequency.
         """
         scales = 2**(np.arange(16, 81) / 8)  # [4, ..., 1024]
-        errs1 = np.zeros(len(scales))
-        errs2 = errs1.copy()
+        errs = np.zeros((2, len(scales)))
         psihfn = Wavelet(('morlet', {'mu': mu0}))
         kw = dict(psihfn=psihfn, N=N0, force_int=False)
 
@@ -141,10 +142,10 @@ def test_time_resolution():
             std_t_nd = time_resolution(**kw, scale=scale, nondim=True)
             std_t_d  = time_resolution(**kw, scale=scale, nondim=False)
 
-            errs1[i] = abs(std_t_nd  - std_t_nd0)
-            errs2[i] = abs((std_t_d / std_t_d0) - (scale / scale0))
+            errs[0, i] = abs(std_t_nd  - std_t_nd0)
+            errs[1, i] = abs((std_t_d / std_t_d0) - (scale / scale0))
 
-        _assert_and_viz(th, [errs1, errs2], 2*[np.log2(scales)], 'log2(scale)',
+        _assert_and_viz(th, errs, 2*[np.log2(scales)], 'log2(scale)',
                         "Time resolution, morlet")
 
     def _test_N_dependence(std_t_nd0, std_t_d0, mu0, scale0, N0, th):
@@ -155,17 +156,17 @@ def test_time_resolution():
         (also dropping low-sampled case)
         """
         Ns = (np.array([.1, 1/3, .5, 2, 4, 9]) * N0).astype('int64')
-        errs = np.zeros(2 * len(Ns))
+        errs = np.zeros((2, len(Ns)))
         psihfn = Wavelet(('morlet', {'mu': mu0}))
 
         for i, N in enumerate(Ns):
             std_t_nd = time_resolution(psihfn, scale0, N, nondim=True)
             std_t_d  = time_resolution(psihfn, scale0, N, nondim=False)
 
-            errs[2*i]     = abs(std_t_nd - std_t_nd0)
-            errs[2*i + 1] = abs(std_t_d  - std_t_d0)
+            errs[0, i] = abs(std_t_nd - std_t_nd0)
+            errs[1, i] = abs(std_t_d  - std_t_d0)
 
-        _assert_and_viz(th, errs, np.repeat(Ns, 2), 'N',
+        _assert_and_viz(th, errs, [Ns, Ns], 'N',
                         "Time resolution, morlet")
 
     mu0 = 5
@@ -177,27 +178,26 @@ def test_time_resolution():
     std_t_d0  = time_resolution(psihfn0, scale0, N0, nondim=False)
 
     args = (std_t_nd0, std_t_d0, mu0, scale0, N0)
-    _test_mu_dependence(   *args, th=1e-6)
-    _test_scale_dependence(*args, th=2e-3)
-    _test_N_dependence(    *args, th=1e-8)
+    _test_mu_dependence(   *args, th=[1e-1, 1e-6])
+    _test_scale_dependence(*args, th=[2e-0, 2e-3])
+    _test_N_dependence(    *args, th=[1e-1, 1e-8])
 
 
 def test_freq_resolution():
     def _test_mu_dependence(std_w_nd0, std_w_d0, mu0, scale0, N0, th):
         """Nondimensional: std_w ~ mu -- Dimensional: independent"""
         mus = np.arange(mu0 + 1, 21)
-        errs1 = np.zeros(len(mus))
-        errs2 = errs1.copy()
+        errs = np.zeros((2, len(mus)))
 
         for i, mu in enumerate(mus):
             psihfn = Wavelet(('morlet', {'mu': mu}))
             std_w_nd = freq_resolution(psihfn, scale0, N0, nondim=True)
             std_w_d  = freq_resolution(psihfn, scale0, N0, nondim=False)
 
-            errs1[i] = abs((std_w_nd / std_w_nd0) - (mu0 / mu))
-            errs2[i] = abs(std_w_d - std_w_d0)
+            errs[0, i] = abs((std_w_nd / std_w_nd0) - (mu0 / mu))
+            errs[1, i] = abs(std_w_d - std_w_d0)
 
-        _assert_and_viz(th, [errs1, errs2], 2*[mus], 'mu',
+        _assert_and_viz(th, errs, 2*[mus], 'mu',
                         "Frequency resolution, morlet")
 
     def _test_scale_dependence(std_w_nd0, std_w_d0, mu0, scale0, N0, th):
@@ -209,35 +209,33 @@ def test_freq_resolution():
         behavior again since it's more accurate per our CWT.
         """
         scales = 2**(np.arange(16, 81) / 8)  # [4, ..., 1024]
-        errs1 = np.zeros(len(scales))
-        errs2 = errs1.copy()
+        errs = np.zeros((2, len(scales)))
         psihfn = Wavelet(('morlet', {'mu': mu0}))
 
         for i, scale in enumerate(scales):
             std_w_nd = freq_resolution(psihfn, scale, N0, nondim=True)
             std_w_d  = freq_resolution(psihfn, scale, N0, nondim=False)
 
-            errs1[i] = abs(std_w_nd  - std_w_nd0)
-            errs2[i]  = abs((std_w_d / std_w_d0) - (scale0 / scale))
+            errs[0, i] = abs(std_w_nd  - std_w_nd0)
+            errs[1, i]  = abs((std_w_d / std_w_d0) - (scale0 / scale))
 
-        _assert_and_viz(th, [errs1, errs2], 2*[np.log2(scales)], 'log2(scale)',
+        _assert_and_viz(th, errs, 2*[np.log2(scales)], 'log2(scale)',
                         "Frequency resolution, morlet")
 
     def _test_N_dependence(std_w_nd0, std_w_d0, mu0, scale0, N0, th):
         """Independent"""
         Ns = (np.array([.25, .5, 2, 4, 9]) * N0).astype('int64')
-        errs1 = np.zeros(len(Ns))
-        errs2 = errs1.copy()
+        errs = np.zeros((2, len(Ns)))
         psihfn = Wavelet(('morlet', {'mu': mu0}))
 
         for i, N in enumerate(Ns):
             std_w_nd = freq_resolution(psihfn, scale0, N, nondim=True)
             std_w_d  = freq_resolution(psihfn, scale0, N, nondim=False)
 
-            errs1[i] = abs(std_w_nd - std_w_nd0)
-            errs2[i] = abs(std_w_d  - std_w_d0)
+            errs[0, i] = abs(std_w_nd - std_w_nd0)
+            errs[1, i] = abs(std_w_d  - std_w_d0)
 
-        _assert_and_viz(th, [errs1, errs2], 2*[Ns], 'N',
+        _assert_and_viz(th, errs, 2*[Ns], 'N',
                         "Frequency resolution, morlet")
 
     mu0 = 5
@@ -249,9 +247,9 @@ def test_freq_resolution():
     std_w_d0  = freq_resolution(psihfn0, scale0, N0, nondim=False)
 
     args = (std_w_nd0, std_w_d0, mu0, scale0, N0)
-    _test_mu_dependence(   *args, th=1e-6)
-    _test_scale_dependence(*args, th=3e-1)
-    _test_N_dependence(    *args, th=1e-11)
+    _test_mu_dependence(   *args, th=(1e-2, 1e-6))
+    _test_scale_dependence(*args, th=(6e-1, 1e-1))
+    _test_N_dependence(    *args, th=(1e-2, 1e-13))
 
 
 def _assert_and_viz(th, errs, params, pname, test_name, logscale=True):
@@ -267,35 +265,40 @@ def _assert_and_viz(th, errs, params, pname, test_name, logscale=True):
             arrs = ls
         return arrs
 
-    errs   = _list_and_copy(errs)
-    params = _list_and_copy(params)
+    errs_all   = np.atleast_2d(errs)
+    params_all = np.atleast_2d(params)
+    th_all     = np.atleast_1d(th)
 
     had_error = False
-    errall, paramall = np.hstack(errs), np.hstack(params)
-    for err, param in zip(errall, paramall):
-        if err > th:
-            had_error = True
+    for th, errs, params in zip(th_all, errs_all, params_all):
+        for err, param in zip(errs, params):
+            if err > th:
+                had_error = True
+                break
+        if had_error:
+            ee, eparam, eth = err, param, th
             break
 
     if VIZ:
         title=f"{test_name}: abs(err) vs {pname}"
         if logscale:
             title = title.replace("abs(err)", "log10(abs(err))")
-            for _err in errs:
-                _err[_err < 1e-15] = 1e-15
-                _err[:] = np.log10(_err)
-            th = np.log10(th)
+            for errs in errs_all:
+                errs[errs < 1e-15] = 1e-15
+                errs[:] = np.log10(errs)
+            th_all = np.log10(th_all)
 
-        for _err, _param in zip(errs, params):
-            scat(_param, _err, title=title)
-        plt.axhline(th, color='tab:red')
+        colors = 'blue orange green red'.split()
+        for i, (errs, params) in enumerate(zip(errs_all, params_all)):
+            scat(params, errs, title=title)
+            plt.axhline(th_all[i], color="tab:%s" % colors[i])
         plt.show()
 
         if logscale:
-            th = 10**th  # undo for AssertionError
+            th_all = 10**th_all  # undo for AssertionError
 
     if had_error:
-        raise AssertionError("%.2e > %.1e, %s=%.2f" % (err, th, pname, param))
+        raise AssertionError("%.2e > %.1e, %s=%.2f" % (ee, eth, pname, eparam))
 
 
 if VIZ:

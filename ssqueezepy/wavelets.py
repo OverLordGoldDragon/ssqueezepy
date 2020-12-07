@@ -412,7 +412,8 @@ def center_frequency(psihfn, scale=10, N=1024, kind='energy', force_int=True,
     return wc
 
 
-def freq_resolution(psihfn, scale=10, N=1024, nondim=True, viz=False):
+def freq_resolution(psihfn, scale=10, N=1024, nondim=True, force_int=True,
+                    viz=False):
     """Compute wavelet frequency resolution for a given scale and N; larger N
     -> less discretization error, but same N as in application should suffice.
 
@@ -431,26 +432,23 @@ def freq_resolution(psihfn, scale=10, N=1024, nondim=True, viz=False):
 
         plot(_w, _psih, show=1,
              title="psih(w)+ (frequency-domain wavelet, pos half)")
-        plot(_w, (_w-wc)**2 * _apsih2, show=1,
+        plot(_w, (_w-wce)**2 * _apsih2, show=1,
              title="(w-wc)^2 |psih(w)+|^2 (used to compute var_w)")
         print("std_w={}".format(std_w))
 
     w = aifftshift(_xi(1, N))
     psih = psihfn(scale * w)
-    wc = center_frequency(psihfn, scale)
+    wce = center_frequency(psihfn, scale, force_int=force_int, kind='energy')
 
     apsih2 = np.abs(psih)**2
-    var_w = (integrate.trapz((w - wc)**2 * apsih2, w) /
+    var_w = (integrate.trapz((w - wce)**2 * apsih2, w) /
              integrate.trapz(apsih2, w))
 
     std_w = np.sqrt(var_w)
-    if 0:
-        num = integrate.trapz((w - wc)**2 * apsih2, w)
-        den = integrate.trapz(apsih2, w)
-        print(std_w, num, den)
 
     if nondim:
-        std_w /= wc
+        wcp = center_frequency(psihfn, scale, force_int=force_int, kind='peak')
+        std_w /= wcp
     if viz:
         _viz()
     return std_w
@@ -559,6 +557,8 @@ def time_resolution(psihfn, scale=10, N=1024, min_decay=1e6, max_mult=2,
         std_t *= (scale_orig / scale)
         scale = scale_orig
     if nondim:
+        # 'energy' yields values closer to continuous-time counterparts,
+        # but we seek accuracy relative to discretized values
         wc = center_frequency(psihfn, scale, N=N, force_int=force_int,
                               kind='peak')
         std_t *= wc
