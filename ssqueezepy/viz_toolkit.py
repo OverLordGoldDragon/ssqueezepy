@@ -2,7 +2,7 @@
 """Convenience visual methods"""
 import numpy as np
 import matplotlib.pyplot as plt
-from numpy.fft import ifft, ifftshift
+from numpy.fft import ifft
 from .algos import find_closest
 
 
@@ -51,7 +51,7 @@ def imshow(data, title=None, show=1, cmap=None, norm=None, complex=None, abs=0,
 
 def plot(x, y=None, title=None, show=0, ax_equal=False, complex=0,
          c_annot=False, w=None, h=None, dx1=False, xlims=None, ylims=None,
-         vert=False, **kw):
+         vert=False, vlines=None, hlines=None, **kw):
     if y is None:
         y = x
         x = np.arange(len(x))
@@ -68,6 +68,12 @@ def plot(x, y=None, title=None, show=0, ax_equal=False, complex=0,
         plt.plot(x, y, **kw)
     if dx1:
         plt.xticks(np.arange(len(x)))
+
+    if vlines:
+        vhlines(vlines, kind='v')
+    if hlines:
+        vhlines(hlines, kind='h')
+
     _maybe_title(title)
     _scale_plot(plt.gcf(), plt.gca(), show=show, ax_equal=ax_equal, w=w, h=h,
                 xlims=xlims, ylims=ylims, dx1=(len(x) if dx1 else 0))
@@ -95,6 +101,23 @@ def hist(x, bins=500, title=None, show=0, stats=0):
         print("(mean, std, min, max) = ({}, {}, {}, {})".format(
             *_fmt(mu, std, mn, mx)))
         return mu, std, mn, mx
+
+
+def vhlines(lines, kind='v'):
+    lfn = plt.axvline if kind=='v' else plt.axhline
+
+    if not isinstance(lines, (list, tuple)):
+        lines, lkw = [lines], {}
+    elif isinstance(lines, list):
+        lkw = {}
+    elif isinstance(lines, tuple):
+        lines, lkw = lines
+        lines = lines if isinstance(lines, list) else [lines]
+    else:
+        raise ValueError("`lines` must be list or (list, dict) "
+                         "(got %s)" % lines)
+    for line in lines:
+        lfn(line, **lkw)
 
 
 def _fmt(*nums):
@@ -137,19 +160,26 @@ def plotenergy(x, axis=1, **kw):
 
 #### Visualizations ##########################################################
 def _viz_cwt_scalebounds(psihfn, N, min_scale=None, max_scale=None,
-                         cutoff=1, stdevs=2):
+                         std_t=None, cutoff=1, stdevs=2, Nt=None):
     """Can be used to visualize time & freq domains separately, where
     `min_scale` refers to scale at which to show the freq-domain wavelet, and
     `max_scale` the time-domain one.
     """
     from .wavelets import _xi
-    def _viz_max():
+    def _viz_max(psihfn, N, max_scale, std_t, stdevs, Nt):
         from .wavelets import time_resolution
 
-        t = np.arange(3, step=1/N)  # 3 per 3*T in time_resolution
+        Nt = Nt or 2*N  # assume single extension
+        if Nt is None:
+            Nt = 2*N
+        if std_t is None:
+            # permissive max_mult to not crash visual
+            std_t = time_resolution(psihfn, max_scale, N, nondim=False,
+                                    max_mult=5)
+
+        t = np.arange(-Nt/2, Nt/2, step=1)
         t -= t.mean()
-        psi = ifftshift(ifft(psihfn(_xi(max_scale, len(t)))))
-        std_t = time_resolution(psihfn, max_scale, N)
+        psi = psihfn.psifn(scale=max_scale, N=len(t))
 
         plot(t, np.abs(psi)**2, ylims=(0, None),
              title="|Time-domain wavelet|^2, extended (outside dashed)")
@@ -157,7 +187,7 @@ def _viz_cwt_scalebounds(psihfn, N, min_scale=None, max_scale=None,
         plt.axvline(std_t,          color='tab:red')
         plt.axvline(std_t * stdevs, color='tab:green')
         # mark target (non-extended) frame
-        [plt.axvline(v, color='k', linestyle='--') for v in (-.5, .5)]
+        [plt.axvline(v, color='k', linestyle='--') for v in (-N/2, N/2-1)]
 
         _kw = dict(fontsize=16, xycoords='axes fraction', weight='bold')
         plt.annotate("1 stdev",
@@ -166,18 +196,22 @@ def _viz_cwt_scalebounds(psihfn, N, min_scale=None, max_scale=None,
                      xy=(.88, .90), color='tab:green', **_kw)
         plt.show()
 
-    def _viz_min():
-        psih = psihfn(_xi(min_scale, N))[:N//2 + 1]
+    def _viz_min(psihfn, N, min_scale, cutoff):
+        from .utils import _find_peak
 
-        plot(psih, title=("Frequency-domain wavelet, positive half "
-                          "(cutoff=%s)" % cutoff))
-        plt.axhline(psih.max() * cutoff, color='tab:red')
+        w = _xi(1, N)[:N//2 + 1]  # drop negative freqs
+        psih = psihfn(min_scale * w, nohalf=True)
+        mx, _ = _find_peak(psihfn, min_scale, N, cutoff)
+
+        plot(w, psih, title=("Frequency-domain wavelet, positive half "
+                             "(cutoff=%s, peak=%.3f)" % (cutoff, mx)))
+        plt.axhline(mx * abs(cutoff), color='tab:red')
         plt.show()
 
     if min_scale is not None:
-        _viz_min()
+        _viz_min(psihfn, N, min_scale, cutoff)
     if max_scale is not None:
-        _viz_max()
+        _viz_max(psihfn, N, max_scale, std_t, stdevs, Nt)
     if not (min_scale or max_scale):
         raise ValueError("Must set at least one of `min_scale`, `max_scale`")
 
@@ -193,8 +227,7 @@ def wavelet_tf(wavelet, N=2048, scale=100, notext=False, width=1.1, height=1):
     `wavelet` is instance of `wavelets.Wavelet` or its valid `wavelet` argument.
     See also: https://www.desmos.com/calculator/nqowgloycy
     """
-    psihfn = (wavelet if isinstance(wavelet, Wavelet) else
-              Wavelet(wavelet))
+    psihfn = Wavelet._init_if_not_isinstance(wavelet)
 
     #### Compute psi & psihf #################################################
     psi  = ifft(psihfn(scale * _xi(1, N)) * (-1)**np.arange(N))
@@ -318,8 +351,7 @@ def wavelet_tf_anim(wavelet, N=2048, scales=None, width=1.1, height=1,
     matplotlib.use("Agg")
     NOTE("Switched matplotlib to 'Agg' backend for animating")
 
-    psihfn = (wavelet if isinstance(wavelet, Wavelet) else
-              Wavelet(wavelet))
+    psihfn = Wavelet._init_if_not_isinstance(wavelet)
     scales = _make_anim_scales(psihfn, N)
 
     #### Compute Psi & Psih ##################################################
@@ -426,8 +458,7 @@ def wavelet_tf_anim(wavelet, N=2048, scales=None, width=1.1, height=1,
 
 
 def wavelet_heatmap(wavelet, scales='log', N=2048, minbounds=False):
-    psihfn = (wavelet if isinstance(wavelet, Wavelet) else
-              Wavelet(wavelet))
+    psihfn = Wavelet._init_if_not_isinstance(wavelet)
     if not isinstance(scales, np.ndarray):
         from .utils import process_scales
         scales = process_scales('log', N, wavelet, nv=32, minbounds=minbounds)

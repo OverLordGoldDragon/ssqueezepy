@@ -40,8 +40,8 @@ class Wavelet():
             setattr(self, f'_{name}', None)
 
     #### Main methods / properties ###########################################
-    # TODO make nohalf behavior consistent?
-    def __call__(self, w=None, *, scale=None, N=None, nohalf=None):
+    # TODO update docstr
+    def __call__(self, w=None, *, scale=None, N=None, nohalf=True):
         """psihfn(w) if called with positional argument, w = float or array, else
            psihfn(scale * xi), where `xi` is recomputed if `N` is not None.
 
@@ -50,7 +50,7 @@ class Wavelet():
             https://github.com/jonathanlilly/jLab/issues/13
         """
         if w is not None:
-            if nohalf is False:
+            if not nohalf:
                 return self._halve_nyquist(self.fn(w))
             return self.fn(w)
         else:
@@ -62,6 +62,7 @@ class Wavelet():
 
     @staticmethod
     def _halve_nyquist(psih):
+        """https://github.com/jonathanlilly/jLab/issues/13"""
         N = len(psih) if psih.ndim == 1 else psih.shape[1]
         if N % 2 == 0:
             if psih.ndim == 1:
@@ -133,7 +134,7 @@ class Wavelet():
         extrema, 'energy' and 'peak' are same for bell-like |psihfn(w)|^2.
         """
         if self._wc is None:
-            self._wc = center_frequency(self.fn, scale=10, N=self.N)
+            self._wc = center_frequency(self, scale=10, N=self.N)
         return self._wc
 
     @property
@@ -141,7 +142,7 @@ class Wavelet():
         """Non-dimensional time resolution"""
         if self._std_t is None:
             # scale=10 arbitrarily chosen to yield good compute-accurary
-            self._std_t = time_resolution(self.fn, scale=10, N=self.N,
+            self._std_t = time_resolution(self, scale=10, N=self.N,
                                           nondim=True)
         return self._std_t
 
@@ -149,7 +150,7 @@ class Wavelet():
     def std_w(self):
         """Non-dimensional frequency resolution (radian)"""
         if self._std_w is None:
-            self._std_w = freq_resolution(self.fn, scale=10, N=self.N,
+            self._std_w = freq_resolution(self, scale=10, N=self.N,
                                           nondim=True)
         return self._std_w
 
@@ -167,7 +168,7 @@ class Wavelet():
     def std_t_d(self):
         """Dimensional time resolution [samples/(cycles*radians)]"""
         if self._std_t_d is None:
-            self._std_t_d = time_resolution(self.fn, scale=10, N=self.N,
+            self._std_t_d = time_resolution(self, scale=10, N=self.N,
                                             nondim=False)
         return self._std_t_d
 
@@ -175,7 +176,7 @@ class Wavelet():
     def std_w_d(self):
         """Dimensional frequency resolution [(cycles*radians)/samples]"""
         if self._std_w_d is None:
-            self._std_w_d = freq_resolution(self.fn, scale=10, N=self.N,
+            self._std_w_d = freq_resolution(self, scale=10, N=self.N,
                                             nondim=False)
         return self._std_w_d
 
@@ -185,6 +186,8 @@ class Wavelet():
         return self.std_w_d / (2*pi)
 
     #### Misc ################################################################
+    # TODO nondim is still computed at scale=10...?
+    # TODO add little more info
     def info(self, nondim=True):
         """Refer to pertinent methods' docstrings on how each quantity is
         computed, and to tests/props_test.py on various dependences (eg std on N).
@@ -248,6 +251,18 @@ class Wavelet():
         return title
 
     #### Init ################################################################
+    @classmethod
+    def _init_if_not_isinstance(self, wavelet, **kw):
+        """Circumvents type change from IPython's super-/auto-reload,
+        but first checks with usual isinstance"""
+        def _class_name(obj):
+            name = getattr(obj, '__qualname__', getattr(obj, '__name__', ''))
+            return (getattr(obj, '__module__', '') + '.' + name).lstrip('.')
+
+        if isinstance_by_name(wavelet, Wavelet):
+            return wavelet
+        return Wavelet(wavelet, **kw)
+
     def _validate_and_set_wavelet(self, wavelet):
         if isinstance(wavelet, FunctionType):
             self.fn = wavelet
@@ -336,6 +351,7 @@ def _hhhat(_w):
 
 
 #### Wavelet properties ######################################################
+# TODO replace all `psihfn` w/ `wavelet`?
 def center_frequency(psihfn, scale=10, N=1024, kind='energy', force_int=True,
                      viz=False):
     """Energy center frequency (radian); Eq 4.52 of [1]:
@@ -367,7 +383,8 @@ def center_frequency(psihfn, scale=10, N=1024, kind='energy', force_int=True,
         w, psih, apsih2 = params
         _w = w[N//2-1:]; _psih = psih[N//2-1:]; _apsih2 = apsih2[N//2-1:]
 
-        plot(_w, _psih, show=1,
+        vline = (wc, dict(color='tab:red', linestyle='--'))
+        plot(_w, _psih, show=1, vlines=vline,
              title="psih(w)+ (frequency-domain wavelet, pos half)")
         plot(_w, _w * _apsih2, show=1,
              title="w^2 |psih(w)+|^2 (used to compute wc)")
@@ -463,7 +480,7 @@ def freq_resolution(psihfn, scale=10, N=1024, nondim=True, force_int=True,
     return std_w
 
 
-def time_resolution(psihfn, scale=10, N=1024, min_decay=1e6, max_mult=2,
+def time_resolution(psihfn, scale=10, N=1024, min_decay=1e5, max_mult=2,
                     force_int=True, nondim=True, viz=False):
     """Compute wavelet time resolution for a given scale and N; larger N
     -> less discretization error, but same N as in application should suffice.
@@ -494,6 +511,8 @@ def time_resolution(psihfn, scale=10, N=1024, min_decay=1e6, max_mult=2,
     i.e. ratio of max to endpoints of |psi(t)|^2 must exceed this. Will search
     up to `max_mult * N`-long `t` in increments of 2.
 
+    # TODO max dont go over 2 since pure sine etp
+
     For small `scale` (<~3) results are harder to interpret and defy expected
     behavior per discretization complications (call with `viz=True`). Workaround
     via computing at stable scale and calculating via formula shouldn't work as
@@ -510,10 +529,14 @@ def time_resolution(psihfn, scale=10, N=1024, min_decay=1e6, max_mult=2,
     def _viz():
         from .viz_toolkit import _viz_cwt_scalebounds
 
-        plot(psih, title="psihfn(w) (frequency-domain wavelet)", show=1)
+        _w    = aifftshift(xi)[Nt//2-1:]
+        _psih = aifftshift(psih)[Nt//2-1:]
+
+        plot(_w, _psih, show=1,
+             title="psih(w)+ (frequency-domain wavelet, pos half)")
         plot(t, t**2 * apsi2, title="t^2 |psi(t)|^2 (used to compute var_t)",
              show=1)
-        _viz_cwt_scalebounds(psihfn, N, max_scale=scale)
+        _viz_cwt_scalebounds(psihfn, N, max_scale=scale, std_t=std_t, Nt=Nt)
 
         print("std_t={}\nlen(t), len(t)/N, t_min, t_max = {}, {}, {}, {}".format(
             std_t, len(t), len(t)/N, t.min(), t.max()))
@@ -550,8 +573,8 @@ def time_resolution(psihfn, scale=10, N=1024, min_decay=1e6, max_mult=2,
     t = _make_integration_t(psihfn, scale, N, min_decay, max_mult)
     Nt = len(t)
 
-    xi = _xi(scale, Nt)
-    psih = psihfn(xi)
+    xi = _xi(1, Nt)
+    psih = psihfn(scale * xi, nohalf=False)
     psi = ifft(psih * (-1)**np.arange(Nt))
 
     apsi2 = np.abs(psi)**2
@@ -612,6 +635,15 @@ def _aifftshift_even(xh, xhs):
 def _fn_to_name(fn):
     return fn.__qualname__.replace('_', ' ').replace('<locals>', '').replace(
         '<lambda>', '').replace('.', '').title()
+
+
+def isinstance_by_name(obj, ref):
+    """IPython reload can make isinstance(Obj(), Obj) fail; won't work if
+    Obj has __str__ overridden."""
+    def _class_name(obj):
+        name = getattr(obj, '__qualname__', getattr(obj, '__name__', ''))
+        return (getattr(obj, '__module__', '') + '.' + name).lstrip('.')
+    return _class_name(type(obj)) == _class_name(ref)
 
 ##############################################################################
 from .viz_toolkit import plot

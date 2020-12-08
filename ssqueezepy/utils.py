@@ -192,8 +192,7 @@ def wfilth(wavelet, N, a=1, fs=1, derivative=False, l1_norm=True):
     if not np.log2(N).is_integer():
         raise ValueError(f"`N` must be a power of 2 (got {N})")
 
-    psihfn = (Wavelet(wavelet, N=N) if not isinstance(wavelet, Wavelet) else
-              wavelet)
+    psihfn = Wavelet._init_if_not_isinstance(wavelet)
 
     # sample FT of wavelet at scale `a`, normalize energy
     # `* (-1)^[0,1,...]` = frequency-domain spectral reversal
@@ -228,8 +227,7 @@ def adm_ssq(wavelet):
         Decomposition. I. Daubechies, J. Lu, H.T. Wu.
         https://arxiv.org/pdf/0912.2437.pdf
     """
-    psihfn = (Wavelet(wavelet) if not isinstance(wavelet, Wavelet) else
-              wavelet).fn
+    psihfn = Wavelet._init_if_not_isinstance(wavelet).fn
     Css = _integrate_analytic(lambda w: np.conj(psihfn(w)) / w)
     Css = Css.real if abs(Css.imag) < 1e-15 else Css
     return Css
@@ -244,14 +242,14 @@ def adm_cwt(wavelet):
     1. Wavelet Tour of Signal Processing, 3rd ed. S. Mallat.
     https://www.di.ens.fr/~mallat/papiers/WaveletTourChap1-2-3.pdf
 	"""
-    psihfn = (Wavelet(wavelet) if not isinstance(wavelet, Wavelet) else
-              wavelet).fn
+    psihfn = Wavelet._init_if_not_isinstance(wavelet).fn
     Cpsi = _integrate_analytic(lambda w: np.conj(psihfn(w)) * psihfn(w) / w)
     Cpsi = Cpsi.real if abs(Cpsi.imag) < 1e-15 else Cpsi
     return Cpsi
 
 
-def cwt_scalebounds(wavelet, N, cutoff=1, stdevs=1, viz=False):
+def cwt_scalebounds(wavelet, N=None, cutoff=1, stdevs=1,
+                    min_decay=1e5, max_mult=2, viz=False):
     """
     Lower  stdevs -> higher max_scale
     Higher cutoff -> lower  min_scale
@@ -260,68 +258,165 @@ def cwt_scalebounds(wavelet, N, cutoff=1, stdevs=1, viz=False):
     Main compute expense is in finding max scale.
     """
     from .wavelets import time_resolution
-    def _find_scale(param, name, cond_fn, psihfn, N, scale0, inc):
-        scale = scale0
-        i = 0
-        while not cond_fn(psihfn, scale, N, stdevs):
+    def _find_scale(param, name, cond_fn, psihfn, N, scale0, inc, **kw):
+        scale = scale0 + inc  # TODO add cutoff
+        while not cond_fn(psihfn, scale, N, param, **kw):
+            # print("_find_scale at:", scale)
             scale += inc
-            i += 1
             if scale < 0:
                 raise ValueError("Failed to find `scale` for "
                                  "`%s`=%s" % (name, param))
         return scale
 
-    def _meets_stdevs(psihfn, scale, N, stdevs):
-        return time_resolution(psihfn, scale, N) * stdevs > .5
+    def _meets_stdevs(psihfn, scale, N, stdevs, min_decay, max_mult):
+        """Ensure `stdevs` number of standard deviations span the length of
+        the signal (half of it = all of it, per unilateral std)
+        """
+        # TODO wtf
+        # print('_meets_stdevs', scale, N, stdevs)
+        # print(time_resolution(psihfn, scale, N, nondim=False) * stdevs,
+        #       scale, N, stdevs)
+        return time_resolution(psihfn, scale, N, nondim=False, max_mult=max_mult,
+                               min_decay=min_decay) * stdevs > N / 2
 
-    def _meets_cutoff(psihfn, scale, N, cutoff):
+    def _meets_cutoff_or_overshoots(psihfn, scale, N, cutoff):
+        """'Overshoots' = less than cutoff at last index (cutoff > 0)
+                        = more than cutoff at last index (cutoff < 0)
+
+        'True' return will stop loop scale incrementing in _find_scale.
+        """
+        def _cutoff_idx(psihfn, mx_idx, mx, cutoff):
+            if cutoff > 0:
+                return np.where(psih[mx_idx:] < cutoff * mx)[0]
+            else:
+                return np.where(psih > abs(cutoff * mx))[0]
+
         # drop negative freqs
         psih = psihfn(_xi(scale=scale, N=N), nohalf=True)[:N//2 + 1]
+        last_idx = len(psih) - 1
+        mx, mx_idx = _find_peak(psihfn, scale, N, cutoff)
 
-        mx = np.max(psih)
-        mx_idx = np.argmax(psih)
+        #### DEBUG ##########################################################
+        if 0:
+            m = 32
+            psih = psihfn(_xi(scale=scale, N=N), nohalf=True)[:N//2 + 1]
+            last_idx = len(psih) - 1
+            mx, mx_idx = _find_peak(psihfn, scale, N, cutoff)
 
-        if cutoff == 1:
+            print(scale, cutoff, mx, mx_idx, last_idx, mx_idx > last_idx)
+            M = m * N
+            w1 = _xi(m, M)[:M//2 + 1]
+            psih1 = psihfn(scale * w1, nohalf=True)
+
+            plot(psih1)
+            plot(psih, show=1)
+            print(_cutoff_idx(psihfn, mx_idx, mx, cutoff))
+
+            if input("woot etc") != 'y':
+                1/0
+        ######################################################################
+
+        if mx_idx > last_idx:
+            if cutoff > 0:
+                # peak can't lie in extension
+                return True
+        elif cutoff < 0:
+            print("EXECUTED")
+            # peak must lie in extension; decrease scale to move peak right
+            return True
+
+        cut_idx = _cutoff_idx(psihfn, mx_idx, mx, cutoff)
+        if abs(cutoff) == 1:
             idx = mx_idx
-        else:
-            # earliest index where psih is beneath cutoff and right of peak
-            cut_idx = np.where(psih[mx_idx:] < cutoff * mx)[0]
-            # no match means we've overshot; return True for next refinement
-            if cut_idx.size == 0:
-                idx = len(psih) - 1
-            else:
-                idx = mx_idx + np.where(psih[mx_idx:] < cutoff * mx)[0][0]
-        # cutoff met at edge
-        return idx == len(psih) - 1
 
-    psihfn = (wavelet if isinstance(wavelet, Wavelet) else
-              Wavelet(wavelet))
-    if cutoff < 0 or stdevs <= 0:
-        raise ValueError("`cutoff` and `stdevs` must be >=0 and >0, "
-                         "respectively (got %s, %s)" % (cutoff, stdevs))
-    cutoff = max(cutoff, 1e-18)  # might never be exactly zero
+        elif cutoff > 0:
+            # earliest index where psih is beneath cutoff and right of peak
+            # (or above cutoff and left of peak, for cutoff < 0)
+            if cut_idx.size == 0:
+                # no match means we've overshot; return True to move peak right
+                idx = last_idx
+            else:
+                idx = mx_idx + cut_idx[0]
+
+        elif cutoff < 0:
+            if cut_idx.size == 0:
+                # no match means we've undershot; return False to
+                # increase scale and move peak left
+                idx = -1
+            else:
+                idx = cut_idx[-1]
+
+        # cutoff met at edge
+        return idx == last_idx
+
+    # TODO mx isn't necessarily THE peak
+    psihfn = Wavelet._init_if_not_isinstance(wavelet)
+    N = N or psihfn.N
+
+    if stdevs <= 0:
+        raise ValueError("`stdevs` must be >0 (got %s)" % stdevs)
+    # might never be exactly zero
+    cutoff = max(abs(cutoff), 1e-18) * np.sign(cutoff)
+
+    from .viz_toolkit import plot
 
     # start where freq-dom wavelet peak is likely left of Nyquist
     # start with large increments to save computation, then refine w/ small inc
-    scale0 = 6
+    # do opposite if cutoff is negative
+    scale0 = 6 if cutoff > 0 else 1.1
     for inc in (-1, -.1, -.01, -.001):
-        min_scale = _find_scale(cutoff, 'cutoff', _meets_cutoff, psihfn, N,
-                                scale0, inc)
+        if cutoff < 0:
+            inc = -inc
+        # plot(psihfn(scale=scale0, nohalf=True)[:N//2 + 1], show=1)
+        # print("scale0:", scale0, "cutoff", cutoff)
+        min_scale = _find_scale(cutoff, 'cutoff', _meets_cutoff_or_overshoots,
+                                psihfn, N, scale0, inc)
         # decrement approximation and repeat to refine
         scale0 = min_scale - inc
+        # plot(psihfn(scale=min_scale, nohalf=True)[:N//2 + 1], show=1)
+        # print("min_scale", min_scale)
 
     # lowballing Morlet max_scale at N=2048
-    scale0 = (500 / 2048) * N
+    scale0 = (400 / 2048) * N
     # won't need longer arange per large integer exp steps (2^(5...), 2^(6...))
     incs = (scale0 / 5) * np.power(5., -np.arange(4))
     for inc in incs:
         max_scale = _find_scale(stdevs, 'stdevs', _meets_stdevs, psihfn, N,
-                                scale0, inc)
+                                scale0, inc, min_decay=min_decay,
+                                max_mult=max_mult)
         scale0 = max_scale - inc
 
     if viz:
-        _viz_cwt_scalebounds(psihfn, N, min_scale, max_scale)
+        _viz_cwt_scalebounds(psihfn, N, min_scale, max_scale,
+                             stdevs=stdevs, cutoff=cutoff)
     return min_scale, max_scale
+
+
+def _find_peak(psihfn, scale, N, cutoff):
+    """Helper method for cwt_scalebounds and viz_cwt_scalebounds.
+    Will extend psihfn from selected scale beyond Nyquist (pi) to find
+    true peak value, to then take its cutoff fraction.
+    """
+    mults = [4, 8, 16, 32]
+    if cutoff < 0:
+        # desired to have peak in extension
+        mults = mults[::-1]
+
+    for m in mults:
+        M = m*N
+        wm = _xi(m, M)[:M//2 + 1]  # drop negative freqs
+        psih = psihfn(scale * wm, nohalf=True)
+
+        mx = psih.max()
+        if psih[-1] < mx:
+            # if there's a point toward right that's smaller, peak is found
+            mx_idx = np.argmax(psih)
+            break
+    else:
+        raise Exception(("Couldn't find peak after extending 32-fold for "
+                         "scale={}, N={}; `scale` might be too low").format(
+                             scale, N))
+    return mx, mx_idx
 
 
 def buffer(x, seg_len, n_overlap):

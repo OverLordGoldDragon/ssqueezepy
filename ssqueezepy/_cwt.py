@@ -162,6 +162,7 @@ def cwt(x, wavelet, scales='log', fs=None, t=None, nv=32, l1_norm=True,
     scales = process_scales(scales, n, wavelet, nv=nv, minbounds=minbounds)
     psihfn = (Wavelet(wavelet, N=nup) if not isinstance(wavelet, Wavelet) else
               wavelet)
+    psihfn = Wavelet._init_if_not_isinstance(wavelet, N=nup)
     pn = (-1) ** np.arange(nup)
 
     N_orig = psihfn.N

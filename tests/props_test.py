@@ -179,7 +179,7 @@ def test_time_resolution():
 
     args = (std_t_nd0, std_t_d0, mu0, scale0, N0)
     _test_mu_dependence(   *args, th=[1e-1, 1e-6])
-    _test_scale_dependence(*args, th=[2e-0, 2e-3])
+    _test_scale_dependence(*args, th=[2e-0, 1e-1])
     _test_N_dependence(    *args, th=[1e-1, 1e-8])
 
 
