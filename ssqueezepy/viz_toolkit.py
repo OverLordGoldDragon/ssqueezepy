@@ -3,159 +3,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from numpy.fft import ifft
-from .algos import find_closest
-
-
-#### Visual tools ## messy code ##############################################
-def imshow(data, title=None, show=1, cmap=None, norm=None, complex=None, abs=0,
-           w=None, h=None, ridge=0, ticks=1, yticks=None, aspect='auto', **kw):
-    kw['interpolation'] = kw.get('interpolation', 'none')
-    if norm is None:
-        mx = np.max(np.abs(data))
-        vmin, vmax = ((-mx, mx) if not abs else
-                      (0, mx))
-    else:
-        vmin, vmax = norm
-    if cmap is None:
-        cmap = 'bone' if abs else 'bwr'
-    _kw = dict(vmin=vmin, vmax=vmax, cmap=cmap, aspect=aspect, **kw)
-
-    if abs:
-        plt.imshow(np.abs(data), **_kw)
-    elif complex:
-        fig, axes = plt.subplots(1, 2)
-        axes[0].imshow(data.real, **_kw)
-        axes[0].imshow(data.imag, **_kw)
-        plt.subplots_adjust(left=0, right=1, bottom=0, top=1,
-                            wspace=0, hspace=0)
-    else:
-        plt.imshow(data.real, **_kw)
-
-    if w or h:
-        plt.gcf().set_size_inches(14 * (w or 1), 8 * (h or 1))
-
-    if ridge:
-        data_mx = np.where(np.abs(data) == np.abs(data).max(axis=0))
-        plt.scatter(data_mx[1], data_mx[0], color='r', s=4)
-    if not ticks:
-        plt.xticks([])
-        plt.yticks([])
-    if yticks is not None:
-        idxs = np.linspace(0, len(yticks) - 1, 8).astype('int32')
-        yt = ["%.2f" % h for h in yticks[idxs]]
-        plt.yticks(idxs, yt)
-    _maybe_title(title)
-    if show:
-        plt.show()
-
-
-def plot(x, y=None, title=None, show=0, ax_equal=False, complex=0,
-         c_annot=False, w=None, h=None, dx1=False, xlims=None, ylims=None,
-         vert=False, vlines=None, hlines=None, **kw):
-    if y is None:
-        y = x
-        x = np.arange(len(x))
-    if vert:
-        x, y = y, x
-    if complex:
-        plt.plot(x, y.real, color='tab:blue', **kw)
-        plt.plot(x, y.imag, color='tab:orange', **kw)
-        if c_annot:
-            _kw = dict(fontsize=15, xycoords='axes fraction', weight='bold')
-            plt.annotate("real", xy=(.93, .95), color='tab:blue', **_kw)
-            plt.annotate("imag", xy=(.93, .90), color='tab:orange', **_kw)
-    else:
-        plt.plot(x, y, **kw)
-    if dx1:
-        plt.xticks(np.arange(len(x)))
-
-    if vlines:
-        vhlines(vlines, kind='v')
-    if hlines:
-        vhlines(hlines, kind='h')
-
-    _maybe_title(title)
-    _scale_plot(plt.gcf(), plt.gca(), show=show, ax_equal=ax_equal, w=w, h=h,
-                xlims=xlims, ylims=ylims, dx1=(len(x) if dx1 else 0))
-
-
-def scat(x, y=None, title=None, show=0, ax_equal=False, s=18, w=None, h=None,
-         xlims=None, ylims=None, dx1=False, **kw):
-    if y is None:
-        y = x
-        x = np.arange(len(x))
-    plt.scatter(x, y, s=s, **kw)
-    _maybe_title(title)
-    _scale_plot(plt.gcf(), plt.gca(), show=show, ax_equal=ax_equal, w=w, h=h,
-                xlims=xlims, ylims=ylims, dx1=(len(x) if dx1 else 0))
-
-
-def hist(x, bins=500, title=None, show=0, stats=0):
-    x = np.asarray(x)
-    _ = plt.hist(x.ravel(), bins=bins)
-    _maybe_title(title)
-    if show:
-        plt.show()
-    if stats:
-        mu, std, mn, mx = (x.mean(), x.std(), x.min(), x.max())
-        print("(mean, std, min, max) = ({}, {}, {}, {})".format(
-            *_fmt(mu, std, mn, mx)))
-        return mu, std, mn, mx
-
-
-def vhlines(lines, kind='v'):
-    lfn = plt.axvline if kind=='v' else plt.axhline
-
-    if not isinstance(lines, (list, tuple)):
-        lines, lkw = [lines], {}
-    elif isinstance(lines, list):
-        lkw = {}
-    elif isinstance(lines, tuple):
-        lines, lkw = lines
-        lines = lines if isinstance(lines, list) else [lines]
-    else:
-        raise ValueError("`lines` must be list or (list, dict) "
-                         "(got %s)" % lines)
-    for line in lines:
-        lfn(line, **lkw)
-
-
-def _fmt(*nums):
-    return [(("%.3e" % n) if (abs(n) > 1e3 or abs(n) < 1e-3) else
-             ("%.3f" % n)) for n in nums]
-
-
-def _maybe_title(title):
-    if title is not None:
-        plt.title(str(title), loc='left', weight='bold', fontsize=16)
-
-
-def _scale_plot(fig, ax, show=False, ax_equal=False, w=None, h=None,
-                xlims=None, ylims=None, dx1=False):
-    xmin, xmax = ax.get_xlim()
-    rng = xmax - xmin
-
-    ax.set_xlim(xmin + .018 * rng, xmax - .018 * rng)
-    if ax_equal:
-        yabsmax = max(np.abs([*ax.get_ylim()]))
-        mx = max(yabsmax, max(np.abs([xmin, xmax])))
-        ax.set_xlim(-mx, mx)
-        ax.set_ylim(-mx, mx)
-        fig.set_size_inches(8*(w or 1), 8*(h or 1))
-    if xlims:
-        ax.set_xlim(*xlims)
-    if ylims:
-        ax.set_ylim(*ylims)
-    if dx1:
-        plt.xticks(np.arange(dx1))
-    if w or h:
-        fig.set_size_inches(14*(w or 1), 8*(h or 1))
-    if show:
-        plt.show()
-
-
-def plotenergy(x, axis=1, **kw):
-    plot(np.sum(np.abs(x) ** 2, axis=axis), **kw)
+from .algos import find_closest, find_maximum
 
 
 #### Visualizations ##########################################################
@@ -175,7 +23,7 @@ def _viz_cwt_scalebounds(psihfn, N, min_scale=None, max_scale=None,
         if std_t is None:
             # permissive max_mult to not crash visual
             std_t = time_resolution(psihfn, max_scale, N, nondim=False,
-                                    max_mult=5)
+                                    min_mult=2, max_mult=2, min_decay=1)
 
         t = np.arange(-Nt/2, Nt/2, step=1)
         t -= t.mean()
@@ -197,11 +45,9 @@ def _viz_cwt_scalebounds(psihfn, N, min_scale=None, max_scale=None,
         plt.show()
 
     def _viz_min(psihfn, N, min_scale, cutoff):
-        from .utils import _find_peak
-
         w = _xi(1, N)[:N//2 + 1]  # drop negative freqs
         psih = psihfn(min_scale * w, nohalf=True)
-        mx, _ = _find_peak(psihfn, min_scale, N, cutoff)
+        _, mx = find_maximum(psihfn)
 
         plot(w, psih, title=("Frequency-domain wavelet, positive half "
                              "(cutoff=%s, peak=%.3f)" % (cutoff, mx)))
@@ -457,6 +303,7 @@ def wavelet_tf_anim(wavelet, N=2048, scales=None, width=1.1, height=1,
     print("Animated and saved to", savepath, flush=True)
 
 
+# TODO label x-axis
 def wavelet_heatmap(wavelet, scales='log', N=2048, minbounds=False):
     psihfn = Wavelet._init_if_not_isinstance(wavelet)
     if not isinstance(scales, np.ndarray):
@@ -481,6 +328,306 @@ def wavelet_heatmap(wavelet, scales='log', N=2048, minbounds=False):
            title=title0 + " | Time-domain; abs-val")
     imshow(Psih, abs=1, cmap='jet', yticks=scales,
            title=title0 + "| Freq-domain; abs-val")
+
+
+def sweep_std_t(wavelet, N, scales='log', get=False, **kw):
+    from .utils import process_scales
+
+    def _process_kw(kw):
+        kw = kw.copy()  # don't change external dict
+        defaults = dict(min_decay=1, max_mult=2, min_mult=2,
+                        nondim=False, force_int=True)
+        for k, v in kw.items():
+            if k not in defaults:
+                raise ValueError(f"unsupported kwarg '{k}'; must be one of: "
+                                 + ', '.join(defaults))
+
+        for k, v in defaults.items():
+            kw[k] = kw.get(k, v)
+        return kw
+
+    kw = _process_kw(kw)
+    wavelet = Wavelet._init_if_not_isinstance(wavelet)
+    scales = process_scales(scales, N, wavelet, nv=32, minbounds=False)
+
+    std_ts = np.zeros(scales.size)
+    for i, scale in enumerate(scales):
+        std_ts[i] = time_resolution(wavelet, scale=scale, N=N, **kw)
+
+    title = "std_t [{}] vs log2(scales) | {} wavelet, {}".format(
+        "nondim" if kw['nondim'] else "s/c-rad", wavelet.name, wavelet.config_str)
+    hlines = ([N/2, N/4], dict(color='k', linestyle='--'))
+    plot(np.log2(scales), std_ts, title=title, hlines=hlines, show=1)
+
+    if get:
+        return std_ts
+
+
+def sweep_std_w(wavelet, N, scales='log', get=False, **kw):
+    from .utils import process_scales
+
+    def _process_kw(kw):
+        kw = kw.copy()  # don't change external dict
+        defaults = dict(nondim=False, force_int=True)
+        for k, v in kw.items():
+            if k not in defaults:
+                raise ValueError(f"unsupported kwarg '{k}'; must be one of: "
+                                 + ', '.join(defaults))
+
+        for k, v in defaults.items():
+            kw[k] = kw.get(k, v)
+        return kw
+
+    kw = _process_kw(kw)
+    wavelet = Wavelet._init_if_not_isinstance(wavelet)
+    scales = process_scales(scales, N, wavelet, nv=32, minbounds=False)
+
+    std_ws = np.zeros(scales.size)
+    for i, scale in enumerate(scales):
+        std_ws[i] = freq_resolution(wavelet, scale=scale, N=N, **kw)
+
+    title = "std_w [{}] vs log2(scales) | {} wavelet, {}".format(
+        "nondim" if kw['nondim'] else "s/c-rad", wavelet.name, wavelet.config_str)
+    plot(np.log2(scales), std_ws, title=title, show=1)
+
+    if get:
+        return std_ws
+
+
+def sweep_harea(wavelet, N, scales='log', get=False, kw_w=None, kw_t=None):
+    """Sub-.5 and near-0 areas will occur for very high scales as a result of
+    discretization limitations. Zero-areas have one non-zero frequency-domain,
+    and std_t==N/2, with latter more accurately set to infinity (which we don't).
+
+    Sub-.5 are per freq-domain assymetries degrading time-domain decay,
+    and limited bin discretization integrating unreliably (yet largely
+    meaningfully; the unreliable-ness appears emergent from discretization).
+    """
+    from .utils import process_scales
+
+    kw_w, kw_t = (kw_w or {}), (kw_t or {})
+    scales = process_scales(scales, N, wavelet, nv=32, minbounds=False)
+    wavelet = Wavelet._init_if_not_isinstance(wavelet)
+
+    std_ws = sweep_std_w(wavelet, N, scales, get=True, **kw_w)
+    plt.show()
+    std_ts = sweep_std_t(wavelet, N, scales, get=True, **kw_t)
+    plt.show()
+    hareas = std_ws * std_ts
+
+    hline = (.5, dict(color='tab:red', linestyle='--'))
+    title = "(std_w * std_t) vs log2(scales) | {} wavelet, {}".format(
+        wavelet.name, wavelet.config_str)
+    plot(np.log2(scales), hareas, color='k', hlines=hline, title=title)
+    plt.show()
+
+    if get:
+        return hareas, std_ws, std_ts
+
+
+def wavelet_waveforms(wavelet, N, scale, zoom=True):
+    from .utils import find_maximum
+
+    wavelet = Wavelet._init_if_not_isinstance(wavelet)
+    ## Freq-domain sampled #######################
+    w_peak, peak = find_maximum(wavelet.fn)
+
+    w_ct = np.linspace(0, w_peak*2, max(4096, 2*N))  # 'continuous-time'
+    w_dt = np.linspace(0, np.pi, N//2) * scale  # sampling pts at `scale`
+    psih_ct = wavelet(w_ct)
+    psih_dt = wavelet(w_dt)
+
+    title = ("psihfn(w) sampled by xi at scale={:.2f}, N={} | {} wavelet, {}"
+             ).format(scale, N, wavelet.name, wavelet.config_str)
+    plot(w_ct, psih_ct, title=title)
+    scat(w_dt, psih_dt, color='tab:red')
+
+    plt.legend(["psih at scale=1", "sampled at scale=%.2f" % scale], fontsize=13)
+    plt.axvline(w_peak, color='tab:red', linestyle='--')
+    plt.show()
+
+    ## Freq-domain #######################
+    # if peak not near left, don't zoom; same as `if .. (w_peak >= w_dt.max())`
+    if not zoom or (np.argmax(psih_dt) > .05 * N/2):
+        end = None
+    else:
+        peak_idx = np.argmax(psih_dt)
+        end = np.where(psih_dt[peak_idx:] < 1e-4*psih_dt.max())[0][0]
+        end += peak_idx + 3  # +3: give few more indices for visual
+
+    w_dtn = w_dt * (np.pi / w_dt.max())  # norm to span true w
+    plot(w_dtn[:end], psih_dt[:end],
+         title="Freq-domain waveform (psih)" + ", zoomed" * (end is not None))
+    scat(w_dtn[:end], psih_dt[:end], color='tab:red', show=1)
+
+    ## Time-domain #######################
+    psi = wavelet.psifn(scale=scale, N=N)
+    apsi = np.abs(psi)
+    t = np.arange(-N/2, N/2, step=1)
+
+    # don't zoom unless there's fast decay
+    peak_idx = np.argmax(apsi)
+    if not zoom or (apsi.max() / apsi[peak_idx:].min() <= 1e3):
+        start, end = 0, None
+    else:
+        dt = np.where(apsi[peak_idx:] < 1e-3*apsi.max())[0][0]
+        start, end = (N//2 - dt, N//2 + dt + 1)
+
+    plot(t[start:end], psi[start:end], complex=1,
+         title="Time-domain waveform (psi)" + ", zoomed" * (end is not None))
+    plot(t[start:end], apsi[start:end], color='k', linestyle='--', show=1)
+
+
+#### Visual tools ## messy code ##############################################
+def imshow(data, title=None, show=1, cmap=None, norm=None, complex=None, abs=0,
+           w=None, h=None, ridge=0, ticks=1, yticks=None, aspect='auto', **kw):
+    kw['interpolation'] = kw.get('interpolation', 'none')
+    if norm is None:
+        mx = np.max(np.abs(data))
+        vmin, vmax = ((-mx, mx) if not abs else
+                      (0, mx))
+    else:
+        vmin, vmax = norm
+    if cmap is None:
+        cmap = 'bone' if abs else 'bwr'
+    _kw = dict(vmin=vmin, vmax=vmax, cmap=cmap, aspect=aspect, **kw)
+
+    if abs:
+        plt.imshow(np.abs(data), **_kw)
+    elif complex:
+        fig, axes = plt.subplots(1, 2)
+        axes[0].imshow(data.real, **_kw)
+        axes[0].imshow(data.imag, **_kw)
+        plt.subplots_adjust(left=0, right=1, bottom=0, top=1,
+                            wspace=0, hspace=0)
+    else:
+        plt.imshow(data.real, **_kw)
+
+    if w or h:
+        plt.gcf().set_size_inches(14 * (w or 1), 8 * (h or 1))
+
+    if ridge:
+        data_mx = np.where(np.abs(data) == np.abs(data).max(axis=0))
+        plt.scatter(data_mx[1], data_mx[0], color='r', s=4)
+    if not ticks:
+        plt.xticks([])
+        plt.yticks([])
+    if yticks is not None:
+        idxs = np.linspace(0, len(yticks) - 1, 8).astype('int32')
+        yt = ["%.2f" % h for h in yticks[idxs]]
+        plt.yticks(idxs, yt)
+    _maybe_title(title)
+    if show:
+        plt.show()
+
+
+def plot(x, y=None, title=None, show=0, ax_equal=False, complex=0,
+         c_annot=False, w=None, h=None, dx1=False, xlims=None, ylims=None,
+         vert=False, vlines=None, hlines=None, **kw):
+    if y is None:
+        y = x
+        x = np.arange(len(x))
+    if vert:
+        x, y = y, x
+    if complex:
+        plt.plot(x, y.real, color='tab:blue', **kw)
+        plt.plot(x, y.imag, color='tab:orange', **kw)
+        if c_annot:
+            _kw = dict(fontsize=15, xycoords='axes fraction', weight='bold')
+            plt.annotate("real", xy=(.93, .95), color='tab:blue', **_kw)
+            plt.annotate("imag", xy=(.93, .90), color='tab:orange', **_kw)
+    else:
+        plt.plot(x, y, **kw)
+    if dx1:
+        plt.xticks(np.arange(len(x)))
+
+    if vlines:
+        vhlines(vlines, kind='v')
+    if hlines:
+        vhlines(hlines, kind='h')
+
+    _maybe_title(title)
+    _scale_plot(plt.gcf(), plt.gca(), show=show, ax_equal=ax_equal, w=w, h=h,
+                xlims=xlims, ylims=ylims, dx1=(len(x) if dx1 else 0))
+
+
+def scat(x, y=None, title=None, show=0, ax_equal=False, s=18, w=None, h=None,
+         xlims=None, ylims=None, dx1=False, vlines=None, hlines=None, **kw):
+    if y is None:
+        y = x
+        x = np.arange(len(x))
+    plt.scatter(x, y, s=s, **kw)
+    _maybe_title(title)
+    if vlines:
+        vhlines(vlines, kind='v')
+    if hlines:
+        vhlines(hlines, kind='h')
+    _scale_plot(plt.gcf(), plt.gca(), show=show, ax_equal=ax_equal, w=w, h=h,
+                xlims=xlims, ylims=ylims, dx1=(len(x) if dx1 else 0))
+
+def hist(x, bins=500, title=None, show=0, stats=0):
+    x = np.asarray(x)
+    _ = plt.hist(x.ravel(), bins=bins)
+    _maybe_title(title)
+    if show:
+        plt.show()
+    if stats:
+        mu, std, mn, mx = (x.mean(), x.std(), x.min(), x.max())
+        print("(mean, std, min, max) = ({}, {}, {}, {})".format(
+            *_fmt(mu, std, mn, mx)))
+        return mu, std, mn, mx
+
+
+def vhlines(lines, kind='v'):
+    lfn = plt.axvline if kind=='v' else plt.axhline
+
+    if not isinstance(lines, (list, tuple)):
+        lines, lkw = [lines], {}
+    elif isinstance(lines, list):
+        lkw = {}
+    elif isinstance(lines, tuple):
+        lines, lkw = lines
+        lines = lines if isinstance(lines, list) else [lines]
+    else:
+        raise ValueError("`lines` must be list or (list, dict) "
+                         "(got %s)" % lines)
+    for line in lines:
+        lfn(line, **lkw)
+
+
+def _fmt(*nums):
+    return [(("%.3e" % n) if (abs(n) > 1e3 or abs(n) < 1e-3) else
+             ("%.3f" % n)) for n in nums]
+
+
+def _maybe_title(title):
+    if title is not None:
+        plt.title(str(title), loc='left', weight='bold', fontsize=16)
+
+
+def _scale_plot(fig, ax, show=False, ax_equal=False, w=None, h=None,
+                xlims=None, ylims=None, dx1=False):
+    xmin, xmax = ax.get_xlim()
+    rng = xmax - xmin
+
+    ax.set_xlim(xmin + .018 * rng, xmax - .018 * rng)
+    if ax_equal:
+        yabsmax = max(np.abs([*ax.get_ylim()]))
+        mx = max(yabsmax, max(np.abs([xmin, xmax])))
+        ax.set_xlim(-mx, mx)
+        ax.set_ylim(-mx, mx)
+        fig.set_size_inches(8*(w or 1), 8*(h or 1))
+    if xlims:
+        ax.set_xlim(*xlims)
+    if ylims:
+        ax.set_ylim(*ylims)
+    if dx1:
+        plt.xticks(np.arange(dx1))
+    if w or h:
+        fig.set_size_inches(14*(w or 1), 8*(h or 1))
+    if show:
+        plt.show()
+
 
 #############################################################################
 from .wavelets import Wavelet, _xi, aifftshift

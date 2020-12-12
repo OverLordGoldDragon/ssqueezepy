@@ -6,6 +6,8 @@ import numpy as np
 from ssqueezepy.wavelets import Wavelet
 from ssqueezepy import ssq_cwt, issq_cwt, cwt, icwt
 
+# no visuals here but 1 runs as regular script instead of pytest, for debugging
+VIZ = 0
 
 def test_ssq_cwt():
     x = np.random.randn(64)
@@ -15,7 +17,7 @@ def test_ssq_cwt():
 
     kw = dict(x=x, wavelet='morlet')
     params = dict(
-        minbounds=(True,),
+        # minbounds=(True,),
         squeezing=('lebesgue',),
         scales=('linear', np.power(2**(1/16), np.arange(1, 32))),
         difftype=('phase', 'numerical'),
@@ -46,5 +48,10 @@ def test_wavelets():
     psihfn.viz()
 
 
-if __name__ == '__main__':
+if VIZ:
+    test_ssq_cwt()
+    test_cwt()
+    test_wavelets()
+
+elif __name__ == '__main__':
     pytest.main([__file__, "-s"])

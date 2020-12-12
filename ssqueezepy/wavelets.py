@@ -481,7 +481,7 @@ def freq_resolution(psihfn, scale=10, N=1024, nondim=True, force_int=True,
 
 
 def time_resolution(psihfn, scale=10, N=1024, min_decay=1e5, max_mult=2,
-                    force_int=True, nondim=True, viz=False):
+                    min_mult=2, force_int=True, nondim=True, viz=False):
     """Compute wavelet time resolution for a given scale and N; larger N
     -> less discretization error, but same N as in application should suffice.
 
@@ -512,6 +512,7 @@ def time_resolution(psihfn, scale=10, N=1024, min_decay=1e5, max_mult=2,
     up to `max_mult * N`-long `t` in increments of 2.
 
     # TODO max dont go over 2 since pure sine etp
+    # TODO revamp this docstr
 
     For small `scale` (<~3) results are harder to interpret and defy expected
     behavior per discretization complications (call with `viz=True`). Workaround
@@ -546,11 +547,11 @@ def time_resolution(psihfn, scale=10, N=1024, min_decay=1e5, max_mult=2,
 
     def _make_integration_t(psihfn, scale, N, min_decay, max_mult):
         """Ensure `psi` decays sufficiently at integration bounds"""
-        for mult in np.arange(1, max_mult + 1):
+        for mult in np.arange(min_mult, max_mult + 1):
             Nt = int(mult * N)
-            apsi2 = np.abs(ifft(psihfn(_xi(scale, Nt))))**2
-            # ensure sufficient decay at endpoints (in middle without ifftshift)
-            if apsi2.max() / apsi2[Nt//2 - 5:Nt//2 + 6].mean() > min_decay:
+            apsi2 = np.abs(psihfn.psifn(scale=scale, N=Nt))**2
+            # ensure sufficient decay at endpoints (assumes ~symmetric decay)
+            if apsi2.max() / apsi2[:max(10, Nt//100)].mean() > min_decay:
                 break
         else:
             raise Exception(("Couldn't find decay timespan satisfying "
@@ -569,7 +570,6 @@ def time_resolution(psihfn, scale=10, N=1024, min_decay=1e5, max_mult=2,
         scale_orig = scale
         scale = 10
 
-    # TODO very high scale extension makes no sense, they're pure sines
     t = _make_integration_t(psihfn, scale, N, min_decay, max_mult)
     Nt = len(t)
 
@@ -588,7 +588,6 @@ def time_resolution(psihfn, scale=10, N=1024, min_decay=1e5, max_mult=2,
     if nondim:
         # 'energy' yields values closer to continuous-time counterparts,
         # but we seek accuracy relative to discretized values
-        # TODO which might be 'energy' for a safe scale range...
         wc = center_frequency(psihfn, scale, N=N, kind='peak')
         std_t *= wc
     if viz:
