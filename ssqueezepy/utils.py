@@ -6,13 +6,11 @@ from .algos import replace_at_inf_or_nan, _min_neglect_idx
 from .algos import find_maximum, find_first_occurrence
 from .wavelets import Wavelet
 
-
 logging.basicConfig(format='')
 WARN = lambda msg: logging.warning("WARNING: %s" % msg)
 NOTE = lambda msg: logging.info("NOTE: %s" % msg)
 pi = np.pi
 EPS = np.finfo(np.float64).eps  # machine epsilon for float64  # TODO float32?
-
 
 
 def mad(data, axis=None):
