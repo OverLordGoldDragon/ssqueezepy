@@ -192,20 +192,20 @@ def wfilth(wavelet, N, a=1, fs=1, derivative=False, l1_norm=True):
     if not np.log2(N).is_integer():
         raise ValueError(f"`N` must be a power of 2 (got {N})")
 
-    psihfn = Wavelet._init_if_not_isinstance(wavelet)
+    wavelet = Wavelet._init_if_not_isinstance(wavelet)
 
     # sample FT of wavelet at scale `a`, normalize energy
     # `* (-1)^[0,1,...]` = frequency-domain spectral reversal
     #                      to center time-domain wavelet
     norm = 1 if l1_norm else np.sqrt(a)
-    psih = psihfn(scale=a) * norm * (-1)**np.arange(N)
+    psih = wavelet(scale=a) * norm * (-1)**np.arange(N)
 
     # Sometimes bump gives a NaN when it means 0
     if 'bump' in wavelet:
         psih = replace_at_inf_or_nan(psih, 0)
 
     if derivative:
-        dpsih = (1j * psihfn.xi * fs) * psih  # `dt` relevant for phase transform
+        dpsih = (1j * wavelet.xi * fs) * psih  # `dt` relevant for phase transform
         return psih, dpsih
     else:
         return psih
@@ -215,7 +215,7 @@ def adm_ssq(wavelet):
     """Calculates the synchrosqueezing admissibility constant, the term
     R_psi in Eq 15 of [1] (also see Eq 2.5 of [2]). Uses numerical intergration.
 
-        integral(conj(psihfn(w)) / w, w=0..inf)
+        integral(conj(wavelet(w)) / w, w=0..inf)
 
     # References:
         1. The Synchrosqueezing algorithm for time-varying spectral analysis:
@@ -227,8 +227,8 @@ def adm_ssq(wavelet):
         Decomposition. I. Daubechies, J. Lu, H.T. Wu.
         https://arxiv.org/pdf/0912.2437.pdf
     """
-    psihfn = Wavelet._init_if_not_isinstance(wavelet).fn
-    Css = _integrate_analytic(lambda w: np.conj(psihfn(w)) / w)
+    wavelet = Wavelet._init_if_not_isinstance(wavelet).fn
+    Css = _integrate_analytic(lambda w: np.conj(wavelet(w)) / w)
     Css = Css.real if abs(Css.imag) < 1e-15 else Css
     return Css
 
@@ -237,25 +237,25 @@ def adm_cwt(wavelet):
     """Calculates the cwt admissibility constant as per Eq. (4.67) of [1].
     Uses numerical integration.
 
-        integral(psihfn(w) * conj(psihfn(w)) / w, w=0..inf)
+        integral(wavelet(w) * conj(wavelet(w)) / w, w=0..inf)
 
     1. Wavelet Tour of Signal Processing, 3rd ed. S. Mallat.
     https://www.di.ens.fr/~mallat/papiers/WaveletTourChap1-2-3.pdf
 	"""
-    psihfn = Wavelet._init_if_not_isinstance(wavelet).fn
-    Cpsi = _integrate_analytic(lambda w: np.conj(psihfn(w)) * psihfn(w) / w)
+    wavelet = Wavelet._init_if_not_isinstance(wavelet).fn
+    Cpsi = _integrate_analytic(lambda w: np.conj(wavelet(w)) * wavelet(w) / w)
     Cpsi = Cpsi.real if abs(Cpsi.imag) < 1e-15 else Cpsi
     return Cpsi
 
 
-def find_min_scale(psihfn, cutoff=1):
+def find_min_scale(wavelet, cutoff=1):
     """
     Design the wavelet in frequency domain. `scale` is found to yield
     `scale * xi(scale=1)` such that its last (largest) positive value evaluates
-    `psihfn` to `cutoff * max(psih)`. If cutoff > 0, it lands to right of peak,
+    `wavelet` to `cutoff * max(psih)`. If cutoff > 0, it lands to right of peak,
     else to left (i.e. peak excluded).
     """
-    w_peak, peak = find_maximum(psihfn.fn)
+    w_peak, peak = find_maximum(wavelet.fn)
     if cutoff > 0:
         # search to right of peak
         step_start, step_limit = w_peak, 10*w_peak
@@ -263,25 +263,25 @@ def find_min_scale(psihfn, cutoff=1):
         # search to left of peak
         step_start, step_limit = 0, w_peak
 
-    w_cutoff, _ = find_first_occurrence(psihfn.fn, value=abs(cutoff) * peak,
+    w_cutoff, _ = find_first_occurrence(wavelet.fn, value=abs(cutoff) * peak,
                                         step_start=step_start,
                                         step_limit=step_limit)
     min_scale = w_cutoff / np.pi
     return min_scale
 
 
-def find_max_scale(psihfn, N, min_cutoff=.1, max_cutoff=.8):
+def find_max_scale(wavelet, N, min_cutoff=.1, max_cutoff=.8):
     """
     Design the wavelet in frequency domain. `scale` is found to yield
     `scale * xi(scale=1)` such that two of its consecutive values land
     symmetrically about the peak of `psih` (i.e. none *at* peak), while
-    still yielding `psihfn(w)` to fall between `min_cutoff`* and `max_cutoff`*
+    still yielding `wavelet(w)` to fall between `min_cutoff`* and `max_cutoff`*
     `max(psih)`. `scale` is selected such that the symmetry is attained
     using smallest possible bins (closest to dc). Steps:
 
-        1. Find `w` (input value to `psihfn`) for which `psihfn` is maximized
+        1. Find `w` (input value to `wavelet`) for which `wavelet` is maximized
         (i.e. peak of `psih`).
-        2. Find two `w` such that `psihfn` attains `min_cutoff` and `max_cutoff`
+        2. Find two `w` such that `wavelet` attains `min_cutoff` and `max_cutoff`
         times its maximum value, using `w` in previous step as upper bound.
         3. Find `div_size` such that `xi` lands at both points of symmetry;
         `div_size` == increment between successive values of
@@ -301,7 +301,7 @@ def find_max_scale(psihfn, N, min_cutoff=.1, max_cutoff=.8):
         raise ValueError("must have `max_cutoff > min_cutoff` "
                          "(got %s, %s)" % (max_cutoff, min_cutoff))
 
-    w_peak, peak = find_maximum(psihfn.fn)
+    w_peak, peak = find_maximum(wavelet.fn)
 
     # we solve the inverse problem; instead of looking for spacing of xi
     # that'd land symmetrically about psih's peak, we pick such points
@@ -309,12 +309,12 @@ def find_max_scale(psihfn, N, min_cutoff=.1, max_cutoff=.8):
     # from left symmetry point to zero an integer number of times
 
     # define all points of wavelet from cutoff to peak, left half
-    w_cutoff, _ = find_first_occurrence(psihfn.fn, value=min_cutoff * peak,
+    w_cutoff, _ = find_first_occurrence(wavelet.fn, value=min_cutoff * peak,
                                         step_start=0, step_limit=w_peak)
 
     w_ltp = np.arange(w_cutoff, w_peak, step=1/N)  # left-to-peak
 
-    # consider every point on psihfn(w_ltp) (except peak) as candidate cutoff
+    # consider every point on wavelet(w_ltp) (except peak) as candidate cutoff
     # point, and pick earliest one that yields integer number of increments
     # from left point of symmetry to origin
     div_size = (w_peak - w_ltp[:-1]) * 2  # doubled so peak is skipped
@@ -337,7 +337,7 @@ def find_max_scale(psihfn, N, min_cutoff=.1, max_cutoff=.8):
     return max_scale
 
 
-def cwt_scalebounds(psihfn, N, preset=None, min_cutoff=None, max_cutoff=None,
+def cwt_scalebounds(wavelet, N, preset=None, min_cutoff=None, max_cutoff=None,
                     cutoff=None, double_N=True, viz=False):
     """`min_cutoff, max_cutoff` used to find max scale, `cutoff` to find min.
     viz==2 for more visuals, ==3 for even more.
@@ -346,8 +346,8 @@ def cwt_scalebounds(psihfn, N, preset=None, min_cutoff=None, max_cutoff=None,
       - Greater `min_cutoff` -> lesser `max_scale`, generally
 
     # Arguments:
-        psihfn: `wavelets.Wavelet`
-            Wavelet sampled in Fourier frequency domain.
+        wavelet: `wavelets.Wavelet`
+            Wavelet sampled in Fourier frequency domain. See help(cwt).
 
         N: int
             Length of wavelet to use.
@@ -359,11 +359,13 @@ def cwt_scalebounds(psihfn, N, preset=None, min_cutoff=None, max_cutoff=None,
             Used to find min scale. See help(utils.find_min_scale)
 
         preset: str['maximal', 'minimal'] / None
-            'maximal' yields a larger max and smaller min. 'minimal' strives
-            to keep wavelet in "well-behaved" range of std_t and std_w, but
-            very high or very low frequencies' energies will be under-represented.
-            'minimal' is closer to MATLAB's default `cwtfreqbounds`.
-            If None, will use `min_cutoff, max_cutoff, cutoff` values, else
+            - 'maximal': yields a larger max and smaller min.
+            - 'minimal': strives to keep wavelet in "well-behaved" range of std_t
+            and std_w, but very high or very low frequencies' energies will be
+            under-represented. Is closer to MATLAB's default `cwtfreqbounds`.
+            - 'naive': returns (1, N), which is per original MATLAB Toolbox,
+            but a poor choice for most wavelet options.
+            - None: will use `min_cutoff, max_cutoff, cutoff` values, else
             override all of them. If it and they are all None, will default to
             `preset='maximal'`.
 
@@ -380,7 +382,7 @@ def cwt_scalebounds(psihfn, N, preset=None, min_cutoff=None, max_cutoff=None,
 
     """
     def _process_args(preset, min_cutoff, max_cutoff, cutoff):
-        maximal_defaults = dict(min_cutoff=1e-3, max_cutoff=.8, cutoff=-.5)
+        maximal_defaults = dict(min_cutoff=2e-3, max_cutoff=.8, cutoff=-.5)
 
         if preset is not None:
             if any((min_cutoff, max_cutoff, cutoff)):
@@ -389,7 +391,11 @@ def cwt_scalebounds(psihfn, N, preset=None, min_cutoff=None, max_cutoff=None,
                 min_cutoff, max_cutoff, cutoff = maximal_defaults.values()
             elif preset == 'minimal':
                 min_cutoff, max_cutoff, cutoff = .1, .8, 1
-
+            elif preset == 'naive':
+                pass  # handle later
+            else:
+                raise ValueError("`preset` must be one of: 'minimal', 'maximal', "
+                                 "'naive', None (got %s)" % preset)
         else:
             if min_cutoff is None:
                 min_cutoff = maximal_defaults['min_cutoff']
@@ -413,22 +419,24 @@ def cwt_scalebounds(psihfn, N, preset=None, min_cutoff=None, max_cutoff=None,
     def _viz():
         from .viz_toolkit import _viz_cwt_scalebounds, wavelet_waveforms
 
-        _viz_cwt_scalebounds(psihfn, N, min_scale=min_scale,
+        _viz_cwt_scalebounds(wavelet, N, min_scale=min_scale,
                              max_scale=max_scale, cutoff=cutoff)
         if viz >= 2:
-            wavelet_waveforms(psihfn, M, min_scale)
-            wavelet_waveforms(psihfn, M, max_scale)
+            wavelet_waveforms(wavelet, M, min_scale)
+            wavelet_waveforms(wavelet, M, max_scale)
         if viz == 3:
             from  .viz_toolkit import sweep_harea
-            scales = make_scales(M, (min_scale, max_scale))
-            sweep_harea(psihfn, M, scales)
+            scales = make_scales(M, min_scale, max_scale)
+            sweep_harea(wavelet, M, scales)
 
     min_cutoff, max_cutoff, cutoff = _process_args(preset, min_cutoff,
                                                    max_cutoff, cutoff)
+    if preset == 'naive':  # still _process_args for the NOTE
+        return 1, N
 
     M = 2*N if double_N else N
-    min_scale = find_min_scale(psihfn, cutoff=cutoff)
-    max_scale = find_max_scale(psihfn, M, min_cutoff=min_cutoff,
+    min_scale = find_min_scale(wavelet, cutoff=cutoff)
+    max_scale = find_max_scale(wavelet, M, min_cutoff=min_cutoff,
                                max_cutoff=max_cutoff)
     if viz:
         _viz()
@@ -454,7 +462,7 @@ def _assert_positive_integer(g, name=''):
 
 
 def process_scales(scales, len_x, wavelet=None, nv=None, get_params=False,
-                   minbounds=False):
+                   double_N=True):
     """Makes scales if `scales` is a string, else validates the array,
     and returns relevant parameters if requested.
 
@@ -463,20 +471,17 @@ def process_scales(scales, len_x, wavelet=None, nv=None, get_params=False,
         - If `get_params`, also returns (`scaletype`, `nv`, `na`)
            - `scaletype`: inferred from `scales` ('linear' or 'log') if array
            - `nv`, `na`: computed newly only if not already passed
-
-    `minbounds=True` will mimic MATLAB's setting of min and max CWT `scale`,
-    min set where time-domain wavelet's one standard deviation spans the N-point
-    signal, and max set such that freq-domain wavelet peaks at Nyquist. These
-    differ a bit with MATLAB's thresholding, favoring more scales
-    (https://www.mathworks.com/help/wavelet/ref/cwtfreqbounds.html)
     """
     def _process_args(scales, nv, wavelet):
+        preset = None
         if isinstance(scales, str):
+            if ':' in scales:
+                scales, preset = scales.split(':')
             if scales not in ('log', 'linear'):
                 raise ValueError("`scales`, if string, must be one of: log, "
                                  "linear (got %s)" % scales)
-            if nv is None and scales == 'log':
-                raise ValueError("must set `nv` if `scales`=='log'")
+            if nv is None:
+                nv = 32
             if wavelet is None:
                 raise ValueError("must set `wavelet` if `scales` isn't array")
             scaletype = scales
@@ -500,41 +505,20 @@ def process_scales(scales, len_x, wavelet=None, nv=None, get_params=False,
         if nv is not None:
             _assert_positive_integer(nv, 'nv')
             nv = int(nv)
-        return scaletype, nv
+        return scaletype, nv, preset
 
-    scaletype, nv = _process_args(scales, nv, wavelet)
+    scaletype, nv, preset = _process_args(scales, nv, wavelet)
     if isinstance(scales, np.ndarray):
         scales = scales.reshape(-1, 1)
         return (scales if not get_params else
                 (scales, scaletype, len(scales), nv))
 
     #### Compute scales & params #############################################
-    if not minbounds:
-        nup, *_ = p2up(len_x)
-        noct = np.log2(nup) - 1
-        _assert_positive_integer(noct, 'noct')
-        na = int(noct * nv)
-        mn_pow, mx_pow = 1, na + 1
+    min_scale, max_scale = cwt_scalebounds(wavelet, N=len_x, preset=preset,
+                                           double_N=double_N)
+    scales = make_scales(len_x, min_scale, max_scale, nv=nv, scaletype=scaletype)
+    na = len(scales)
 
-    else:
-        min_scale, max_scale = cwt_scalebounds(wavelet, len_x)
-
-        # number of 2^-distributed scales spanning min to max
-        na = int(np.ceil(nv * np.log2(max_scale / min_scale)))
-        # floor to keep freq-domain peak at or to right of Nyquist
-        # min must be more precise, if need integer rounding do on max
-        mn_pow = int(np.floor(nv * np.log2(min_scale)))
-        mx_pow = mn_pow + na
-
-    if scaletype == 'log':
-        scales = 2 ** (np.arange(mn_pow, mx_pow) / nv)
-    elif scaletype == 'linear':
-        # TODO poor scheme
-        min_scale, max_scale = 2**(mn_pow/nv), 2**(mx_pow/nv)
-        na = int(np.ceil(2 * max_scale / min_scale))
-        scales = np.linspace(min_scale, max_scale, na)
-
-    scales = scales.reshape(-1, 1)  # ensure 2D for broadcast ops later
     return (scales if not get_params else
             (scales, scaletype, na, nv))
 
@@ -550,7 +534,7 @@ def _infer_scaletype(ipt):
                         "(got %s)" % ipt.dtype)
 
     th_log = 1e-15 if ipt.dtype == np.float64 else 4e-7
-    th_lin = th_log * 100  # less accurate for some reason
+    th_lin = th_log * 1e3  # less accurate for some reason
 
     if np.mean(np.abs(np.diff(ipt, 2, axis=0))) < th_lin:
         scaletype = 'linear'
@@ -561,7 +545,8 @@ def _infer_scaletype(ipt):
         nv = int(np.round(1 / np.diff(np.log2(ipt), axis=0)[0]))
     else:
         raise ValueError("could not infer `scaletype` from `ipt`; "
-                         "`ipt` array must be linear or exponential.")
+                         "`ipt` array must be linear or exponential. "
+                         "(got diff(ipt)=%s..." % np.diff(ipt, axis=0)[:4])
     return scaletype, nv
 
 
@@ -585,11 +570,9 @@ def _process_fs_and_t(fs, t, N):
     return dt, fs, t
 
 
-def make_scales(N, minmax=None, nv=32, scaletype='log'):
-    if minmax is None:
-        min_scale, max_scale = 1, N
-    else:
-        min_scale, max_scale = minmax
+def make_scales(N, min_scale=None, max_scale=None, nv=32, scaletype='log'):
+    min_scale = min_scale or 1
+    max_scale = max_scale or N
 
     # number of 2^-distributed scales spanning min to max
     na = int(np.ceil(nv * np.log2(max_scale / min_scale)))
@@ -604,12 +587,13 @@ def make_scales(N, minmax=None, nv=32, scaletype='log'):
     elif scaletype == 'linear':
         # TODO poor scheme
         min_scale, max_scale = 2**(mn_pow/nv), 2**(mx_pow/nv)
-        na = int(np.ceil(2 * max_scale / min_scale))
+        na = int(np.ceil(max_scale / min_scale))
         scales = np.linspace(min_scale, max_scale, na)
 
     else:
         raise ValueError("`scaletype` must be 'log' or 'linear'; "
                          "got: %s" % scaletype)
+    scales = scales.reshape(-1, 1)  # ensure 2D for broadcast ops later
     return scales
 
 

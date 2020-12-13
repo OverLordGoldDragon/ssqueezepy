@@ -2,33 +2,25 @@
 import numpy as np
 from .utils import WARN, EPS, p2up, adm_ssq, process_scales, _process_fs_and_t
 from .ssqueezing import ssqueeze, phase_cwt, phase_cwt_num
+from .wavelets import Wavelet
 from ._cwt import cwt
 
 
 def ssq_cwt(x, wavelet='morlet', scales='log', nv=None, fs=None, t=None,
-            ssq_freqs=None, padtype='reflect', minbounds=False, squeezing='sum',
-            difftype='direct', difforder=None, mapkind='maximal', gamma=None):
+            ssq_freqs=None, padtype='reflect', squeezing='sum', difftype='direct',
+            difforder=None, mapkind='maximal', gamma=None):
     """Calculates the synchrosqueezed Continuous Wavelet Transform of `x`.
     Implements the algorithm described in Sec. III of [1].
 
     # Arguments:
         x: np.ndarray
-            Vector of signal samples (e.g. x = np.cos(20 * np.pi * t))
+            Input vector, 1D.
 
         wavelet: str / tuple[str, dict] / `wavelets.Wavelet`
-            Wavelet sampled in Fourier frequency domain.
-                - str: name of builtin wavelet. `ssqueezepy.wavs()`
-                - tuple[str, dict]: name of builtin wavelet and its configs.
-                  E.g. `('morlet', {'mu': 5})`.
-                - `wavelets.Wavelet` instance. Can use for custom wavelet.
+            Wavelet sampled in Fourier frequency domain. See help(cwt).
 
-        scales: str['log', 'linear'] / np.ndarray
-            CWT scales.
-                - 'log': exponentially distributed scales, as pow of 2:
-                         `[2^(1/nv), 2^(2/nv), ...]`
-                - 'linear': linearly distributed scales.
-                  !!! EXPERIMENTAL; default scheme for len(x)>2048 performs
-                  poorly (and there may not be a good non-piecewise scheme).
+        scales: str['log', 'linear', 'log:maximal', ...] / np.ndarray
+            CWT scales. See help(cwt).
 
         nv: int / None
             Number of voices (CWT only). Suggested >= 32 (default=32).
@@ -56,13 +48,6 @@ def ssq_cwt(x, wavelet='morlet', scales='log', nv=None, fs=None, t=None,
                 ('zero', 'reflect', 'symmetric', 'replicate').
             'zero' is most naive, while 'reflect' (default) partly mitigates
             boundary effects. See `help(utils.padsignal)`.
-
-        minbounds: bool (default True)
-            True will mimic MATLAB's setting of min and max CWT `scale`, min set
-            such that time-domain wavelet's one stddev spans the N-point signal,
-            and max set such that freq-domain wavelet peaks at Nyquist. These
-            differ a bit with MATLAB's thresholding, favoring more scales
-            (https://www.mathworks.com/help/wavelet/ref/cwtfreqbounds.html)
 
         squeezing: str['sum', 'lebesgue']
                 - 'sum' = standard synchrosqueezing using `Wx`.
@@ -191,8 +176,10 @@ def ssq_cwt(x, wavelet='morlet', scales='log', nv=None, fs=None, t=None,
     N = len(x)
     dt, fs, difforder, nv = _process_args(N, scales, fs, t, nv, difftype,
                                           difforder, squeezing)
-    scales, cwt_scaletype, *_ = process_scales(
-        scales, N, wavelet, nv=nv, minbounds=minbounds, get_params=True)
+
+    wavelet = Wavelet._init_if_not_isinstance(wavelet, N=N)
+    scales, cwt_scaletype, *_ = process_scales(scales, N, wavelet, nv=nv,
+                                               get_params=True)
 
     # l1_norm=False to spare a multiplication; for SSWT L1 & L2 are exactly same
     # anyway since we're inverting CWT over time-frequency plane
@@ -315,6 +302,7 @@ def issq_cwt(Tx, wavelet, cc=None, cw=None):
     else:
         x = _invert_components(Tx, cc, cw)
 
+    wavelet = Wavelet._init_if_not_isinstance(wavelet)
     Css = adm_ssq(wavelet)  # admissibility coefficient
     # *2 per analytic wavelet & taking real part; Theorem 4.5 [2]
     x *= (2 / Css)

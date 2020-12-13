@@ -17,9 +17,9 @@ def test_ssq_cwt():
 
     kw = dict(x=x, wavelet='morlet')
     params = dict(
-        # minbounds=(True,),
         squeezing=('lebesgue',),
-        scales=('linear', np.power(2**(1/16), np.arange(1, 32))),
+        scales=('linear', 'log:minimal', 'linear:naive',
+                np.power(2**(1/16), np.arange(1, 32))),
         difftype=('phase', 'numerical'),
         padtype=('zero', 'replicate'),
         mapkind=('energy', 'peak'),
@@ -41,17 +41,31 @@ def test_cwt():
 
 def test_wavelets():
     for wavelet in ('morlet', ('morlet', {'mu': 4}), 'bump'):
-        psihfn = Wavelet(wavelet)
+        wavelet = Wavelet(wavelet)
 
-    psihfn = Wavelet('morlet')
-    psihfn.info()
-    psihfn.viz()
+    wavelet = Wavelet('morlet')
+    wavelet.info()
+
+    for name in wavelet.VISUALS:
+        if 'anim:' in name:  # heavy-duty computations
+            continue
+        try:
+            wavelet.viz(name, N=256)
+        except TypeError as e:
+            if "positional argument" not in str(e):
+                raise TypeError(e)
+            try:
+                wavelet.viz(name, scale=10, N=256)
+            except TypeError as e:
+                if "positional argument" not in str(e):
+                    raise TypeError(e)
+                wavelet.viz(name, scales='log', N=256)
 
 
-if VIZ:
-    test_ssq_cwt()
-    test_cwt()
-    test_wavelets()
-
-elif __name__ == '__main__':
-    pytest.main([__file__, "-s"])
+if __name__ == '__main__':
+    if VIZ:
+        test_ssq_cwt()
+        test_cwt()
+        test_wavelets()
+    else:
+        pytest.main([__file__, "-s"])

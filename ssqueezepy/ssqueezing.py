@@ -3,7 +3,7 @@ import numpy as np
 from .algos import find_closest, indexed_sum, replace_at_inf
 from .utils import EPS, pi, process_scales, _infer_scaletype, _process_fs_and_t
 from .utils import NOTE
-from .wavelets import Wavelet, center_frequency
+from .wavelets import center_frequency
 
 
 def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt',
@@ -23,13 +23,8 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
             mapping is only approximate and wavelet-dependent.
             If None, will infer from and set to same distribution as `scales`.
 
-        scales: str['log', 'linear'] / np.ndarray
-            CWT scales. Ignored if transform='stft'.
-                - 'log': exponentially distributed scales, as pow of 2:
-                         `[2^(1/nv), 2^(2/nv), ...]`
-                - 'linear': linearly distributed scales.
-                  !!! EXPERIMENTAL; default scheme for len(x)>2048 performs
-                  poorly (and there may not be a good non-piecewise scheme).
+        scales: str['log', 'linear', 'log:maximal', ...] / np.ndarray
+            See help(cwt).
 
         fs: float / None
             Sampling frequency of `x`. Defaults to 1, which makes ssq
@@ -54,10 +49,11 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
             Not recommended unless purpose is understood.
 
         mapkind: str['maximal', 'peak', 'energy']
-            See help(_ssq_cwt.ssq_cwt).
+            See help(ssq_cwt).
 
         wavelet: wavelets.Wavelet
             Only used if mapkind != 'maximal' to compute center frequencies.
+            See help(cwt).
 
     # Returns:
         Tx: np.ndarray [nf x n]
@@ -121,7 +117,7 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
             # maximum measurable (Nyquist) frequency of data
             fM = 1 / (2 * dt)
         elif mapkind in ('peak', 'energy'):
-            kw = dict(psihfn=Wavelet(wavelet), N=N, kind=mapkind, force_int=True)
+            kw = dict(wavelet=wavelet, N=N, kind=mapkind, force_int=True)
             wm = center_frequency(scale=scales[-1], **kw)
             wM = center_frequency(scale=scales[0],  **kw)
             fm = wm / (2*pi) / dt

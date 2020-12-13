@@ -20,9 +20,8 @@ def test_bounds():
             raise Exception(f"N={N} failed; errmsg:\n{e}")
 
 
-if VIZ:
-    test_bounds()
-    pass
-
-elif __name__ == '__main__':
-    pytest.main([__file__, "-s"])
+if __name__ == '__main__':
+    if VIZ:
+        test_bounds()
+    else:
+        pytest.main([__file__, "-s"])

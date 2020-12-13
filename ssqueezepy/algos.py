@@ -138,6 +138,7 @@ def find_maximum(fn, step_size=1e-3, steps_per_search=1e4, step_start=0,
     at which the maximum occurs. Inputs and outputs must be 1D.
 
     Must be strictly non-decreasing from step_start up to maximum of interest.
+    Takes absolute value of fn's output.
     """
     steps_per_search = int(steps_per_search)
     largest_max = min_value
@@ -152,7 +153,7 @@ def find_maximum(fn, step_size=1e-3, steps_per_search=1e4, step_start=0,
         end   = start + increment
         input_values = np.linspace(start, end, steps_per_search, endpoint=False)
 
-        output_values[:] = fn(input_values)
+        output_values[:] = np.abs(fn(input_values))  # take |x| if complex
 
         output_max = output_values.max()
         if output_max > largest_max:
@@ -175,6 +176,7 @@ def find_first_occurrence(fn, value, step_size=1e-3, steps_per_search=1e4,
                           step_start=0, step_limit=1000):
     """Finds max of any function with a single maximum, and input value
     at which the maximum occurs. Inputs and outputs must be 1D.
+    Takes absolute value of fn's output.
     """
     steps_per_search = int(steps_per_search)
     increment = int(steps_per_search * step_size)
@@ -190,7 +192,7 @@ def find_first_occurrence(fn, value, step_size=1e-3, steps_per_search=1e4,
             step_limit_exceeded = True
             input_values = np.clip(input_values, None, step_limit)
 
-        output_values[:] = fn(input_values)
+        output_values[:] = np.abs(fn(input_values))
         mxdiff = np.abs(np.diff(output_values)).max()
 
         # more reliable than `argmin not in (0, len - 1)` for smooth `fn`

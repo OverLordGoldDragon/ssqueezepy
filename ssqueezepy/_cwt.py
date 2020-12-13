@@ -7,15 +7,14 @@ from .wavelets import Wavelet
 
 
 def cwt(x, wavelet, scales='log', fs=None, t=None, nv=32, l1_norm=True,
-        derivative=False, padtype='reflect', minbounds=False, rpadded=False,
-        vectorized=True):
+        derivative=False, padtype='reflect', rpadded=False, vectorized=True):
     """Continuous Wavelet Transform, discretized, as described in
     Sec. 4.3.3 of [1] and Sec. IIIA of [2]. Uses a form of discretized
     convolution theorem via wavelets in the Fourier domain and FFT of input.
 
     # Arguments:
         x: np.ndarray
-            Input signal vector.
+            Input vector, 1D.
 
         wavelet: str / tuple[str, dict] / `wavelets.Wavelet`
             Wavelet sampled in Fourier frequency domain.
@@ -23,14 +22,19 @@ def cwt(x, wavelet, scales='log', fs=None, t=None, nv=32, l1_norm=True,
                 - tuple[str, dict]: name of builtin wavelet and its configs.
                   E.g. `('morlet', {'mu': 5})`.
                 - `wavelets.Wavelet` instance. Can use for custom wavelet.
+                  See help(wavelets.Wavelet).
 
-        scales: str['log', 'linear'] / np.ndarray
-            CWT scales vector.
+        scales: str['log', 'linear', 'log:maximal', ...] / np.ndarray
+            CWT scales.
                 - 'log': exponentially distributed scales, as pow of 2:
                          `[2^(1/nv), 2^(2/nv), ...]`
                 - 'linear': linearly distributed scales.
                   !!! EXPERIMENTAL; default scheme for len(x)>2048 performs
                   poorly (and there may not be a good non-piecewise scheme).
+
+            str assumes default `preset='maximal'`, which can be changed via
+            e.g. 'log:maximal', 'linear:minimal'. See `preset` in
+            help(utils.cwt_scalebounds).
 
         nv: int
             Number of voices. Suggested >= 32.
@@ -63,14 +67,6 @@ def cwt(x, wavelet, scales='log', fs=None, t=None, nv=32, l1_norm=True,
                 ('zero', 'reflect', 'symmetric', 'replicate').
             'zero' is most naive, while 'reflect' (default) partly mitigates
             boundary effects. See `padsignal`.
-
-        minbounds: bool (default False)
-            True will mimic MATLAB's setting of min and max CWT `scale`, min set
-            such that time-domain wavelet's one stddev spans the N-point signal,
-            and max set such that freq-domain wavelet peaks at Nyquist. These
-            differ a bit with MATLAB's thresholding, favoring more scales
-            (https://www.mathworks.com/help/wavelet/ref/cwtfreqbounds.html)
-            Default is False since low frequencies # TODO, 1 to N
 
         rpadded: bool (default False)
              Whether to return padded Wx and dWx.
@@ -115,18 +111,18 @@ def cwt(x, wavelet, scales='log', fs=None, t=None, nv=32, l1_norm=True,
         https://github.com/ebrevdo/synchrosqueezing/blob/master/synchrosqueezing/
         cwt_fw.m
     """
-    def _vectorized(xh, scales, psihfn, pn, derivative):
-        Wx = (psihfn(scale=scales, nohalf=False) * pn
+    def _vectorized(xh, scales, wavelet, pn, derivative):
+        Wx = (wavelet(scale=scales, nohalf=False) * pn
               ).astype('complex128')
         if derivative:
-            dWx = (1j * psihfn._xi / dt) * Wx # TODO
+            dWx = (1j * wavelet.xi / dt) * Wx
 
         Wx = ifftshift(ifft(Wx * xh, axis=-1), axes=-1)
         if derivative:
             dWx = ifftshift(ifft(dWx * xh, axis=-1), axes=-1)
         return (Wx, dWx) if derivative else (Wx, None)
 
-    def _for_loop(xh, scales, psihfn, pn, derivative):
+    def _for_loop(xh, scales, wavelet, pn, derivative):
         Wx = np.zeros((len(scales), len(xh))).astype('complex128')
         if derivative:
             dWx = Wx.copy()
@@ -134,11 +130,11 @@ def cwt(x, wavelet, scales='log', fs=None, t=None, nv=32, l1_norm=True,
         for i, a in enumerate(scales):
             # sample FT of wavelet at scale `a`
             # * pn = freq-domain spectral reversal to center time-domain wavelet
-            psih = psihfn(scale=a, nohalf=False) * pn
+            psih = wavelet(scale=a, nohalf=False) * pn
             Wx[i] = ifftshift(ifft(psih * xh))
 
             if derivative:
-                dpsih = (1j * psihfn.xi / dt) * psih
+                dpsih = (1j * wavelet.xi / dt) * psih
                 dWx[i] = ifftshift(ifft(dpsih * xh))
         return (Wx, dWx) if derivative else (Wx, None)
 
@@ -159,17 +155,15 @@ def cwt(x, wavelet, scales='log', fs=None, t=None, nv=32, l1_norm=True,
 
     x -= x.mean()
     xh = fft(x)
-    scales = process_scales(scales, n, wavelet, nv=nv, minbounds=minbounds)
-    psihfn = (Wavelet(wavelet, N=nup) if not isinstance(wavelet, Wavelet) else
-              wavelet)
-    psihfn = Wavelet._init_if_not_isinstance(wavelet, N=nup)
+    wavelet = Wavelet._init_if_not_isinstance(wavelet)
+    scales = process_scales(scales, n, wavelet, nv=nv)
     pn = (-1) ** np.arange(nup)
 
-    N_orig = psihfn.N
-    psihfn.N = nup
-    Wx, dWx = (_vectorized(xh, scales, psihfn, pn, derivative) if vectorized else
-               _for_loop(  xh, scales, psihfn, pn, derivative))
-    psihfn.N = N_orig
+    N_orig = wavelet.N
+    wavelet.N = nup
+    Wx, dWx = (_vectorized(xh, scales, wavelet, pn, derivative) if vectorized else
+               _for_loop(  xh, scales, wavelet, pn, derivative))
+    wavelet.N = N_orig
 
     if not rpadded:
         # shorten to pre-padded size
@@ -186,9 +180,8 @@ def cwt(x, wavelet, scales='log', fs=None, t=None, nv=32, l1_norm=True,
             (Wx, scales, x_mean))
 
 
-# TODO `scales` aren't needed with `l1_norm=True`
 def icwt(Wx, wavelet, scales='log', nv=None, one_int=True, x_len=None, x_mean=0,
-         padtype='zero', minbounds=False, rpadded=False, l1_norm=True):
+         padtype='zero', rpadded=False, l1_norm=True):
     """The inverse continuous wavelet transform of Wx, via double or
     single integral.
 
@@ -203,14 +196,8 @@ def icwt(Wx, wavelet, scales='log', nv=None, one_int=True, x_len=None, x_mean=0,
                   E.g. `('morlet', {'mu': 5})`.
                 - `wavelets.Wavelet` instance. Can use for custom wavelet.
 
-        scales: str['log', 'linear'] / np.ndarray
-            CWT scales vector used in forward-CWT. Alternatively pass
-            same set of kwargs (e.g. scales='log', minbounds=False)
-                - 'log': exponentially distributed scales, as pow of 2:
-                         `[2^(1/nv), 2^(2/nv), ...]`
-                - 'linear': linearly distributed scales.
-                  !!! EXPERIMENTAL; default scheme for len(x)>2048 performs
-                  poorly (and there may not be a good non-piecewise scheme).
+        scales: str['log', 'linear', 'log:maximal', ...] / np.ndarray
+            See help(cwt).
 
         nv: int / None
             Number of voices. Suggested >= 32. Needed if `scales` isn't array
@@ -277,8 +264,9 @@ def icwt(Wx, wavelet, scales='log', nv=None, one_int=True, x_len=None, x_mean=0,
     if not isinstance(scales, np.ndarray) and nv is None:
         nv = 32  # must match forward's; default to `cwt`'s
 
-    scales, scaletype, _, nv = process_scales(
-        scales, x_len, wavelet, nv=nv, minbounds=minbounds, get_params=True)
+    wavelet = Wavelet._init_if_not_isinstance(wavelet)
+    scales, scaletype, _, nv = process_scales(scales, x_len, wavelet, nv=nv,
+                                              get_params=True)
     assert (len(scales) == na), "%s != %s" % (len(scales), na)
 
     #### Invert ##############################################################

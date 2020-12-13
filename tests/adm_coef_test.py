@@ -22,7 +22,8 @@ def _test(make_wavelet, params, th=1e-3):
         acwt[i] = adm_cwt(wavelet)
         assq[i] = adm_ssq(wavelet)
 
-    _maybe_viz(acwt, assq, params)
+    if VIZ:
+        _viz(acwt, assq, params)
     if not np.all(acwt > th):
         raise AssertionError(f"th={th}")
     if not np.all(assq > th):
@@ -53,15 +54,20 @@ def test_hhhat():
     _test(make_wavelet, params=mus)
 
 
-def _maybe_viz(acwt, assq, params):
-    if VIZ:
-        import matplotlib.pyplot as plt
-        plt.plot(params, acwt)
-        plt.plot(params, assq)
-        mx = max(acwt.max(), assq.max())
-        plt.ylim(-.05 * mx, None)
-        plt.show()
+def _viz(acwt, assq, params):
+    plt.plot(params, acwt)
+    plt.plot(params, assq)
+    mx = max(acwt.max(), assq.max())
+    plt.ylim(-.05 * mx, None)
+    plt.show()
 
 
 if __name__ == '__main__':
-    pytest.main([__file__, "-s"])
+    if VIZ:
+        import matplotlib.pyplot as plt
+        test_morlet()
+        test_bump()
+        test_cmhat()
+        test_hhhat()
+    else:
+        pytest.main([__file__, "-s"])

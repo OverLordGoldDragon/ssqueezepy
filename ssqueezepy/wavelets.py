@@ -11,25 +11,21 @@ NOTE = lambda msg: logging.info("NOTE: %s" % msg)
 
 
 class Wavelet():
-    """Wavelet transform function of the wavelet filter in question,
-    Fourier domain.
+    """Central wavelet class. `__call__` computes Fourier frequency-domain
+    wavelet,  `psih`, `.psifn` computes time-domain wavelet, `psi`.
 
-    _______________________________________________________________________
-    Wavelets          Use for ssq?      Parameters (default)
-
-    morlet            yes               mu (6)
-    bump              yes               s (1), mu (5)
-    cmhat             yes               s (1), mu (1)
-    hhhat             yes               mu (5)
-    _______________________________________________________________________
+    `Wavelet.SUPPORTED` for names of built-in wavelets passable to `__init__()`;
+    `Wavelet.VISUALS`   for names of visualizations    passable to `viz()`.
+    `viz()` to run visuals, `info()` to print relevant wavelet info.
 
     # Example:
-        psihfn = Wavelet(('morlet', {'mu': 7}), N=1024)
-        plt.plot(psihfn(scale=8))
+        wavelet = Wavelet(('morlet', {'mu': 7}), N=1024)
+        plt.plot(wavelet(scale=8))
     """
-    # TODO force analyticity @ neg frequencies if Morse also fails to?
-    SUPPORTED = ('morlet', 'bump', 'cmhat', 'hhhat')
-    VISUALS = ('time-frequency', 'heatmap', 'anim:time-frequency')
+    SUPPORTED = {'morlet', 'bump', 'cmhat', 'hhhat'}
+    VISUALS = {'time-frequency', 'heatmap', 'waveforms',
+               'harea', 'std_t', 'std_w', 'anim:time-frequency'}
+
     def __init__(self, wavelet='morlet', N=1024):
         self._validate_and_set_wavelet(wavelet)
 
@@ -40,24 +36,27 @@ class Wavelet():
             setattr(self, f'_{name}', None)
 
     #### Main methods / properties ###########################################
-    # TODO update docstr
-    def __call__(self, w=None, *, scale=None, N=None, nohalf=True):
-        """psihfn(w) if called with positional argument, w = float or array, else
-           psihfn(scale * xi), where `xi` is recomputed if `N` is not None.
+    def __call__(self, w=None, *, scale=None, N=None, nohalf=True, imag_th=1e-8):
+        """wavelet(w) if called with positional argument, w = float or array, else
+           wavelet(scale * xi), where `xi` is recomputed if `N` is not None.
 
-        When not using `w`, halves the Nyquist bin for even-length psih to ensure
-        proper time-domain wavelet decay and analyticity (nohalf=True to disable):
+        `nohalf=False` (default=True) halves the Nyquist bin for even-length
+        psih to ensure proper time-domain wavelet decay and analyticity:
             https://github.com/jonathanlilly/jLab/issues/13
+
+        If evaluated wavelet's imaginary component is less than `imag_th`*(sum of
+        real), will drop it; set to None to disable.
         """
         if w is not None:
-            if not nohalf:
-                return self._halve_nyquist(self.fn(w))
-            return self.fn(w)
+            psih = self.fn(w)
         else:
-            psih = self.fn(self.xi(scale, N))
+            psih = self.fn(self.xifn(scale, N))
 
         if not nohalf:
             psih = self._halve_nyquist(psih)
+        if (psih.dtype == np.complex and (imag_th is not None) and
+            (psih.imag.sum() / psih.real.sum() < imag_th)):
+            psih = psih.real
         return psih
 
     @staticmethod
@@ -73,7 +72,7 @@ class Wavelet():
 
     def psifn(self, w=None, *, scale=None, N=None):
         """Compute time-domain wavelet; simply ifft(psih) with appropriate
-        extra steps
+        extra steps.
         """
         psih = self(w, scale=scale, N=N, nohalf=False)
         if psih.ndim == 1:
@@ -87,7 +86,7 @@ class Wavelet():
         psi = ifft(psih * pn, axis=-1)
         return psi
 
-    def xi(self, scale=1, N=None):
+    def xifn(self, scale=1, N=None):
         if isinstance(scale, np.ndarray) and scale.size > 1:
             if scale.squeeze().ndim > 1:
                 raise ValueError("2D `scale` unsupported")
@@ -95,9 +94,9 @@ class Wavelet():
                 scale = scale.reshape(-1, 1)  # add dim for proper broadcast
 
         if N is None:
-            xi = scale * self._xi
+            xi = scale * self.xi
         else:
-            xi = scale * _xi(scale=1, N=N)
+            xi = scale * _xifn(scale=1, N=N)
         return xi
 
     @property
@@ -107,7 +106,11 @@ class Wavelet():
     @N.setter
     def N(self, value):
         self._N = value
-        self._xi = _xi(scale=1, N=value)  # ensure _xi always matches N
+        self._xi = _xifn(scale=1, N=value)  # ensure xi always matches N
+
+    @property
+    def xi(self):
+        return self._xi
 
     #### Properties ##########################################################
     @property
@@ -131,7 +134,7 @@ class Wavelet():
 
         Ideally we'd compute at scale=1, but that's trouble for 'energy' center
         frequency; see help(wavelets.center_frequency). Away from scale
-        extrema, 'energy' and 'peak' are same for bell-like |psihfn(w)|^2.
+        extrema, 'energy' and 'peak' are same for bell-like |wavelet(w)|^2.
         """
         if self._wc is None:
             self._wc = center_frequency(self, scale=10, N=self.N)
@@ -186,8 +189,7 @@ class Wavelet():
         return self.std_w_d / (2*pi)
 
     #### Misc ################################################################
-    # TODO nondim is still computed at scale=10...?
-    # TODO add little more info
+    # TODO add bit more info
     def info(self, nondim=True):
         """Refer to pertinent methods' docstrings on how each quantity is
         computed, and to tests/props_test.py on various dependences (eg std on N).
@@ -216,18 +218,31 @@ class Wavelet():
     def viz(self, name='overview', **kw):
         """`Wavelet.VISUALS` for list of supported `name`"""
         if name == 'overview':
-            for name in ('heatmap', 'time-frequency'):
+            for name in ('heatmap', 'harea', 'time-frequency'):
+                kw['N'] = kw.get('N', self.N)
                 self._viz(name, **kw)
-        self._viz(name, **kw)
+        else:
+            self._viz(name, **kw)
 
     def _viz(self, name, **kw):
-        from .viz_toolkit import wavelet_tf, wavelet_heatmap, wavelet_tf_anim
+        from .viz_toolkit import (
+            wavelet_tf, wavelet_heatmap, wavelet_tf_anim, wavelet_waveforms,
+            sweep_harea, sweep_std_t, sweep_std_w,
+            )
         kw['wavelet'] = kw.get('wavelet', self)
 
         if name == 'time-frequency':
             wavelet_tf(**kw)
         elif name == 'heatmap':
             wavelet_heatmap(**kw)
+        elif name == 'waveforms':
+            wavelet_waveforms(**kw)
+        elif name == 'harea':
+            sweep_harea(**kw)
+        elif name == 'std_t':
+            sweep_std_t(**kw)
+        elif name == 'std_w':
+            sweep_std_w(**kw)
         elif name == 'anim:time-frequency':
             wavelet_tf_anim(**kw)
         else:
@@ -297,9 +312,8 @@ class Wavelet():
         self.config = wavopts
 
 
-# TODO call this _xifn? and class's method xifn
 @njit
-def _xi(scale, N):
+def _xifn(scale, N):
     # N=128: [0, 1, 2, ..., 64, -63, -62, ..., -1] * (2*pi / N) * scale
     # N=129: [0, 1, 2, ..., 64, -64, -63, ..., -1] * (2*pi / N) * scale
     xi = np.zeros(N)
@@ -351,12 +365,11 @@ def _hhhat(_w):
 
 
 #### Wavelet properties ######################################################
-# TODO replace all `psihfn` w/ `wavelet`?
-def center_frequency(psihfn, scale=10, N=1024, kind='energy', force_int=True,
+def center_frequency(wavelet, scale=10, N=1024, kind='energy', force_int=True,
                      viz=False):
     """Energy center frequency (radian); Eq 4.52 of [1]:
-        wc_1     = int w |psihfn(w)|^2 dw  0..inf
-        wc_scale = int (scale*w) |psihfn(scale*w)|^2 dw 0..inf = wc_1 / scale
+        wc_1     = int w |wavelet(w)|^2 dw  0..inf
+        wc_scale = int (scale*w) |wavelet(scale*w)|^2 dw 0..inf = wc_1 / scale
 
     `force_int` (relevant only if kind='energy') can be set to False to compute
     via formula - i.e. first integrate at a "well-behaved" scale, then rescale.
@@ -367,13 +380,11 @@ def center_frequency(psihfn, scale=10, N=1024, kind='energy', force_int=True,
     For very high scales, 'energy' w/ `force_int=True` will match 'peak'; for
     very low scales, 'energy' will always be less than 'peak'.
 
-    Note that the integral assumes the wavelet definition includes the
-    sqrt(1/(2pi)) radian normalizing factor, as all `wavelets.py` wavelets do,
-    else this function computes std_f.
-
     To convert to Hz:
         wc [(cycles*radians)/samples] / (2pi [radians]) * fs [samples/second]
         = fc [cycles/second]
+
+    See tests/props_test.py for further info.
 
     # References
         1. Wavelet Tour of Signal Processing, 3rd ed. S. Mallat.
@@ -390,19 +401,19 @@ def center_frequency(psihfn, scale=10, N=1024, kind='energy', force_int=True,
              title="w^2 |psih(w)+|^2 (used to compute wc)")
         print("wc={}".format(wc))
 
-    def _params(psihfn, scale, N):
-        w = aifftshift(_xi(1, N))
-        psih = psihfn(scale * w)
+    def _params(wavelet, scale, N):
+        w = aifftshift(_xifn(1, N))
+        psih = wavelet(scale * w)
         apsih2 = np.abs(psih)**2
         return w, psih, apsih2
 
-    def _energy_wc(psihfn, scale, N, force_int):
+    def _energy_wc(wavelet, scale, N, force_int):
         use_formula = not force_int
         if use_formula:
             scale_orig = scale
             scale = 10
 
-        w, psih, apsih2 = _params(psihfn, scale, N)
+        w, psih, apsih2 = _params(wavelet, scale, N)
         wc = (integrate.trapz(apsih2 * w) /
               integrate.trapz(apsih2))
 
@@ -410,30 +421,35 @@ def center_frequency(psihfn, scale=10, N=1024, kind='energy', force_int=True,
             wc *= (scale / scale_orig)
         return float(wc), (w, psih, apsih2)
 
-    def _peak_wc(psihfn, scale, N):
-        w, psih, apsih2 = _params(psihfn, scale, N)
+    def _peak_wc(wavelet, scale, N):
+        w, psih, apsih2 = _params(wavelet, scale, N)
         wc = w[np.argmax(apsih2)]
         return float(wc), (w, psih, apsih2)
 
     if force_int and kind == 'peak':
         NOTE("`force_int` ignored with `kind=='peak'`")
+    elif kind not in ('energy', 'peak'):
+        raise ValueError("`kind` must be one of: 'energy', 'peak' "
+                         "(got %s)" % kind)
 
     if kind == 'energy':
-        wc, params = _energy_wc(psihfn, scale, N, force_int)
+        wc, params = _energy_wc(wavelet, scale, N, force_int)
     elif kind == 'peak':
-        wc, params = _peak_wc(psihfn, scale, N)
+        wc, params = _peak_wc(wavelet, scale, N)
 
     if viz:
         _viz(wc, params)
     return wc
 
 
-def freq_resolution(psihfn, scale=10, N=1024, nondim=True, force_int=True,
+def freq_resolution(wavelet, scale=10, N=1024, nondim=True, force_int=True,
                     viz=False):
     """Compute wavelet frequency resolution for a given scale and N; larger N
     -> less discretization error, but same N as in application should suffice.
 
     Eq 22 in [1], Sec 4.3.2 in [2].
+
+    See tests/props_test.py for further info.
 
     # References
         1. Higher-Order Properties of Analytic Wavelets.
@@ -460,9 +476,9 @@ def freq_resolution(psihfn, scale=10, N=1024, nondim=True, force_int=True,
         scale_orig = scale
         scale = 10
 
-    w = aifftshift(_xi(1, N))
-    psih = psihfn(scale * w)
-    wce = center_frequency(psihfn, scale, force_int=force_int, kind='energy')
+    w = aifftshift(_xifn(1, N))
+    psih = wavelet(scale * w)
+    wce = center_frequency(wavelet, scale, force_int=force_int, kind='energy')
 
     apsih2 = np.abs(psih)**2
     var_w = (integrate.trapz((w - wce)**2 * apsih2, w) /
@@ -473,14 +489,14 @@ def freq_resolution(psihfn, scale=10, N=1024, nondim=True, force_int=True,
         std_w *= (scale / scale_orig)
         scale = scale_orig
     if nondim:
-        wcp = center_frequency(psihfn, scale, kind='peak')
+        wcp = center_frequency(wavelet, scale, kind='peak')
         std_w /= wcp
     if viz:
         _viz()
     return std_w
 
 
-def time_resolution(psihfn, scale=10, N=1024, min_decay=1e5, max_mult=2,
+def time_resolution(wavelet, scale=10, N=1024, min_decay=1e3, max_mult=2,
                     min_mult=2, force_int=True, nondim=True, viz=False):
     """Compute wavelet time resolution for a given scale and N; larger N
     -> less discretization error, but same N as in application should suffice.
@@ -488,36 +504,28 @@ def time_resolution(psihfn, scale=10, N=1024, min_decay=1e5, max_mult=2,
     Eq 21 in [1], Sec 4.3.2 in [2].
 
     Interpreted as time-span of 68% of wavelet's energy (1 stdev for Gauss-shaped
-    |psi(t)|^2). For `T=1` (see below) it's conveniently given as ratio of the
-    frame (target signal duration). Inversely-proportional with `N`, i.e. same
-    `scale` spans half the fraction of sequence that's twice lnog.
-    Proportional to `T`, so result is invariant under scaling both `T` and `N`.
-    Is actually *half* the span per unilateral (radius) std.
+    |psi(t)|^2). Inversely-proportional with `N`, i.e. same `scale` spans half
+    the fraction of sequence that's twice long. Is actually *half* the span
+    per unilateral (radius) std.
 
         std_t ~ scale (T / N)
 
-    `T` can be set to signal duration to return resolution in physical units.
-    Default of 1 is arbitrary but spares dependence in cwt_scalebounds:
-        _meets_stdevs: (stddevs * std_t > T / 2)
-    Interpreted as wavelet spanning `stdevs` standard deviations (as unilateral
-    or 'radii') over a unity-duration signal.
-
-    `t` is defined with double span for computing stdev since wavelet may not
-    decay to zero within target frame. This is biased if we are convolving by
-    sliding windows of length `N` in CWT, but we're not (see `cwt`); our scheme
-    captures full wavelet characteristics, i.e. as if conv / full decayed length.
+    `t` may be defined from `min_mult` up to `max_mult` times the original span
+    for computing stdev since wavelet may not decay to zero within target frame.
+    For any mult > 1, this is biased if we are convolving by sliding windows of
+    length `N` in CWT, but we're not (see `cwt`); our scheme captures full wavelet
+    characteristics, i.e. as if conv/full decayed length (but only up to mult=2).
 
     `min_decay` controls decay criterion of time-wavelet domain in integrating,
     i.e. ratio of max to endpoints of |psi(t)|^2 must exceed this. Will search
-    up to `max_mult * N`-long `t` in increments of 2.
-
-    # TODO max dont go over 2 since pure sine etp
-    # TODO revamp this docstr
+    up to `max_mult * N`-long `t`.
 
     For small `scale` (<~3) results are harder to interpret and defy expected
     behavior per discretization complications (call with `viz=True`). Workaround
     via computing at stable scale and calculating via formula shouldn't work as
     both-domain behaviors deviate from continuous, complete counterparts.
+
+    See tests/props_test.py for further info.
 
     # References
         1. Higher-Order Properties of Analytic Wavelets.
@@ -537,7 +545,7 @@ def time_resolution(psihfn, scale=10, N=1024, min_decay=1e5, max_mult=2,
              title="psih(w)+ (frequency-domain wavelet, pos half)")
         plot(t, t**2 * apsi2, title="t^2 |psi(t)|^2 (used to compute var_t)",
              show=1)
-        _viz_cwt_scalebounds(psihfn, N, max_scale=scale, std_t=std_t, Nt=Nt)
+        _viz_cwt_scalebounds(wavelet, N, max_scale=scale, std_t=std_t, Nt=Nt)
 
         print("std_t={}\nlen(t), len(t)/N, t_min, t_max = {}, {}, {}, {}".format(
             std_t, len(t), len(t)/N, t.min(), t.max()))
@@ -545,11 +553,11 @@ def time_resolution(psihfn, scale=10, N=1024, min_decay=1e5, max_mult=2,
             NOTE(f"integrated at scale={scale} then used formula; "
                  "see help(time_resolution) and try force_int=True")
 
-    def _make_integration_t(psihfn, scale, N, min_decay, max_mult):
+    def _make_integration_t(wavelet, scale, N, min_decay, max_mult):
         """Ensure `psi` decays sufficiently at integration bounds"""
         for mult in np.arange(min_mult, max_mult + 1):
             Nt = int(mult * N)
-            apsi2 = np.abs(psihfn.psifn(scale=scale, N=Nt))**2
+            apsi2 = np.abs(wavelet.psifn(scale=scale, N=Nt))**2
             # ensure sufficient decay at endpoints (assumes ~symmetric decay)
             if apsi2.max() / apsi2[:max(10, Nt//100)].mean() > min_decay:
                 break
@@ -557,7 +565,7 @@ def time_resolution(psihfn, scale=10, N=1024, min_decay=1e5, max_mult=2,
             raise Exception(("Couldn't find decay timespan satisfying "
                              "`(min_decay, max_mult) = ({}, {})` for `scale={}`; "
                              "decrease former or increase latter or check "
-                             "`psihfn`".format(min_decay, max_mult, scale)))
+                             "`wavelet`".format(min_decay, max_mult, scale)))
 
         # len(t) == mult*N (independent of T)
         # `t` doesn't have zero-mean but that's correct for psi's peak & symmetry
@@ -570,11 +578,11 @@ def time_resolution(psihfn, scale=10, N=1024, min_decay=1e5, max_mult=2,
         scale_orig = scale
         scale = 10
 
-    t = _make_integration_t(psihfn, scale, N, min_decay, max_mult)
+    t = _make_integration_t(wavelet, scale, N, min_decay, max_mult)
     Nt = len(t)
 
-    xi = _xi(1, Nt)
-    psih = psihfn(scale * xi, nohalf=False)
+    xi = _xifn(1, Nt)
+    psih = wavelet(scale * xi, nohalf=False)
     psi = ifft(psih * (-1)**np.arange(Nt))
 
     apsi2 = np.abs(psi)**2
@@ -588,7 +596,7 @@ def time_resolution(psihfn, scale=10, N=1024, min_decay=1e5, max_mult=2,
     if nondim:
         # 'energy' yields values closer to continuous-time counterparts,
         # but we seek accuracy relative to discretized values
-        wc = center_frequency(psihfn, scale, N=N, kind='peak')
+        wc = center_frequency(wavelet, scale, N=N, kind='peak')
         std_t *= wc
     if viz:
         _viz()

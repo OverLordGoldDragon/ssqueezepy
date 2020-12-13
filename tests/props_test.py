@@ -27,8 +27,8 @@ def test_energy_center_frequency():
         errs = np.zeros(len(mus))
 
         for i, mu in enumerate(mus):
-            psihfn = Wavelet(('morlet', {'mu': mu}))
-            wc = center_frequency(psihfn, scale=scale0, N=N0, kind='energy')
+            wavelet = Wavelet(('morlet', {'mu': mu}))
+            wc = center_frequency(wavelet, scale=scale0, N=N0, kind='energy')
             errs[i] = abs((wc / wc0) - (mu / mu0))
 
         _assert_and_viz(th, errs, mus, 'mu',
@@ -43,10 +43,10 @@ def test_energy_center_frequency():
         """
         scales = 2**(np.arange(16, 53) / 8)  # [4, ..., 90.5]
         errs = np.zeros(len(scales))
-        psihfn = Wavelet(('morlet', {'mu': mu0}))
+        wavelet = Wavelet(('morlet', {'mu': mu0}))
 
         for i, scale in enumerate(scales):
-            wc = center_frequency(psihfn, scale=scale, N=N0, kind='energy')
+            wc = center_frequency(wavelet, scale=scale, N=N0, kind='energy')
             errs[i] = abs((wc / wc0) - (scale0 / scale))
 
         _assert_and_viz(th, errs, np.log2(scales), 'log2(scale)',
@@ -60,10 +60,10 @@ def test_energy_center_frequency():
         """
         scales = 2**(np.arange(53, 81) / 8)  # [90.5, ..., 1024]
         errs = np.zeros(len(scales))
-        psihfn = Wavelet(('morlet', {'mu': mu0}))
+        wavelet = Wavelet(('morlet', {'mu': mu0}))
 
         for i, scale in enumerate(scales):
-            wc = center_frequency(psihfn, scale=scale, N=N0, kind='energy')
+            wc = center_frequency(wavelet, scale=scale, N=N0, kind='energy')
             errs[i] = abs((wc / wc0) - (scale0 / scale))
 
         _assert_and_viz(th, errs, np.log2(scales), 'log2(scale)',
@@ -73,10 +73,10 @@ def test_energy_center_frequency():
         """Independent"""
         Ns = (np.array([.25, .5, 2, 4, 9]) * N0).astype('int64')
         errs = np.zeros(len(Ns))
-        psihfn = Wavelet(('morlet', {'mu': mu0}))
+        wavelet = Wavelet(('morlet', {'mu': mu0}))
 
         for i, N in enumerate(Ns):
-            wc = center_frequency(psihfn, scale=scale0, N=N, kind='energy')
+            wc = center_frequency(wavelet, scale=scale0, N=N, kind='energy')
             errs[i] = abs(wc - wc0)
 
         _assert_and_viz(th, errs, Ns, 'N',
@@ -86,8 +86,8 @@ def test_energy_center_frequency():
     scale0 = 10
     N0 = 1024
 
-    psihfn0 = Wavelet(('morlet', {'mu': mu0}))
-    wc0 = center_frequency(psihfn0, scale=scale0, N=N0, kind='energy')
+    wavelet0 = Wavelet(('morlet', {'mu': mu0}))
+    wc0 = center_frequency(wavelet0, scale=scale0, N=N0, kind='energy')
 
     args = (wc0, mu0, scale0, N0)
     _test_mu_dependence(        *args, th=1e-7)
@@ -109,9 +109,9 @@ def test_time_resolution():
         errs = np.zeros((2, len(mus)))
 
         for i, mu in enumerate(mus):
-            psihfn = Wavelet(('morlet', {'mu': mu}))
-            std_t_nd = time_resolution(psihfn, scale0, N0, nondim=True)
-            std_t_d  = time_resolution(psihfn, scale0, N0, nondim=False)
+            wavelet = Wavelet(('morlet', {'mu': mu}))
+            std_t_nd = time_resolution(wavelet, scale0, N0, nondim=True)
+            std_t_d  = time_resolution(wavelet, scale0, N0, nondim=False)
 
             errs[0, i] = abs((std_t_nd / std_t_nd0) - (mu / mu0))
             errs[1, i] = abs(std_t_d - std_t_d0)
@@ -135,8 +135,8 @@ def test_time_resolution():
         """
         scales = 2**(np.arange(16, 81) / 8)  # [4, ..., 1024]
         errs = np.zeros((2, len(scales)))
-        psihfn = Wavelet(('morlet', {'mu': mu0}))
-        kw = dict(psihfn=psihfn, N=N0, force_int=False)
+        wavelet = Wavelet(('morlet', {'mu': mu0}))
+        kw = dict(wavelet=wavelet, N=N0, force_int=False)
 
         for i, scale in enumerate(scales):
             std_t_nd = time_resolution(**kw, scale=scale, nondim=True)
@@ -157,11 +157,11 @@ def test_time_resolution():
         """
         Ns = (np.array([.1, 1/3, .5, 2, 4, 9]) * N0).astype('int64')
         errs = np.zeros((2, len(Ns)))
-        psihfn = Wavelet(('morlet', {'mu': mu0}))
+        wavelet = Wavelet(('morlet', {'mu': mu0}))
 
         for i, N in enumerate(Ns):
-            std_t_nd = time_resolution(psihfn, scale0, N, nondim=True)
-            std_t_d  = time_resolution(psihfn, scale0, N, nondim=False)
+            std_t_nd = time_resolution(wavelet, scale0, N, nondim=True)
+            std_t_d  = time_resolution(wavelet, scale0, N, nondim=False)
 
             errs[0, i] = abs(std_t_nd - std_t_nd0)
             errs[1, i] = abs(std_t_d  - std_t_d0)
@@ -173,9 +173,9 @@ def test_time_resolution():
     scale0 = 10
     N0 = 1024
 
-    psihfn0 = Wavelet(('morlet', {'mu': mu0}))
-    std_t_nd0 = time_resolution(psihfn0, scale0, N0, nondim=True)
-    std_t_d0  = time_resolution(psihfn0, scale0, N0, nondim=False)
+    wavelet0 = Wavelet(('morlet', {'mu': mu0}))
+    std_t_nd0 = time_resolution(wavelet0, scale0, N0, nondim=True)
+    std_t_d0  = time_resolution(wavelet0, scale0, N0, nondim=False)
 
     args = (std_t_nd0, std_t_d0, mu0, scale0, N0)
     _test_mu_dependence(   *args, th=[1e-1, 1e-6])
@@ -190,9 +190,9 @@ def test_freq_resolution():
         errs = np.zeros((2, len(mus)))
 
         for i, mu in enumerate(mus):
-            psihfn = Wavelet(('morlet', {'mu': mu}))
-            std_w_nd = freq_resolution(psihfn, scale0, N0, nondim=True)
-            std_w_d  = freq_resolution(psihfn, scale0, N0, nondim=False)
+            wavelet = Wavelet(('morlet', {'mu': mu}))
+            std_w_nd = freq_resolution(wavelet, scale0, N0, nondim=True)
+            std_w_d  = freq_resolution(wavelet, scale0, N0, nondim=False)
 
             errs[0, i] = abs((std_w_nd / std_w_nd0) - (mu0 / mu))
             errs[1, i] = abs(std_w_d - std_w_d0)
@@ -210,11 +210,11 @@ def test_freq_resolution():
         """
         scales = 2**(np.arange(16, 81) / 8)  # [4, ..., 1024]
         errs = np.zeros((2, len(scales)))
-        psihfn = Wavelet(('morlet', {'mu': mu0}))
+        wavelet = Wavelet(('morlet', {'mu': mu0}))
 
         for i, scale in enumerate(scales):
-            std_w_nd = freq_resolution(psihfn, scale, N0, nondim=True)
-            std_w_d  = freq_resolution(psihfn, scale, N0, nondim=False)
+            std_w_nd = freq_resolution(wavelet, scale, N0, nondim=True)
+            std_w_d  = freq_resolution(wavelet, scale, N0, nondim=False)
 
             errs[0, i] = abs(std_w_nd  - std_w_nd0)
             errs[1, i]  = abs((std_w_d / std_w_d0) - (scale0 / scale))
@@ -226,11 +226,11 @@ def test_freq_resolution():
         """Independent"""
         Ns = (np.array([.25, .5, 2, 4, 9]) * N0).astype('int64')
         errs = np.zeros((2, len(Ns)))
-        psihfn = Wavelet(('morlet', {'mu': mu0}))
+        wavelet = Wavelet(('morlet', {'mu': mu0}))
 
         for i, N in enumerate(Ns):
-            std_w_nd = freq_resolution(psihfn, scale0, N, nondim=True)
-            std_w_d  = freq_resolution(psihfn, scale0, N, nondim=False)
+            std_w_nd = freq_resolution(wavelet, scale0, N, nondim=True)
+            std_w_d  = freq_resolution(wavelet, scale0, N, nondim=False)
 
             errs[0, i] = abs(std_w_nd - std_w_nd0)
             errs[1, i] = abs(std_w_d  - std_w_d0)
@@ -242,9 +242,9 @@ def test_freq_resolution():
     scale0 = 10
     N0 = 1024
 
-    psihfn0 = Wavelet(('morlet', {'mu': mu0}))
-    std_w_nd0 = freq_resolution(psihfn0, scale0, N0, nondim=True)
-    std_w_d0  = freq_resolution(psihfn0, scale0, N0, nondim=False)
+    wavelet0 = Wavelet(('morlet', {'mu': mu0}))
+    std_w_nd0 = freq_resolution(wavelet0, scale0, N0, nondim=True)
+    std_w_d0  = freq_resolution(wavelet0, scale0, N0, nondim=False)
 
     args = (std_w_nd0, std_w_d0, mu0, scale0, N0)
     _test_mu_dependence(   *args, th=(1e-2, 1e-6))
@@ -301,10 +301,10 @@ def _assert_and_viz(th, errs, params, pname, test_name, logscale=True):
         raise AssertionError("%.2e > %.1e, %s=%.2f" % (ee, eth, pname, eparam))
 
 
-if VIZ:
-    test_energy_center_frequency()
-    test_freq_resolution()
-    test_time_resolution()
-
-elif __name__ == '__main__':
-    pytest.main([__file__, "-s"])
+if __name__ == '__main__':
+    if VIZ:
+        test_energy_center_frequency()
+        test_freq_resolution()
+        test_time_resolution()
+    else:
+        pytest.main([__file__, "-s"])
