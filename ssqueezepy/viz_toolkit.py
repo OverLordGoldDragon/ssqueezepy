@@ -349,13 +349,15 @@ def wavelet_heatmap(wavelet, scales='log', N=2048):
     mx = np.abs(Psi).max() * .01
     title0 = wavelet._desc(N=N)
 
+    kw = dict(ylabel="scales", xlabel="samples")
     imshow(Psi.real,   norm=(-mx, mx), yticks=scales,
-           title=title0 + " | Time-domain; real part")
+           title=title0 + " | Time-domain; real part", **kw)
     imshow(Psi, abs=1, norm=(0, mx), yticks=scales,
-           title=title0 + " | Time-domain; abs-val")
+           title=title0 + " | Time-domain; abs-val", **kw)
+    kw['xlabel'] = "radians"
     imshow(Psih, abs=1, cmap='jet', yticks=scales,
            xticks=np.linspace(0, np.pi, N//2),
-           title=title0 + "| Freq-domain; abs-val")
+           title=title0 + "| Freq-domain; abs-val", **kw)
 
 
 def sweep_std_t(wavelet, N, scales='log', get=False, **kw):
@@ -508,8 +510,8 @@ def wavelet_waveforms(wavelet, N, scale, zoom=True):
 
 #### Visual tools ## messy code ##############################################
 def imshow(data, title=None, show=1, cmap=None, norm=None, complex=None, abs=0,
-           w=None, h=None, ridge=0, ticks=1, yticks=None, xticks=None,
-           aspect='auto', **kw):
+           w=None, h=None, ridge=0, ticks=1, aspect='auto',
+           yticks=None, xticks=None, xlabel=None, ylabel=None, **kw):
     kw['interpolation'] = kw.get('interpolation', 'none')
     if norm is None:
         mx = np.max(np.abs(data))
@@ -550,6 +552,10 @@ def imshow(data, title=None, show=1, cmap=None, norm=None, complex=None, abs=0,
         idxs = np.linspace(0, len(xticks) - 1, 8).astype('int32')
         xt = ["%.2f" % h for h in xticks[idxs]]
         plt.xticks(idxs, xt)
+    if xlabel is not None:
+        plt.xlabel(xlabel, weight='bold', fontsize=15)
+    if ylabel is not None:
+        plt.ylabel(ylabel, weight='bold', fontsize=15)
 
     _maybe_title(title)
     if show:
