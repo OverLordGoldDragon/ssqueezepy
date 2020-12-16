@@ -1,6 +1,7 @@
+# -*- coding: utf-8 -*-
 import numpy as np
 from numpy.fft import fft, ifft, ifftshift
-from .utils import WARN, p2up, adm_cwt, adm_ssq, wfilth, _process_fs_and_t
+from .utils import WARN, p2up, adm_cwt, adm_ssq, _process_fs_and_t
 from .utils import padsignal, process_scales
 from .algos import replace_at_inf_or_nan
 from .wavelets import Wavelet
@@ -298,10 +299,13 @@ def _icwt_2int(Wx, scales, scaletype, l1_norm, wavelet, x_len,
     if not rpadded:
         Wx = np.pad(Wx, [[0, 0], [n1, n2]])  # pad time axis, left=n1, right=n2
 
+    # see help(cwt) on `norm` and `pn`
     norm = _icwt_norm(scaletype, l1_norm, one_int=False)
+    pn = (-1)**np.arange(nup)
     x = np.zeros(nup)
+
     for a, Wxa in zip(scales, Wx):  # TODO vectorize?
-        psih = wfilth(wavelet, nup, a, l1_norm=l1_norm)
+        psih = wavelet(scale=a, N=nup) * pn
         xa = ifftshift(ifft(fft(Wxa) * psih))  # convolution theorem
         x += xa.real / norm(a)
 
@@ -321,9 +325,7 @@ def _icwt_norm(scaletype, l1_norm, one_int):
                 (lambda a: a))
     else:
         if scaletype == 'log':
-            norm = ((lambda a: a**.5) if one_int else
-                    (lambda a: a))
+            norm = lambda a: a**.5
         elif scaletype == 'linear':
-            norm = ((lambda a: a**1.5) if one_int else
-                    (lambda a: a**2))
+            norm = lambda a: a**1.5
     return norm

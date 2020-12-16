@@ -3,6 +3,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from numpy.fft import ifft
+from pathlib import Path
 from .algos import find_closest, find_maximum
 
 
@@ -164,10 +165,21 @@ def wavelet_tf(wavelet, N=2048, scale=100, notext=False, width=1.1, height=1):
 def wavelet_tf_anim(wavelet, N=2048, scales=None, width=1.1, height=1,
                     savepath='wavanim.gif'):
     """This method computes same as `wavelet_tf` but for all scales at once,
-    and animates 'intelligently'. Recommended to leave `scales` to None
+    and animates 'intelligently'. See help(wavelet_tf).
+
+    `scales=None` will default to 'log:minimal' with (.9*min_scale,
+    0.25*max_scale). These are selected to show the wavelet a little outside of
+    "well-behaved" range (without slashing max_scale, it's a lot outside such
+    range). May not work for every wavelet or all of their configs.
     """
-    def _make_anim_scales(wavelet, N):
-        scales = process_scales('log', N, wavelet)
+    def _make_anim_scales(scales, wavelet, N):
+        if scales is None:
+            scales = 'log:minimal'
+            mn, mx = cwt_scalebounds(wavelet, N=N, preset='maximal',
+                                     double_N=False)
+            scales = make_scales(N, 0.90*mn, 0.25*mx, scaletype='log')
+        else:
+            scales = process_scales(scales, N, wavelet, double_N=False)
 
         # compute early and late scales more densely as they capture more
         # interesting behavior, so animation will slow down smoothly near ends
@@ -178,31 +190,29 @@ def wavelet_tf_anim(wavelet, N=2048, scales=None, width=1.1, height=1,
 
         srepl = int(s0)  # scales to keep from each end
         srepr = int(s0)
-        smull = 3        # extension factor
+        smull = 4        # extension factor
         smulr = 3
 
-        sright = np.linspace(scales[-srepr], scales[-1],   srepr * smulr)
-        sright = np.hstack([sright, sright[-1].repeat(smulr*2)])  # smooth loop
+        sright = np.linspace(scales[-srepr], scales[-1],    srepr * smulr)
         sleft  = np.linspace(scales[0],      scales[srepl], srepl * smull)
-        sleft = np.hstack([sleft[0].repeat(smulr*2), sleft])
+        sright = np.hstack([sright, sright[-1].repeat(smulr*2)])  # smooth loop
+        sleft  = np.hstack([sleft[0].repeat(smull*2), sleft])
 
         scales = np.hstack([sleft, scales[srepl:-srepr], sright])
         scales  = scales.reshape(-1, 1)
         return scales
 
-    from .utils import NOTE, process_scales
+    from .utils import NOTE, process_scales, cwt_scalebounds, make_scales
     from matplotlib.animation import FuncAnimation
     import matplotlib
     matplotlib.use("Agg")
     NOTE("Switched matplotlib to 'Agg' backend for animating")
 
     wavelet = Wavelet._init_if_not_isinstance(wavelet)
-    scales = _make_anim_scales(wavelet, N)
+    scales = _make_anim_scales(scales, wavelet, N)
 
     #### Compute Psi & Psih ##################################################
-    Psi = ifft(wavelet(scales * _xifn(1, N), nohalf=False
-                      ) * (-1)**np.arange(N).reshape(1, -1),
-               axis=-1)
+    Psi = wavelet.psifn(scale=scales, N=N)
     aPsi = np.abs(Psi)
     t = np.arange(-N/2, N/2, step=1)
 
@@ -221,14 +231,12 @@ def wavelet_tf_anim(wavelet, N=2048, scales=None, width=1.1, height=1,
                                    min_decay=1)
     _Wc = np.pi - Wc
 
-    Wcix = find_closest(_Wc.reshape(-1, 1), w).squeeze()
     Wlix = find_closest((_Wc - std_W).reshape(-1, 1), w).squeeze()
-    Wrix = Wcix + (Wcix - Wlix)
+    Wrix = find_closest((_Wc + std_W).reshape(-1, 1), w).squeeze()
     Wl, Wr = w[Wlix], w[Wrix]
 
-    Tcix = np.argmin(np.abs(t - 0)).repeat(len(scales))
-    Tlix = find_closest(-std_T.reshape(-1, 1), t).squeeze()
-    Trix = Tcix + (Tcix - Tlix)
+    Tlix = find_closest(0 - std_T.reshape(-1, 1), t).squeeze()
+    Trix = find_closest(0 + std_T.reshape(-1, 1), t).squeeze()
     Tl, Tr = t[Tlix], t[Trix]
 
     ## Rescale Psi so that its y-coords span 1/5 of Psih's x-coords, & vice-versa
@@ -253,7 +261,7 @@ def wavelet_tf_anim(wavelet, N=2048, scales=None, width=1.1, height=1,
     ## Set up plot objects ###################################################
     fig, ax = plt.subplots()
     ax.set_xlim([t.min()*1.02, t.max()*1.02])
-    ax.set_ylim([-aPsi.max()*1.8, np.pi*1.02])
+    ax.set_ylim([-aPsig.max()*1.05, np.pi*1.02])
 
     ylabels = np.round(np.linspace(np.pi, 0, 7), 1)
     plt.yticks(np.linspace(0, np.pi, len(ylabels)), ylabels)
@@ -280,6 +288,23 @@ def wavelet_tf_anim(wavelet, N=2048, scales=None, width=1.1, height=1,
     txt = ax.text(.9, .95, "scale=%.2f" % scales[0], **tkw)
 
     #### Animate #############################################################
+    def unique_savepath(savepath):
+        """Ensure doesn't overwrite existing"""
+        sp = Path(savepath)
+        savename = sp.stem
+
+        if sp.is_file():
+            paths = [str(p.stem) for p in Path(savepath).parent.iterdir()
+                     if savename in p.stem]
+            maxnum = 0
+            for p in paths:
+                num = p.replace(savename, '')
+                if num != '' and int(num) > maxnum:
+                    maxnum = int(num)
+            sp = Path(sp.parent, savename + str(maxnum + 1) + sp.suffix)
+        sp = str(sp)
+        return sp
+
     def animate(i):
         line1.set_data(t, Psig[i].real)
         line2.set_data(t, Psig[i].imag)
@@ -294,13 +319,17 @@ def wavelet_tf_anim(wavelet, N=2048, scales=None, width=1.1, height=1,
         txt.set_text("scale=%.2f" % scales[i])
         return line1, line2, line3, line4, line5, line6, line7, line8
 
-    print("Successfully computed parameters; animating...", flush=True)
+    sp = unique_savepath(savepath)
+    print(("Successfully computed parameters, scales ranging {:.2f} to {:.2f}; "
+           "animating...\nWill save to: {}").format(
+               scales.min(), scales.max(), sp), flush=True)
+
     frames = np.hstack([range(len(scales)), range(len(scales) - 1)[::-1]])
     anim = FuncAnimation(fig, animate, frames=frames, interval=60,
                          blit=True, repeat=False)
 
-    anim.save(savepath, writer='imagemagick')
-    print("Animated and saved to", savepath, flush=True)
+    anim.save(sp, writer='imagemagick')
+    print("Animated and saved to", sp, flush=True)
 
 
 def wavelet_heatmap(wavelet, scales='log', N=2048):
@@ -321,7 +350,7 @@ def wavelet_heatmap(wavelet, scales='log', N=2048):
 
     imshow(Psi.real,   norm=(-mx, mx), yticks=scales,
            title=title0 + " | Time-domain; real part")
-    imshow(Psi, abs=1, norm=(0, mx),   yticks=scales,
+    imshow(Psi, abs=1, norm=(0, mx), yticks=scales,
            title=title0 + " | Time-domain; abs-val")
     imshow(Psih, abs=1, cmap='jet', yticks=scales,
            xticks=np.linspace(0, np.pi, N//2),

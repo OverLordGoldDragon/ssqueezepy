@@ -216,7 +216,7 @@ class Wavelet():
                         std_t, dim_t, std_w, dim_w, harea))
 
     def viz(self, name='overview', **kw):
-        """`Wavelet.VISUALS` for list of supported `name`"""
+        """`Wavelet.VISUALS` for list of supported `name`s."""
         if name == 'overview':
             for name in ('heatmap', 'harea', 'time-frequency'):
                 kw['N'] = kw.get('N', self.N)
@@ -252,16 +252,15 @@ class Wavelet():
     def _desc(self, N=None, scale=None):
         """Nicely-formatted parameter summary, used in other methods"""
         if self.config_str != "Default configs":
-            ptxt = self.config_str
+            ptxt = self.config_str.rstrip(', ') + ', '
         else:
             ptxt = ""
-        ptxt = ptxt.rstrip(', ')
 
         N = N or self.N
         if scale is None:
-            title = "{} wavelet | {}, N={}".format(self.name, ptxt, N)
+            title = "{} wavelet | {}N={}".format(self.name, ptxt, N)
         else:
-            title = "{} wavelet | {}, scale={}, N={}".format(
+            title = "{} wavelet | {}scale={:.2f}, N={}".format(
                 self.name, ptxt, scale, N)
         return title
 
@@ -269,7 +268,7 @@ class Wavelet():
     @classmethod
     def _init_if_not_isinstance(self, wavelet, **kw):
         """Circumvents type change from IPython's super-/auto-reload,
-        but first checks with usual isinstance"""
+        but first checks with usual isinstance."""
         def _class_name(obj):
             name = getattr(obj, '__qualname__', getattr(obj, '__name__', ''))
             return (getattr(obj, '__module__', '') + '.' + name).lstrip('.')
@@ -335,7 +334,7 @@ def _morlet(w, mu, cs, ks):
     return np.sqrt(2) * cs * pi**.25 * (np.exp(-.5 * (mu - w)**2)
                                         - ks * np.exp(-.5 * w**2))
 
-
+# TODO energy 1
 def bump(mu=5., s=1., om=0.):
     return lambda w: _bump(w, (w - mu) / s, om, s)
 
@@ -444,7 +443,7 @@ def center_frequency(wavelet, scale=10, N=1024, kind='energy', force_int=True,
 
 def freq_resolution(wavelet, scale=10, N=1024, nondim=True, force_int=True,
                     viz=False):
-    """Compute wavelet frequency resolution for a given scale and N; larger N
+    """Compute wavelet frequency width (std_w) for a given scale and N; larger N
     -> less discretization error, but same N as in application should suffice.
 
     Eq 22 in [1], Sec 4.3.2 in [2].

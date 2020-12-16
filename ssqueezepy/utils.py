@@ -2,13 +2,13 @@
 import numpy as np
 import logging
 from scipy import integrate
-from .algos import replace_at_inf_or_nan, _min_neglect_idx
+from .algos import _min_neglect_idx
 from .algos import find_maximum, find_first_occurrence
 from .wavelets import Wavelet
 
 logging.basicConfig(format='')
 WARN = lambda msg: logging.warning("WARNING: %s" % msg)
-NOTE = lambda msg: logging.info("NOTE: %s" % msg)
+NOTE = lambda msg: logging.warning("NOTE: %s" % msg)  # else it's mostly ignored
 pi = np.pi
 EPS = np.finfo(np.float64).eps  # machine epsilon for float64  # TODO float32?
 
@@ -139,74 +139,6 @@ def padsignal(x, padtype='reflect', padlength=None):
     _ = (len(xpad), n_up, n1, n, n2)
     assert (len(xpad) == n_up == n1 + n + n2), "%s ?= %s ?= %s + %s + %s" % _
     return xpad, n_up, n1, n2
-
-
-def wfilth(wavelet, N, a=1, fs=1, derivative=False, l1_norm=True):
-    """Computes the discretized (sampled) wavelets in Fourier frequency domain.
-    Used in CWT for discretized convolution theorem via FFT.
-
-    # Arguments:
-        wavelet: str / tuple[str, dict] / `wavelets.Wavelet`
-            Wavelet sampled in Fourier frequency domain.
-                - str: name of builtin wavelet. `ssqueezepy.wavs()`
-                - tuple[str, dict]: name of builtin wavelet and its configs.
-                  E.g. `('morlet', {'mu': 5})`.
-                - `wavelets.Wavelet` instance. Can use for custom wavelet.
-
-        N: int
-            Number of samples to calculate.
-
-        a: float
-            Wavelet scale parameter (default=1). Higher -> lower frequency.
-
-        fs: float
-            Sampling frequency (of input signal `x`), used to scale `dpsih`.
-
-        derivative: bool (default False)
-            Whether to compute and return derivative of same wavelet.
-            Computed via frequency-domain differentiation (effectively,
-            derivative of trigonometric interpolation; see [1]).
-
-        l1_norm: bool (default True)
-            Whether to L1-normalize the wvelet, which yields a CWT with more
-            representative distribution of energies and component amplitudes
-            than L2 (see [2]). If False (default True), uses L2 norm.
-
-    # Returns:
-        psih: np.ndarray
-            Discretized (sampled) wavelets in Fourier frequency domain.
-        dpsih: np.ndarray
-            Derivative of same wavelet, used in CWT for computing `dWx`.
-
-    # References:
-        1. The Exponential Accuracy of Fourier and Chebyshev Differencing Methods.
-        E. Tadmor.
-        http://webhome.auburn.edu/~jzl0097/teaching/math_8970/Tadmor_86.pdf
-
-        2. Rectification of the Bias in the Wavelet Power Spectrum.
-        Y. Liu, X. S. Liang, R. H. Weisberg.
-        http://ocg6.marine.usf.edu/~liu/Papers/Liu_etal_2007_JAOT_wavelet.pdf
-    """
-    if not np.log2(N).is_integer():
-        raise ValueError(f"`N` must be a power of 2 (got {N})")
-
-    wavelet = Wavelet._init_if_not_isinstance(wavelet)
-
-    # sample FT of wavelet at scale `a`, normalize energy
-    # `* (-1)^[0,1,...]` = frequency-domain spectral reversal
-    #                      to center time-domain wavelet
-    norm = 1 if l1_norm else np.sqrt(a)
-    psih = wavelet(scale=a) * norm * (-1)**np.arange(N)
-
-    # Sometimes bump gives a NaN when it means 0
-    if 'bump' in wavelet:
-        psih = replace_at_inf_or_nan(psih, 0)
-
-    if derivative:
-        dpsih = (1j * wavelet.xi * fs) * psih  # `dt` relevant for phase transform
-        return psih, dpsih
-    else:
-        return psih
 
 
 def adm_ssq(wavelet):

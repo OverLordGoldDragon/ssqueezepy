@@ -7,8 +7,8 @@ from ._cwt import cwt
 
 
 def ssq_cwt(x, wavelet='morlet', scales='log', nv=None, fs=None, t=None,
-            ssq_freqs=None, padtype='reflect', squeezing='sum', difftype='direct',
-            difforder=None, mapkind='maximal', gamma=None):
+            ssq_freqs=None, padtype='reflect', squeezing='sum', mapkind='maximal',
+            difftype='direct', difforder=None, gamma=None):
     """Calculates the synchrosqueezed Continuous Wavelet Transform of `x`.
     Implements the algorithm described in Sec. III of [1].
 
@@ -55,21 +55,6 @@ def ssq_cwt(x, wavelet='morlet', scales='log', nv=None, fs=None, t=None,
                 not invertible but has better robustness properties in some cases.
                 Not recommended unless you know what you're doing.
 
-        difftype: str['direct', 'phase', 'numerical']
-            Method by which to differentiate Wx (default='direct') to obtain
-            instantaneous frequencies:
-                    w(a,b) = Im( (1/2pi) * (1/Wx(a,b)) * d/db[Wx(a,b)] )
-
-                - 'direct': use `dWx`, obtained via frequency-domain
-                differentiation (see `cwt`, `phase_cwt`).
-                - 'phase': differentiate by taking forward finite-difference of
-                unwrapped angle of `Wx` (see `phase_cwt`).
-                - 'numerical': first-, second-, or fourth-order (set by
-                `difforder`) numeric differentiation (see `phase_cwt_num`).
-
-        difforder: int[1, 2, 4]
-            Order of differentiation for difftype='numerical' (default=4).
-
         mapkind: str['maximal', 'peak', 'energy']
             Kind of frequency mapping used, determining the range of frequencies
             spanned (fm to fM, min to max).
@@ -89,6 +74,21 @@ def ssq_cwt(x, wavelet='morlet', scales='log', nv=None, fs=None, t=None,
                 (left-half can be trimmed too). Use for energy-centric mapping,
                 which for sufficiently-spanned `scales` will always have lesser
                 fM (but ~same fM).
+
+        difftype: str['direct', 'phase', 'numerical']
+            Method by which to differentiate Wx (default='direct') to obtain
+            instantaneous frequencies:
+                    w(a,b) = Im( (1/2pi) * (1/Wx(a,b)) * d/db[Wx(a,b)] )
+
+                - 'direct': use `dWx`, obtained via frequency-domain
+                differentiation (see `cwt`, `phase_cwt`).
+                - 'phase': differentiate by taking forward finite-difference of
+                unwrapped angle of `Wx` (see `phase_cwt`).
+                - 'numerical': first-, second-, or fourth-order (set by
+                `difforder`) numeric differentiation (see `phase_cwt_num`).
+
+        difforder: int[1, 2, 4]
+            Order of differentiation for difftype='numerical' (default=4).
 
         gamma: float / None
             CWT phase threshold. Sets `w=inf` for small values of `Wx` where
