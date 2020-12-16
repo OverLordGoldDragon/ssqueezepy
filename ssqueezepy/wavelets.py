@@ -225,7 +225,7 @@ class Wavelet():
             self._viz(name, **kw)
 
     def _viz(self, name, **kw):
-        from .viz_toolkit import (
+        from .visuals import (
             wavelet_tf, wavelet_heatmap, wavelet_tf_anim, wavelet_waveforms,
             sweep_harea, sweep_std_t, sweep_std_w,
             )
@@ -325,6 +325,8 @@ def _xifn(scale, N):
 
 #### Wavelet functions ######################################################
 def morlet(mu=6.):
+    """https://en.wikipedia.org/wiki/Morlet_wavelet#Definition
+       https://www.desmos.com/calculator/cuypxm8s1y"""
     cs = (1 + np.exp(-mu**2) - 2 * np.exp(-3/4 * mu**2)) ** (-.5)
     ks = np.exp(-.5 * mu**2)
     return lambda w: _morlet(w, mu, cs, ks)
@@ -334,7 +336,7 @@ def _morlet(w, mu, cs, ks):
     return np.sqrt(2) * cs * pi**.25 * (np.exp(-.5 * (mu - w)**2)
                                         - ks * np.exp(-.5 * w**2))
 
-# TODO energy 1
+
 def bump(mu=5., s=1., om=0.):
     return lambda w: _bump(w, (w - mu) / s, om, s)
 
@@ -535,7 +537,7 @@ def time_resolution(wavelet, scale=10, N=1024, min_decay=1e3, max_mult=2,
         https://www.di.ens.fr/~mallat/papiers/WaveletTourChap1-2-3.pdf
     """
     def _viz():
-        from .viz_toolkit import _viz_cwt_scalebounds
+        from .visuals import _viz_cwt_scalebounds
 
         _w    = aifftshift(xi)[Nt//2-1:]
         _psih = aifftshift(psih)[Nt//2-1:]
@@ -552,7 +554,7 @@ def time_resolution(wavelet, scale=10, N=1024, min_decay=1e3, max_mult=2,
             NOTE(f"integrated at scale={scale} then used formula; "
                  "see help(time_resolution) and try force_int=True")
 
-    def _make_integration_t(wavelet, scale, N, min_decay, max_mult):
+    def _make_integration_t(wavelet, scale, N, min_decay, max_mult, min_mult):
         """Ensure `psi` decays sufficiently at integration bounds"""
         for mult in np.arange(min_mult, max_mult + 1):
             Nt = int(mult * N)
@@ -577,7 +579,7 @@ def time_resolution(wavelet, scale=10, N=1024, min_decay=1e3, max_mult=2,
         scale_orig = scale
         scale = 10
 
-    t = _make_integration_t(wavelet, scale, N, min_decay, max_mult)
+    t = _make_integration_t(wavelet, scale, N, min_decay, max_mult, min_mult)
     Nt = len(t)
 
     xi = _xifn(1, Nt)
@@ -652,4 +654,4 @@ def isinstance_by_name(obj, ref):
     return _class_name(type(obj)) == _class_name(ref)
 
 ##############################################################################
-from .viz_toolkit import plot
+from .visuals import plot

@@ -222,7 +222,7 @@ def find_max_scale(wavelet, N, min_cutoff=.1, max_cutoff=.8):
 
     This yields a max `scale` that'll generally lie in 'nicely-behaved' region
     of std_t; value can be used to fine-tune further.
-    See `viz_toolkit.sweep_std_t`.
+    See `visuals.sweep_std_t`.
     """
     if max_cutoff <= 0 or min_cutoff <= 0:
         raise ValueError("`max_cutoff` and `min_cutoff` must be positive "
@@ -347,7 +347,7 @@ def cwt_scalebounds(wavelet, N, preset=None, min_cutoff=None, max_cutoff=None,
         return min_cutoff, max_cutoff, cutoff
 
     def _viz():
-        from .viz_toolkit import _viz_cwt_scalebounds, wavelet_waveforms
+        from .visuals import _viz_cwt_scalebounds, wavelet_waveforms
 
         _viz_cwt_scalebounds(wavelet, N, min_scale=min_scale,
                              max_scale=max_scale, cutoff=cutoff)
@@ -355,7 +355,7 @@ def cwt_scalebounds(wavelet, N, preset=None, min_cutoff=None, max_cutoff=None,
             wavelet_waveforms(wavelet, M, min_scale)
             wavelet_waveforms(wavelet, M, max_scale)
         if viz == 3:
-            from  .viz_toolkit import sweep_harea
+            from  .visuals import sweep_harea
             scales = make_scales(M, min_scale, max_scale)
             sweep_harea(wavelet, M, scales)
 

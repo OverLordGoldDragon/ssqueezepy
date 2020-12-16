@@ -3,7 +3,7 @@ from numpy.fft import rfft
 
 from ssqueezepy import ssq_cwt, issq_cwt, cwt
 from ssqueezepy.toolkit import lin_band, cos_f, mad_rms
-from ssqueezepy.viz_toolkit import imshow, plot, scat
+from ssqueezepy.visuals import imshow, plot, scat
 
 #%%###########################################################################
 def echirp(N):

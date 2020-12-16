@@ -11,7 +11,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from ssqueezepy.wavelets import Wavelet, time_resolution, freq_resolution
 from ssqueezepy.wavelets import center_frequency
-from ssqueezepy.viz_toolkit import scat
+from ssqueezepy.visuals import scat
 
 VIZ = 0  # set to 1 to enable various visuals and run without pytest
 

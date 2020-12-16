@@ -108,7 +108,7 @@ def _maybe_viz(Wx, xo, xrec, title, err):
 
 if __name__ == '__main__':
     if VIZ:
-        from ssqueezepy.viz_toolkit import plot, imshow
+        from ssqueezepy.visuals import plot, imshow
         test_ssq_cwt()
         test_cwt()
     else:
