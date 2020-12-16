@@ -122,7 +122,7 @@ def _replace_at_value(x, ref, value=0., replacement=0.):
                     x[i, j, k] = replacement
     return x
 
-#### misc ####################################################################
+#### misc (short) ############################################################
 @njit
 def _min_neglect_idx(arr, th=1e-12):
     """Used in utils.integrate_wavelet"""
@@ -130,3 +130,84 @@ def _min_neglect_idx(arr, th=1e-12):
         if x < th:
             return i
     return i
+
+#### misc (long) #############################################################
+def find_maximum(fn, step_size=1e-3, steps_per_search=1e4, step_start=0,
+                 step_limit=1000, min_value=-1):
+    """Finds max of any function with a single maximum, and input value
+    at which the maximum occurs. Inputs and outputs must be 1D.
+
+    Must be strictly non-decreasing from step_start up to maximum of interest.
+    Takes absolute value of fn's output.
+    """
+    steps_per_search = int(steps_per_search)
+    largest_max = min_value
+    increment = int(steps_per_search * step_size)
+
+    input_values = np.linspace(step_start, increment)
+    output_values = -1 * np.ones(steps_per_search)
+
+    search_idx = 0
+    while True:
+        start = step_start + increment * search_idx
+        end   = start + increment
+        input_values = np.linspace(start, end, steps_per_search, endpoint=False)
+
+        output_values[:] = np.abs(fn(input_values))  # take |x| if complex
+
+        output_max = output_values.max()
+        if output_max > largest_max:
+            largest_max = output_max
+            input_value = input_values[np.argmax(output_values)]
+        elif output_max < largest_max:
+            break
+        search_idx += 1
+
+        if input_values.max() > step_limit:
+            raise ValueError(("could not find function maximum with given "
+                              "(step_size, steps_per_search, step_start, "
+                              "step_limit, min_value)=({}, {}, {}, {}, {})"
+                              ).format(step_size, steps_per_search, step_start,
+                                       step_limit, min_value))
+    return input_value, largest_max
+
+
+def find_first_occurrence(fn, value, step_size=1e-3, steps_per_search=1e4,
+                          step_start=0, step_limit=1000):
+    """Finds max of any function with a single maximum, and input value
+    at which the maximum occurs. Inputs and outputs must be 1D.
+    Takes absolute value of fn's output.
+    """
+    steps_per_search = int(steps_per_search)
+    increment = int(steps_per_search * step_size)
+    output_values = -1 * np.ones(steps_per_search)
+
+    step_limit_exceeded = False
+    search_idx = 0
+    while True:
+        start = step_start + increment * search_idx
+        end   = start + increment
+        input_values = np.linspace(start, end, steps_per_search, endpoint=False)
+        if input_values.max() > step_limit:
+            step_limit_exceeded = True
+            input_values = np.clip(input_values, None, step_limit)
+
+        output_values[:] = np.abs(fn(input_values))
+        mxdiff = np.abs(np.diff(output_values)).max()
+
+        # more reliable than `argmin not in (0, len - 1)` for smooth `fn`
+        if np.any(np.abs(output_values - value) <= mxdiff):
+            idx = np.argmin(np.abs(output_values - value))
+            break
+        search_idx += 1
+
+        if step_limit_exceeded:
+            raise ValueError(("could not find input value to yield function "
+                              f"output value={value} with given "
+                              "(step_size, steps_per_search, step_start, "
+                              "step_limit, min_value)=({}, {}, {}, {})"
+                              ).format(step_size, steps_per_search,
+                                       step_start, step_limit))
+    input_value = input_values[idx]
+    output_value = output_values[idx]
+    return input_value, output_value

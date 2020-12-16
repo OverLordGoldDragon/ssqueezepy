@@ -3,7 +3,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from ssqueezepy import ssq_cwt, cwt
-from ssqueezepy.viz_toolkit import plot, imshow
+from ssqueezepy.visuals import plot, imshow
 
 #%%# Signal generators #######################################################
 def _t(min, max, N):

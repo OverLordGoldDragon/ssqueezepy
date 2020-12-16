@@ -3,7 +3,7 @@ import numpy as np
 from numpy.fft import fft, ifft, ifftshift
 from .utils import pi, adm_cwt
 from .wavelets import Wavelet
-from quadpy import quad as quadgk
+from scipy import integrate
 
 
 def err_fix(x, wavelet, a0):  # primitive code, doesn't work
@@ -20,7 +20,8 @@ def err_fix(x, wavelet, a0):  # primitive code, doesn't work
     # integrate from 0 to w, w spanning same spectrum as psih
     # this can be sped up by nature of brick-wall behavior, stopping computing
     # after first zero, also computing fewer in total and linearly interpolating
-    Cpsi_w = [quadgk(lambda x: np.conj(psihfn(x)) * psihfn(x) / x, 0., w)[0]
+    Cpsi_w = [integrate.quad(
+        lambda x: np.conj(psihfn(x)) * psihfn(x) / x, 0., w)[0]
               for w in a0 * xi]
 
     Cpsi_w.insert(0, 0)  # integral 0 to 0 = 0

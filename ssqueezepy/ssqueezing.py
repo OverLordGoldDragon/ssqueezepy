@@ -2,10 +2,12 @@
 import numpy as np
 from .algos import find_closest, indexed_sum, replace_at_inf
 from .utils import EPS, pi, process_scales, _infer_scaletype, _process_fs_and_t
+from .utils import NOTE
+from .wavelets import center_frequency
 
 
 def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt',
-             squeezing='sum'):
+             squeezing='sum', mapkind='maximal', wavelet=None):
     """Calculates the synchrosqueezed CWT or STFT of `x`. Used internally by
     `synsq_cwt` and `synsq_stft_fwd`.
 
@@ -21,13 +23,8 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
             mapping is only approximate and wavelet-dependent.
             If None, will infer from and set to same distribution as `scales`.
 
-        scales: str['log', 'linear'] / np.ndarray
-            CWT scales. Ignored if transform='stft'.
-                - 'log': exponentially distributed scales, as pow of 2:
-                         `[2^(1/nv), 2^(2/nv), ...]`
-                - 'linear': linearly distributed scales.
-                  !!! EXPERIMENTAL; default scheme for len(x)>2048 performs
-                  poorly (and there may not be a good non-piecewise scheme).
+        scales: str['log', 'linear', 'log:maximal', ...] / np.ndarray
+            See help(cwt).
 
         fs: float / None
             Sampling frequency of `x`. Defaults to 1, which makes ssq
@@ -46,10 +43,17 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
             Whether `Wx` is from CWT or STFT (`Sx`).
 
         squeezing: str['sum', 'lebesgue']
-                - 'sum' = standard synchrosqueezing using `Wx`.
-                - 'lebesgue' = as in [4], setting `Wx=ones()/len(Wx)`, which is
-                not invertible but has better robustness properties in some cases.
-                Not recommended unless purpose is understood.
+            - 'sum' = standard synchrosqueezing using `Wx`.
+            - 'lebesgue' = as in [4], setting `Wx=ones()/len(Wx)`, which is
+            not invertible but has better robustness properties in some cases.
+            Not recommended unless purpose is understood.
+
+        mapkind: str['maximal', 'peak', 'energy']
+            See help(ssq_cwt).
+
+        wavelet: wavelets.Wavelet
+            Only used if mapkind != 'maximal' to compute center frequencies.
+            See help(cwt).
 
     # Returns:
         Tx: np.ndarray [nf x n]
@@ -98,21 +102,33 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
                 # omit /dw since it's cancelled by *dw in inversion anyway
                 da = (scales[1] - scales[0])
                 Tx = indexed_sum(Wx / scales**(3/2) * da, k)
-        else:  # 'stft'
+        elif transform == 'stft':
             # TODO validate
             Tx = indexed_sum(Wx * (ssq_freqs[1] - ssq_freqs[0]), k)
         return Tx
 
-    def _compute_associated_frequencies(dt, na, N, transform, ssq_scaletype):
-        dT = dt * N
-        # normalized frequencies to map discrete-domain to physical:
-        #     f[[cycles/samples]] -> f[[cycles/second]]
-        # maximum measurable (Nyquist) frequency of data
-        fM = 1 / (2 * dt)
-        # minimum measurable (fundamental) frequency of data
-        fm = 1 / dT
+    def _ssq_freqrange(mapkind, dt, N, wavelet, scales):
+        if mapkind == 'maximal':
+            dT = dt * N
+            # normalized frequencies to map discrete-domain to physical:
+            #     f[[cycles/samples]] -> f[[cycles/second]]
+            # minimum measurable (fundamental) frequency of data
+            fm = 1 / dT
+            # maximum measurable (Nyquist) frequency of data
+            fM = 1 / (2 * dt)
+        elif mapkind in ('peak', 'energy'):
+            kw = dict(wavelet=wavelet, N=N, kind=mapkind, force_int=True)
+            wm = center_frequency(scale=scales[-1], **kw)
+            wM = center_frequency(scale=scales[0],  **kw)
+            fm = wm / (2*pi) / dt
+            fM = wM / (2*pi) / dt
+        return fm, fM
 
-        # frequency divisions `w_l` to search over in Synchrosqueezing
+    def _compute_associated_frequencies(dt, na, N, transform, ssq_scaletype,
+                                        mapkind, wavelet, scales):
+        fm, fM = _ssq_freqrange(mapkind, dt, N, wavelet, scales)
+
+        # frequency divisions `w_l` to reassign to in Synchrosqueezing
         if ssq_scaletype == 'log':
             # [fm, ..., fM]
             ssq_freqs = fm * np.power(fM / fm, np.arange(na) / (na - 1))
@@ -126,7 +142,8 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
                 ssq_freqs = ssq_freqs[:N // 2]
         return ssq_freqs
 
-    def _process_args(w, fs, t, N, transform, squeezing, scales):
+    def _process_args(w, fs, t, N, transform, squeezing, scales, mapkind,
+                      wavelet):
         if w.min() < 0:
             raise ValueError("found negatives in `w`")
         if transform not in ('cwt', 'stft'):
@@ -137,11 +154,19 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
                              "(got %s)" % squeezing)
         if scales is None and transform == 'cwt':
             raise ValueError("`scales` can't be None if `transform == 'cwt'`")
+
+        if mapkind != 'maximal':
+            if transform != 'cwt':
+                NOTE("`mapkind` currently only functional with `transform='cwt'`")
+            elif transform == 'cwt' and wavelet is None:
+                raise ValueError(f"must pass `wavelet` with mapkind='{mapkind}'")
+
         dt, *_ = _process_fs_and_t(fs, t, N)
         return dt
 
     na, N = Wx.shape
-    dt = _process_args(w, fs, t, N, transform, squeezing, scales)
+    dt = _process_args(w, fs, t, N, transform, squeezing, scales,
+                       mapkind, wavelet)
 
     scales, cwt_scaletype, _, nv = process_scales(scales, N, get_params=True)
 
@@ -151,8 +176,8 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
         else:
             # default to same scheme used by `scales`
             ssq_scaletype = cwt_scaletype
-        ssq_freqs = _compute_associated_frequencies(dt, na, N, transform,
-                                                    ssq_scaletype)
+        ssq_freqs = _compute_associated_frequencies(
+            dt, na, N, transform, ssq_scaletype, mapkind, wavelet, scales)
     else:
         ssq_scaletype = _infer_scaletype(ssq_freqs)
 
