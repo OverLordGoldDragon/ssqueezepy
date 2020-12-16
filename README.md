@@ -37,14 +37,11 @@ The package is production-ready. Until v0.6.0, however, significant changes to s
 `ssqueezepy` is equipped with a visualization toolkit, useful for exploring wavelet behavior across scales and configurations.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/OverLordGoldDragon/ssqueezepy/Good-stuff/examples/imgs/anim_tf_morlet20.gif" width="600">
+  <img src="https://raw.githubusercontent.com/OverLordGoldDragon/ssqueezepy/Good-stuff/examples/imgs/anim_tf_morlet20.gif" width="500">
 </p>
 
-<p align="center">
-  <img src="https://raw.githubusercontent.com/OverLordGoldDragon/ssqueezepy/Good-stuff/examples/imgs/anim_tf_morlet5.gif" width="600">
-</p>
-
-<img src="https://raw.githubusercontent.com/OverLordGoldDragon/ssqueezepy/Good-stuff/examples/imgs/morlet_5_vs_20.png" align="center">
+<img src="https://raw.githubusercontent.com/OverLordGoldDragon/ssqueezepy/Good-stuff/examples/imgs/morlet_5vs20_tf.png">
+<img src="https://raw.githubusercontent.com/OverLordGoldDragon/ssqueezepy/Good-stuff/examples/imgs/morlet_5vs20_hm.png">
 
 <br>
 <hr>
