@@ -469,7 +469,7 @@ def wavelet_waveforms(wavelet, N, scale, zoom=True):
 
     title = ("wavelet(w) sampled by xi at scale={:.2f}, N={} | {} wavelet, {}"
              ).format(scale, N, wavelet.name, wavelet.config_str)
-    plot(w_ct, psih_ct, title=title)
+    plot(w_ct, psih_ct, title=title, xlabel="radians")
     scat(w_dt, psih_dt, color='tab:red')
 
     plt.legend(["psih at scale=1", "sampled at scale=%.2f" % scale], fontsize=13)
@@ -486,7 +486,7 @@ def wavelet_waveforms(wavelet, N, scale, zoom=True):
         end += peak_idx + 3  # +3: give few more indices for visual
 
     w_dtn = w_dt * (np.pi / w_dt.max())  # norm to span true w
-    plot(w_dtn[:end], psih_dt[:end],
+    plot(w_dtn[:end], psih_dt[:end], xlabel="radians",
          title="Freq-domain waveform (psih)" + ", zoomed" * (end is not None))
     scat(w_dtn[:end], psih_dt[:end], color='tab:red', show=1)
 
@@ -503,7 +503,7 @@ def wavelet_waveforms(wavelet, N, scale, zoom=True):
         dt = np.where(apsi[peak_idx:] < 1e-3*apsi.max())[0][0]
         start, end = (N//2 - dt, N//2 + dt + 1)
 
-    plot(t[start:end], psi[start:end], complex=1,
+    plot(t[start:end], psi[start:end], complex=1, xlabel="samples",
          title="Time-domain waveform (psi)" + ", zoomed" * (end is not None))
     plot(t[start:end], apsi[start:end], color='k', linestyle='--', show=1)
 
@@ -564,7 +564,7 @@ def imshow(data, title=None, show=1, cmap=None, norm=None, complex=None, abs=0,
 
 def plot(x, y=None, title=None, show=0, ax_equal=False, complex=0,
          c_annot=False, w=None, h=None, dx1=False, xlims=None, ylims=None,
-         vert=False, vlines=None, hlines=None, **kw):
+         vert=False, vlines=None, hlines=None, xlabel=None, ylabel=None, **kw):
     if y is None:
         y = x
         x = np.arange(len(x))
@@ -589,11 +589,13 @@ def plot(x, y=None, title=None, show=0, ax_equal=False, complex=0,
 
     _maybe_title(title)
     _scale_plot(plt.gcf(), plt.gca(), show=show, ax_equal=ax_equal, w=w, h=h,
-                xlims=xlims, ylims=ylims, dx1=(len(x) if dx1 else 0))
+                xlims=xlims, ylims=ylims, dx1=(len(x) if dx1 else 0),
+                xlabel=xlabel, ylabel=ylabel)
 
 
 def scat(x, y=None, title=None, show=0, ax_equal=False, s=18, w=None, h=None,
-         xlims=None, ylims=None, dx1=False, vlines=None, hlines=None, **kw):
+         xlims=None, ylims=None, dx1=False, vlines=None, hlines=None,
+         xlabel=None, ylabel=None, **kw):
     if y is None:
         y = x
         x = np.arange(len(x))
@@ -604,7 +606,8 @@ def scat(x, y=None, title=None, show=0, ax_equal=False, s=18, w=None, h=None,
     if hlines:
         vhlines(hlines, kind='h')
     _scale_plot(plt.gcf(), plt.gca(), show=show, ax_equal=ax_equal, w=w, h=h,
-                xlims=xlims, ylims=ylims, dx1=(len(x) if dx1 else 0))
+                xlims=xlims, ylims=ylims, dx1=(len(x) if dx1 else 0),
+                xlabel=xlabel, ylabel=ylabel)
 
 def hist(x, bins=500, title=None, show=0, stats=0):
     x = np.asarray(x)
@@ -647,7 +650,7 @@ def _maybe_title(title):
 
 
 def _scale_plot(fig, ax, show=False, ax_equal=False, w=None, h=None,
-                xlims=None, ylims=None, dx1=False):
+                xlims=None, ylims=None, dx1=False, xlabel=None, ylabel=None):
     xmin, xmax = ax.get_xlim()
     rng = xmax - xmin
 
@@ -666,6 +669,10 @@ def _scale_plot(fig, ax, show=False, ax_equal=False, w=None, h=None,
         plt.xticks(np.arange(dx1))
     if w or h:
         fig.set_size_inches(14*(w or 1), 8*(h or 1))
+    if xlabel is not None:
+        plt.xlabel(xlabel, weight='bold', fontsize=15)
+    if ylabel is not None:
+        plt.ylabel(ylabel, weight='bold', fontsize=15)
     if show:
         plt.show()
 
