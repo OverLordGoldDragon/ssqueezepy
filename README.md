@@ -34,7 +34,7 @@ The package is production-ready. Until v0.6.0, however, significant changes to s
 
 ## Introspection
 
-`ssqueezepy` is equipped with a visualization toolkit, useful for exploring wavelet behavior across scales and configurations.
+`ssqueezepy` is equipped with a visualization toolkit, useful for exploring wavelet behavior across scales and configurations. (Also see [explanations and code](https://dsp.stackexchange.com/a/72044/50076))
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/OverLordGoldDragon/ssqueezepy/master/examples/imgs/anim_tf_morlet20.gif" width="500">
