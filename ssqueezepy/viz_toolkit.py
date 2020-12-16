@@ -286,6 +286,7 @@ def wavelet_tf_anim(wavelet, N=2048, scales=None, width=1.1, height=1,
     tkw = dict(horizontalalignment='center', verticalalignment='center',
                transform=ax.transAxes, fontsize=15, weight='bold')
     txt = ax.text(.9, .95, "scale=%.2f" % scales[0], **tkw)
+    fig.tight_layout()
 
     #### Animate #############################################################
     def unique_savepath(savepath):
