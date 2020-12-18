@@ -13,7 +13,7 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
 
     # Arguments:
         Wx or Sx: np.ndarray
-            CWT or STFT of `x`.
+            CWT or STFT of `x`. Wx is assumed L1-normed.
 
         w: np.ndarray
             Phase transform of `Wx` or `Sx`. Must be >=0.
@@ -97,11 +97,11 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
             # Eq 14 [2]; Eq 2.3 [1]
             if cwt_scaletype == 'log':
                 # ln(2)/nv == diff(ln(scales))[0] == ln(2**(1/nv))
-                Tx = indexed_sum(Wx / scales**(1/2) * np.log(2) / nv, k)
+                Tx = indexed_sum(Wx * np.log(2) / nv, k)
             elif cwt_scaletype == 'linear':
                 # omit /dw since it's cancelled by *dw in inversion anyway
                 da = (scales[1] - scales[0])
-                Tx = indexed_sum(Wx / scales**(3/2) * da, k)
+                Tx = indexed_sum(Wx / scales * da, k)
         elif transform == 'stft':
             # TODO validate
             Tx = indexed_sum(Wx * (ssq_freqs[1] - ssq_freqs[0]), k)
