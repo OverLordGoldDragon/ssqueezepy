@@ -430,6 +430,7 @@ def center_frequency(wavelet, scale=10, N=1024, kind='energy', force_int=True,
         raise ValueError("`kind` must be one of: 'energy', 'peak' "
                          "(got %s)" % kind)
 
+    wavelet = Wavelet._init_if_not_isinstance(wavelet)
     if kind == 'energy':
         wc, params = _energy_wc(wavelet, scale, N, force_int)
     elif kind == 'peak':
@@ -468,6 +469,8 @@ def freq_resolution(wavelet, scale=10, N=1024, nondim=True, force_int=True,
         if use_formula:
             NOTE(f"integrated at scale={scale} then used formula; "
                  "see help(freq_resolution) and try force_int=True")
+
+    wavelet = Wavelet._init_if_not_isinstance(wavelet)
 
     use_formula = ((scale < 4 or scale > N / 5) and not force_int)
     if use_formula:
@@ -570,6 +573,8 @@ def time_resolution(wavelet, scale=10, N=1024, min_decay=1e3, max_mult=2,
         T = N
         t = np.arange(-mult * T/2, mult * T/2, step=T/N)
         return t
+
+    wavelet = Wavelet._init_if_not_isinstance(wavelet)
 
     use_formula = ((scale < 4 or scale > N / 5) and not force_int)
     if use_formula:
