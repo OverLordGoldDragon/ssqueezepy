@@ -7,7 +7,7 @@ from types import FunctionType
 from scipy import integrate
 
 pi = np.pi
-NOTE = lambda msg: logging.info("NOTE: %s" % msg)
+NOTE = lambda msg: logging.warning("NOTE: %s" % msg)
 
 
 class Wavelet():
@@ -30,10 +30,6 @@ class Wavelet():
         self._validate_and_set_wavelet(wavelet)
 
         self.N = N  # also sets _xi
-
-        # initialize properties to None; compute upon request
-        for name in "wc std_t std_w std_f harea std_t_d std_w_d std_f_d".split():
-            setattr(self, f'_{name}', None)
 
     #### Main methods / properties ###########################################
     def __call__(self, w=None, *, scale=None, N=None, nohalf=True, imag_th=1e-8):
@@ -136,14 +132,14 @@ class Wavelet():
         frequency; see help(wavelets.center_frequency). Away from scale
         extrema, 'energy' and 'peak' are same for bell-like |wavelet(w)|^2.
         """
-        if self._wc is None:
+        if getattr(self, '_wc', None) is None:
             self._wc = center_frequency(self, scale=10, N=self.N)
         return self._wc
 
     @property
     def std_t(self):
         """Non-dimensional time resolution"""
-        if self._std_t is None:
+        if getattr(self, '_std_t', None) is None:
             # scale=10 arbitrarily chosen to yield good compute-accurary
             self._std_t = time_resolution(self, scale=10, N=self.N,
                                           nondim=True)
@@ -152,7 +148,7 @@ class Wavelet():
     @property
     def std_w(self):
         """Non-dimensional frequency resolution (radian)"""
-        if self._std_w is None:
+        if getattr(self, '_std_w', None) is None:
             self._std_w = freq_resolution(self, scale=10, N=self.N,
                                           nondim=True)
         return self._std_w
@@ -170,7 +166,7 @@ class Wavelet():
     @property
     def std_t_d(self):
         """Dimensional time resolution [samples/(cycles*radians)]"""
-        if self._std_t_d is None:
+        if getattr(self, '_std_t_d', None) is None:
             self._std_t_d = time_resolution(self, scale=10, N=self.N,
                                             nondim=False)
         return self._std_t_d
@@ -178,7 +174,7 @@ class Wavelet():
     @property
     def std_w_d(self):
         """Dimensional frequency resolution [(cycles*radians)/samples]"""
-        if self._std_w_d is None:
+        if getattr(self, '_std_w_d', None) is None:
             self._std_w_d = freq_resolution(self, scale=10, N=self.N,
                                             nondim=False)
         return self._std_w_d
@@ -189,10 +185,11 @@ class Wavelet():
         return self.std_w_d / (2*pi)
 
     #### Misc ################################################################
-    # TODO add bit more info
     def info(self, nondim=True):
-        """Refer to pertinent methods' docstrings on how each quantity is
-        computed, and to tests/props_test.py on various dependences (eg std on N).
+        """Prints time & frequency resolution quantities. Refer to pertinent
+        methods' docstrings on how each quantity is computed, and to
+        tests/props_test.py on various dependences (eg std_t on N).
+        Detailed overview: https://dsp.stackexchange.com/q/72042/50076
         """
         if nondim:
             cfg = self.config_str

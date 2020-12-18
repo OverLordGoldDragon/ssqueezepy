@@ -23,6 +23,7 @@ def find_closest(a, v):
 
 @njit
 def indexed_sum(a, k):
+    """Sum `a` into rows of 2D array according to indices given by 2D `k`"""
     out = np.zeros(a.shape, dtype=np.cfloat)
     for i in range(a.shape[0]):
         for j in range(a.shape[1]):
@@ -125,7 +126,7 @@ def _replace_at_value(x, ref, value=0., replacement=0.):
 #### misc (short) ############################################################
 @njit
 def _min_neglect_idx(arr, th=1e-12):
-    """Used in utils.integrate_wavelet"""
+    """Used in utils._integrate_analytic and ._integrate_bounded."""
     for i, x in enumerate(arr):
         if x < th:
             return i
@@ -138,7 +139,7 @@ def find_maximum(fn, step_size=1e-3, steps_per_search=1e4, step_start=0,
     at which the maximum occurs. Inputs and outputs must be 1D.
 
     Must be strictly non-decreasing from step_start up to maximum of interest.
-    Takes absolute value of fn's output.
+    Takes absolute value of fn's outputs.
     """
     steps_per_search = int(steps_per_search)
     largest_max = min_value
@@ -153,7 +154,7 @@ def find_maximum(fn, step_size=1e-3, steps_per_search=1e4, step_start=0,
         end   = start + increment
         input_values = np.linspace(start, end, steps_per_search, endpoint=False)
 
-        output_values[:] = np.abs(fn(input_values))  # take |x| if complex
+        output_values[:] = np.abs(fn(input_values))
 
         output_max = output_values.max()
         if output_max > largest_max:
@@ -174,9 +175,9 @@ def find_maximum(fn, step_size=1e-3, steps_per_search=1e4, step_start=0,
 
 def find_first_occurrence(fn, value, step_size=1e-3, steps_per_search=1e4,
                           step_start=0, step_limit=1000):
-    """Finds max of any function with a single maximum, and input value
-    at which the maximum occurs. Inputs and outputs must be 1D.
-    Takes absolute value of fn's output.
+    """Finds earliest input value for which `fn(input_value) == value`, searching
+    from `step_start` to `step_limit` in `step_size` increments.
+    Takes absolute value of fn's outputs.
     """
     steps_per_search = int(steps_per_search)
     increment = int(steps_per_search * step_size)

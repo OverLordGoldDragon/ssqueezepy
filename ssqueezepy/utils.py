@@ -2,8 +2,7 @@
 import numpy as np
 import logging
 from scipy import integrate
-from .algos import _min_neglect_idx
-from .algos import find_maximum, find_first_occurrence
+from .algos import _min_neglect_idx, find_maximum, find_first_occurrence
 from .wavelets import Wavelet
 
 logging.basicConfig(format='')
