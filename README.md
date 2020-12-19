@@ -65,7 +65,7 @@ def viz(x, Tx, Wx):
     plt.plot(x);  plt.show()    
     plt.imshow(np.abs(Wx), aspect='auto', cmap='jet')
     plt.show()
-    plt.imshow(np.flipud(np.abs(Tx)), aspect='auto', vmin=0, vmax=.1, cmap='jet')
+    plt.imshow(np.flipud(np.abs(Tx)), aspect='auto', vmin=0, vmax=.2, cmap='jet')
     plt.show()   
     
 #%%# Define signal ####################################    
@@ -75,12 +75,10 @@ xo = np.cos(2 * np.pi * np.exp(t / 3))
 x = xo + np.sqrt(4) * np.random.randn(N)
 
 #%%# SSQ CWT + CWT ####################################
-Txo, _, Wxo, scales_xo, _ = ssq_cwt(xo, 'morlet')
-Wxo /= np.sqrt(scales_xo)  # L1 norm
+Txo, _, Wxo, *_ = ssq_cwt(xo, 'morlet')
 viz(xo, Txo, Wxo)
 
-Tx, _, Wx, scales_x, _ = ssq_cwt(x, 'morlet')
-Wx /= np.sqrt(scales_x)  # L1 norm 
+Tx, _, Wx, *_ = ssq_cwt(x, 'morlet')
 viz(x, Tx, Wx)
 ```
 
