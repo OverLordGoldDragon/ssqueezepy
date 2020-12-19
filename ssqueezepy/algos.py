@@ -79,8 +79,7 @@ def replace_at_nan(x, ref=None, replacement=0.):
     return x
 
 def replace_at_value(x, ref=None, value=0., replacement=0.):
-    """Note: `value=np.nan` won't work (but np.inf will, separate from -np.inf).
-    """
+    """Note: `value=np.nan` won't work (but np.inf will, separate from -np.inf)"""
     x, ref, xndim = _process_replace_fn_args(x, ref)
     x = _replace_at_value(x, ref, value, replacement)
     while x.ndim > xndim:

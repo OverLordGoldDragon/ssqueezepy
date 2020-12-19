@@ -406,7 +406,7 @@ def wavelet_waveforms(wavelet, N, scale, zoom=True):
 
     wavelet = Wavelet._init_if_not_isinstance(wavelet)
     ## Freq-domain sampled #######################
-    w_peak, peak = find_maximum(wavelet.fn)
+    w_peak, _ = find_maximum(wavelet.fn)
 
     w_ct = np.linspace(0, w_peak*2, max(4096, 2*N))  # 'continuous-time'
     w_dt = np.linspace(0, np.pi, N//2) * scale  # sampling pts at `scale`
@@ -481,7 +481,7 @@ def _viz_cwt_scalebounds(wavelet, N, min_scale=None, max_scale=None,
         plt.axvline(std_t,          color='tab:red')
         plt.axvline(std_t * stdevs, color='tab:green')
         # mark target (non-extended) frame
-        [plt.axvline(v, color='k', linestyle='--') for v in (-N/2, N/2-1)]
+        _ = [plt.axvline(v, color='k', linestyle='--') for v in (-N/2, N/2-1)]
 
         _kw = dict(fontsize=16, xycoords='axes fraction', weight='bold')
         plt.annotate("1 stdev",
