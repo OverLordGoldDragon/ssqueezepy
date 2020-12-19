@@ -24,8 +24,23 @@ from ssqueezepy.visuals import hist, plot, scat, imshow
 from ssqueezepy.toolkit import lin_band, cos_f, mad_rms
 from ssqueezepy import ssq_cwt, issq_cwt, cwt, icwt, ssqueeze
 
+#### Ensure cached imports reloaded ##########################################
+from types import ModuleType
+from imp import reload
+import ssqueezepy
+
+reload(numba)
+numba.njit = njit
+reload(ssqueezepy)
+for name in dir(ssqueezepy):
+    obj = getattr(ssqueezepy, name)
+    if isinstance(obj, ModuleType):
+        reload(obj)
+##############################################################################
+
 # no visuals here but 1 runs as regular script instead of pytest, for debugging
 VIZ = 0
+
 
 def test_ssq_cwt():
     x = np.random.randn(64)
