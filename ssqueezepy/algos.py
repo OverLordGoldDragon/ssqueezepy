@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 from numba import njit
-from functools import reduce
 
 
 def find_closest(a, v):
