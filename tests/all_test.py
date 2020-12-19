@@ -14,7 +14,7 @@ from ssqueezepy.utils import cwt_scalebounds, buffer, est_riskshrink_thresh
 from ssqueezepy._cwt import _icwt_norm
 from ssqueezepy.visuals import hist, plot, scat, imshow
 from ssqueezepy.toolkit import lin_band, cos_f, mad_rms
-from ssqueezepy import ssq_cwt, issq_cwt, cwt, icwt
+from ssqueezepy import ssq_cwt, issq_cwt, cwt, icwt, ssqueeze
 
 
 # no visuals here but 1 runs as regular script instead of pytest, for debugging
@@ -135,6 +135,22 @@ def test_anim():
     # bare minimally (still takes long, but covers many lines of code)
     wavelet = Wavelet(('morlet', {'mu': 6}))
     wavelet.viz('anim:time-frequency', N=8, scales=np.linspace(10, 20, 3))
+
+
+def test_ssqueezing():
+    def _pass_on_error(fn, *args, **kw):
+        try: fn(*args, **kw)
+        except: pass
+
+    Wx = np.random.randn(4, 4)
+    w = np.abs(Wx)
+
+    _pass_on_error(ssqueeze, Wx, w, transform='greenland')
+    _pass_on_error(ssqueeze, Wx, w, transform='cwt', scales=None)
+    _pass_on_error(ssqueeze, Wx, w, transform='cwt', wavelet=None,
+                   mapkind='maximal')
+    _pass_on_error(ssqueeze, Wx, w, transform='stft', mapkind='minimal')
+    _pass_on_error(ssqueeze, Wx, w, squeezing='big_bird')
 
 
 if __name__ == '__main__':

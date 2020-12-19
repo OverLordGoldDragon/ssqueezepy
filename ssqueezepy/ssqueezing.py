@@ -155,11 +155,10 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
         if scales is None and transform == 'cwt':
             raise ValueError("`scales` can't be None if `transform == 'cwt'`")
 
-        if mapkind != 'maximal':
-            if transform != 'cwt':
-                NOTE("`mapkind` currently only functional with `transform='cwt'`")
-            elif transform == 'cwt' and wavelet is None:
-                raise ValueError(f"must pass `wavelet` with mapkind='{mapkind}'")
+        if mapkind != 'naive' and transform == 'cwt' and wavelet is None:
+            raise ValueError(f"must pass `wavelet` with mapkind='{mapkind}'")
+        if mapkind != 'maximal' and transform != 'cwt':
+            NOTE("`mapkind` currently only functional with `transform='cwt'`")
 
         dt, *_ = _process_fs_and_t(fs, t, N)
         return dt
