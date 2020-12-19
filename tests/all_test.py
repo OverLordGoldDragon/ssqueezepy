@@ -2,15 +2,15 @@
 """Lazy tests just to ensure nothing breaks
 """
 #### Disable Numba JIT during testing, as pytest can't measure its coverage ##
+# TODO find shorter way to do this
 print("numba.njit is now monkey")
 def njit(fn):
     def decor(*args, **kw):
-        print("Ran", getattr(fn, '__qualname__',
-                             getattr(fn, '__name__', "function")))
         return fn(*args, **kw)
     return decor
 
 import numba
+njit_orig = numba.njit
 numba.njit = njit
 ##############################################################################
 import pytest
@@ -53,7 +53,7 @@ def test_ssq_cwt():
         squeezing=('lebesgue',),
         scales=('linear', 'log:minimal', 'linear:naive',
                 np.power(2**(1/16), np.arange(1, 32))),
-        difftype=('phase', 'numerical'),
+        difftype=('phase', 'numeric'),
         padtype=('zero', 'replicate'),
         mapkind=('energy', 'peak'),
     )
@@ -61,9 +61,12 @@ def test_ssq_cwt():
     for name in params:
         for value in params[name]:
             try:
-                ssq_cwt(**kw, **{name: value})
+                _ = ssq_cwt(**kw, **{name: value})
             except Exception as e:
                 raise Exception(f"{name}={value} failed with:\n{e}")
+
+    _ = ssq_cwt(x, wavelet, fs=2, difftype='numeric', difforder=2)
+    _ = ssq_cwt(x, wavelet, fs=2, difftype='numeric', difforder=1)
 
 
 def test_cwt():
@@ -185,3 +188,12 @@ if __name__ == '__main__':
         test_anim()
     else:
         pytest.main([__file__, "-s"])
+
+        # restore original in case it matters for future testing
+        reload(numba)
+        numba.njit = njit_orig
+        reload(ssqueezepy)
+        for name in dir(ssqueezepy):
+            obj = getattr(ssqueezepy, name)
+            if isinstance(obj, ModuleType):
+                reload(obj)

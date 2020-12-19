@@ -142,7 +142,7 @@ def padsignal(x, padtype='reflect', padlength=None):
 
 def adm_ssq(wavelet):
     """Calculates the synchrosqueezing admissibility constant, the term
-    R_psi in Eq 15 of [1] (also see Eq 2.5 of [2]). Uses numerical intergration.
+    R_psi in Eq 15 of [1] (also see Eq 2.5 of [2]). Uses numeric intergration.
 
         integral(conj(wavelet(w)) / w, w=0..inf)
 
@@ -164,7 +164,7 @@ def adm_ssq(wavelet):
 
 def adm_cwt(wavelet):
     """Calculates the cwt admissibility constant as per Eq. (4.67) of [1].
-    Uses numerical integration.
+    Uses numeric integration.
 
         integral(wavelet(w) * conj(wavelet(w)) / w, w=0..inf)
 

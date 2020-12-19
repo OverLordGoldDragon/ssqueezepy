@@ -260,7 +260,7 @@ def phase_cwt(Wx, dWx, difftype='direct', gamma=None):
 def phase_cwt_num(Wx, dt, difforder=4, gamma=None):
     """Calculate the phase transform at each (scale, time) pair:
         w[a, b] = Im((1/2pi) * d/db (Wx[a,b]) / Wx[a,b])
-    Uses numerical differentiation (1st, 2nd, or 4th order). See above Eq 20.3
+    Uses numeric differentiation (1st, 2nd, or 4th order). See above Eq 20.3
     in [1], or Eq 13 in [2].
 
     # Arguments:

@@ -75,7 +75,7 @@ def ssq_cwt(x, wavelet='morlet', scales='log', nv=None, fs=None, t=None,
                 which for sufficiently-spanned `scales` will always have lesser
                 fM (but ~same fM).
 
-        difftype: str['direct', 'phase', 'numerical']
+        difftype: str['direct', 'phase', 'numeric']
             Method by which to differentiate Wx (default='direct') to obtain
             instantaneous frequencies:
                     w(a,b) = Im( (1/2pi) * (1/Wx(a,b)) * d/db[Wx(a,b)] )
@@ -84,11 +84,11 @@ def ssq_cwt(x, wavelet='morlet', scales='log', nv=None, fs=None, t=None,
                 differentiation (see `cwt`, `phase_cwt`).
                 - 'phase': differentiate by taking forward finite-difference of
                 unwrapped angle of `Wx` (see `phase_cwt`).
-                - 'numerical': first-, second-, or fourth-order (set by
+                - 'numeric': first-, second-, or fourth-order (set by
                 `difforder`) numeric differentiation (see `phase_cwt_num`).
 
         difforder: int[1, 2, 4]
-            Order of differentiation for difftype='numerical' (default=4).
+            Order of differentiation for difftype='numeric' (default=4).
 
         gamma: float / None
             CWT phase threshold. Sets `w=inf` for small values of `Wx` where
@@ -135,16 +135,16 @@ def ssq_cwt(x, wavelet='morlet', scales='log', nv=None, fs=None, t=None,
         synsq_cwt_fw.m
     """
     def _process_args(N, scales, fs, t, nv, difftype, difforder, squeezing):
-        if difftype not in ('direct', 'phase', 'numerical'):
-            raise ValueError("`difftype` must be one of: direct, phase, numerical"
+        if difftype not in ('direct', 'phase', 'numeric'):
+            raise ValueError("`difftype` must be one of: direct, phase, numeric"
                              " (got %s)" % difftype)
         if difforder is not None:
-            if difftype != 'numerical':
-                WARN("`difforder` is ignored if `difftype != 'numerical'")
+            if difftype != 'numeric':
+                WARN("`difforder` is ignored if `difftype != 'numeric'")
             elif difforder not in (1, 2, 4):
                 raise ValueError("`difforder` must be one of: 1, 2, 4 "
                                  "(got %s)" % difforder)
-        elif difftype == 'numerical':
+        elif difftype == 'numeric':
             difforder = 4
         if squeezing not in ('sum', 'lebesgue'):
             raise ValueError("`squeezing` must be one of: sum, lebesgue "
@@ -164,9 +164,9 @@ def ssq_cwt(x, wavelet='morlet', scales='log', nv=None, fs=None, t=None,
             # !!! bad; yields negatives, and forcing abs(w) doesn't help
             # calculate inst. freq. from unwrapped phase of CWT
             w = phase_cwt(Wx, None, difftype, gamma)
-        elif difftype == 'numerical':
+        elif difftype == 'numeric':
             # !!! tested to be very inaccurate for small `a`
-            # calculate derivative numerically
+            # calculate derivative numericly
             _, n1, _ = p2up(N)
             Wx = Wx[:, (n1 - 4):(n1 + N + 4)]
             w = phase_cwt_num(Wx, dt, difforder, gamma)
@@ -182,7 +182,7 @@ def ssq_cwt(x, wavelet='morlet', scales='log', nv=None, fs=None, t=None,
 
     # l1_norm=True to spare a multiplication; for SSWT L1 & L2 are exactly same
     # anyway since we're inverting CWT over time-frequency plane
-    rpadded = (difftype == 'numerical')
+    rpadded = (difftype == 'numeric')
     Wx, scales, _, dWx = cwt(x, wavelet, scales=scales, fs=fs, nv=nv,
                              l1_norm=True, derivative=True, padtype=padtype,
                              rpadded=rpadded)
@@ -198,7 +198,7 @@ def ssq_cwt(x, wavelet='morlet', scales='log', nv=None, fs=None, t=None,
                              transform='cwt', squeezing=squeezing,
                              mapkind=mapkind, wavelet=wavelet)
 
-    if difftype == 'numerical':
+    if difftype == 'numeric':
         Wx = Wx[:, 4:-4]
         w  = w[:,  4:-4]
         Tx = Tx[:, 4:-4]
