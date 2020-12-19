@@ -78,7 +78,6 @@ def test_wavelets():
     _ = cwt_scalebounds(wavelet, N=512, viz=3)
 
 
-
 def test_toolkit():
     Tx = np.random.randn(20, 20)
     Cs, freqband = lin_band(Tx, slope=1, offset=.1, bw=.025)
@@ -98,7 +97,7 @@ def test_visuals():
 
 
 def test_utils():
-    _ = buffer(np.random.randn(20, 20), 5, 1)
+    _ = buffer(np.random.randn(20), 4, 1)
 
 
 if __name__ == '__main__':
