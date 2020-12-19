@@ -90,7 +90,6 @@ def test_cwt():
     print("\ncwt PASSED\nerrs:", ', '.join(map(str, errs)))
 
 
-
 def _maybe_viz(Wx, xo, xrec, title, err):
     if not VIZ:
         return

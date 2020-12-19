@@ -22,7 +22,7 @@ def err_fix(x, wavelet, a0):  # primitive code, doesn't work
     # after first zero, also computing fewer in total and linearly interpolating
     Cpsi_w = [integrate.quad(
         lambda x: np.conj(psihfn(x)) * psihfn(x) / x, 0., w)[0]
-              for w in a0 * xi]
+        for w in a0 * xi]
 
     Cpsi_w.insert(0, 0)  # integral 0 to 0 = 0
     Cpsi_w.extend([0] * (N // 2 - 1))  # analytic, right-half = 0

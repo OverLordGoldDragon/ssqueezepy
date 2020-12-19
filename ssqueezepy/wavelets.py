@@ -341,7 +341,7 @@ def bump(mu=5., s=1., om=0.):
 def _bump(w, _w, om, s):
     return np.exp(2 * pi * 1j * om * w) / s * (
         np.abs(_w) < .999) * np.exp(-1. / (1 - (_w * (np.abs(_w) < .999))**2)
-                                   ) / .443993816053287
+                                    ) / .443993816053287
 
 
 def cmhat(mu=1., s=1.):
@@ -654,6 +654,7 @@ def isinstance_by_name(obj, ref):
         name = getattr(obj, '__qualname__', getattr(obj, '__name__', ''))
         return (getattr(obj, '__module__', '') + '.' + name).lstrip('.')
     return _class_name(type(obj)) == _class_name(ref)
+
 
 ##############################################################################
 from .visuals import plot

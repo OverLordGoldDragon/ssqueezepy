@@ -39,13 +39,14 @@ from . import _ssq_cwt
 from . import _cwt
 from . import wavelets
 from . import utils
+from . import algos
+from . import visuals
 from . import experimental
 
 from .ssqueezing import *
 from ._ssq_cwt import *
 from ._cwt import *
 from .wavelets import *
-from .utils import *
 
 
 def wavs():

@@ -4,6 +4,7 @@
 import pytest
 import numpy as np
 from ssqueezepy.wavelets import Wavelet
+from ssqueezepy.toolkit import lin_band, cos_f, mad_rms
 from ssqueezepy import ssq_cwt, issq_cwt, cwt, icwt
 
 # no visuals here but 1 runs as regular script instead of pytest, for debugging
@@ -60,6 +61,14 @@ def test_wavelets():
                 if "positional argument" not in str(e):
                     raise TypeError(e)
                 wavelet.viz(name, scales='log', N=256)
+
+
+def test_toolkit():
+    Tx = np.random.randn(20, 20)
+    Cs, freqband = lin_band(Tx, slope=1, offset=.1, bw=.025)
+
+    _ = cos_f([1], N=64)
+    _ = mad_rms(np.random.randn(10), np.random.randn(10))
 
 
 if __name__ == '__main__':

@@ -68,7 +68,7 @@ def wavelet_tf(wavelet, N=2048, scale=100, notext=False, width=1.1, height=1):
     lkw = dict(color='k', linewidth=1)
     plot([t_xmin,  t_xmin], [t_yminl, t_ymax], **lkw)
     plot([t_xmax,  t_xmax], [t_yminr, t_ymax], **lkw)
-    plot([w_xminu, w_xmax], [w_ymin , w_ymin], **lkw)
+    plot([w_xminu, w_xmax], [w_ymin,  w_ymin], **lkw)
     plot([w_xmind, w_xmax], [w_ymax,  w_ymax], **lkw)
     plt.xlim(t.min()*1.02, t.max()*1.02)
 
@@ -506,6 +506,7 @@ def _viz_cwt_scalebounds(wavelet, N, min_scale=None, max_scale=None,
         _viz_max(wavelet, N, max_scale, std_t, stdevs, Nt)
     if not (min_scale or max_scale):
         raise ValueError("Must set at least one of `min_scale`, `max_scale`")
+
 
 #### Visual tools ## messy code ##############################################
 def imshow(data, title=None, show=1, cmap=None, norm=None, complex=None, abs=0,

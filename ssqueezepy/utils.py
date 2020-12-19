@@ -170,7 +170,7 @@ def adm_cwt(wavelet):
 
     1. Wavelet Tour of Signal Processing, 3rd ed. S. Mallat.
     https://www.di.ens.fr/~mallat/papiers/WaveletTourChap1-2-3.pdf
-	"""
+    """
     wavelet = Wavelet._init_if_not_isinstance(wavelet).fn
     Cpsi = _integrate_analytic(lambda w: np.conj(wavelet(w)) * wavelet(w) / w)
     Cpsi = Cpsi.real if abs(Cpsi.imag) < 1e-15 else Cpsi
@@ -356,7 +356,7 @@ def cwt_scalebounds(wavelet, N, preset=None, min_cutoff=None, max_cutoff=None,
             wavelet_waveforms(wavelet, M, min_scale)
             wavelet_waveforms(wavelet, M, max_scale)
         if viz == 3:
-            from  .visuals import sweep_harea
+            from .visuals import sweep_harea
             scales = make_scales(M, min_scale, max_scale)
             sweep_harea(wavelet, M, scales)
 
