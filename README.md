@@ -3,14 +3,18 @@
 
 # Synchrosqueezing in Python
 
+[![Build Status](https://travis-ci.com/OverLordGoldDragon/ssqueezepy.svg?branch=master)](https://travis-ci.com/OverLordGoldDragon/ssqueezepy)
+[![PyPI version](https://badge.fury.io/py/ssqueezepy.svg)](https://badge.fury.io/py/ssqueezepy)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+
 Synchrosqueezing is a powerful _reassignment method_ that focuses time-frequency representations, and allows extraction of instantaneous amplitudes and frequencies. [Friendly overview.](https://dsp.stackexchange.com/a/71399/50076)
 
-The package is production-ready. Until v0.6.0, however, significant changes to some code structure are expected.
 
 ## Features
   - Forward & inverse CWT-based Synchrosqueezing
   - Forward & inverse Continuous Wavelet Transform (CWT)
   - Clean code with explanations and learning references
+  - Wavelet visualizations
 
 ### Coming soon
   - Forward & inverse Short-Time Fourier Transform (STFT)
@@ -34,7 +38,7 @@ The package is production-ready. Until v0.6.0, however, significant changes to s
 
 ## Introspection
 
-`ssqueezepy` is equipped with a visualization toolkit, useful for exploring wavelet behavior across scales and configurations.
+`ssqueezepy` is equipped with a visualization toolkit, useful for exploring wavelet behavior across scales and configurations. (Also see [explanations and code](https://dsp.stackexchange.com/a/72044/50076))
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/OverLordGoldDragon/ssqueezepy/master/examples/imgs/anim_tf_morlet20.gif" width="500">

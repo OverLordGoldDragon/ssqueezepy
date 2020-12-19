@@ -32,11 +32,13 @@ setup(
     license="MIT",
     author="OverLordGoldDragon",
     author_email="16495490+OverLordGoldDragon@users.noreply.github.com",
-    description=("Synchrosqueezing and wavelet transforms in Python"),
+    description=("Synchrosqueezing, wavelet transforms, and "
+                 "time-frequency analysis in Python "),
     long_description=read_file('README.md'),
     long_description_content_type="text/markdown",
     keywords=(
-        "signal-processing python synchrosqueezing wavelet-transform"
+        "signal-processing python synchrosqueezing wavelet-transform cwt "
+        "time-frequency time-frequency-analysis"
     ),
     install_requires=get_requirements('requirements.txt'),
     tests_require=["pytest>=4.0", "pytest-cov"],
@@ -46,6 +48,7 @@ setup(
         "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
         "Operating System :: OS Independent",
         "Intended Audience :: Developers",
         "Intended Audience :: Information Technology",

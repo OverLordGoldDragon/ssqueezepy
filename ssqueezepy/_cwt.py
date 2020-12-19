@@ -158,7 +158,7 @@ def cwt(x, wavelet, scales='log', fs=None, t=None, nv=32, l1_norm=True,
     xh = fft(x)
     wavelet = Wavelet._init_if_not_isinstance(wavelet)
     scales = process_scales(scales, n, wavelet, nv=nv)
-    pn = (-1) ** np.arange(nup)
+    pn = (-1)**np.arange(nup)
 
     N_orig = wavelet.N
     wavelet.N = nup
@@ -222,9 +222,6 @@ def icwt(Wx, wavelet, scales='log', nv=None, one_int=True, x_len=None, x_mean=0,
             'zero' is most naive, while 'reflect' (default) partly mitigates
             boundary effects. See `padsignal`.
             !!! currently uses only 'zero'
-
-        minbounds: bool (default False)
-            See `help(cwt)`.
 
         rpadded: bool (default False)
             True if Wx is padded (e.g. if used `cwt(, rpadded=True)`).

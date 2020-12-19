@@ -1,19 +1,19 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 from .algos import find_closest, indexed_sum, replace_at_inf
-from .utils import EPS, pi, process_scales, _infer_scaletype, _process_fs_and_t
-from .utils import NOTE
+from .utils import process_scales, _infer_scaletype, _process_fs_and_t
+from .utils import NOTE, EPS, pi
 from .wavelets import center_frequency
 
 
 def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt',
              squeezing='sum', mapkind='maximal', wavelet=None):
-    """Calculates the synchrosqueezed CWT or STFT of `x`. Used internally by
-    `synsq_cwt` and `synsq_stft_fwd`.
+    """Synchrosqueezes the CWT or STFT of `x`. Used internally by `synsq_cwt`
+    and `synsq_stft_fwd`.
 
     # Arguments:
         Wx or Sx: np.ndarray
-            CWT or STFT of `x`.
+            CWT or STFT of `x`. Wx is assumed L1-normed.
 
         w: np.ndarray
             Phase transform of `Wx` or `Sx`. Must be >=0.
@@ -97,11 +97,11 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
             # Eq 14 [2]; Eq 2.3 [1]
             if cwt_scaletype == 'log':
                 # ln(2)/nv == diff(ln(scales))[0] == ln(2**(1/nv))
-                Tx = indexed_sum(Wx / scales**(1/2) * np.log(2) / nv, k)
+                Tx = indexed_sum(Wx * np.log(2) / nv, k)
             elif cwt_scaletype == 'linear':
                 # omit /dw since it's cancelled by *dw in inversion anyway
                 da = (scales[1] - scales[0])
-                Tx = indexed_sum(Wx / scales**(3/2) * da, k)
+                Tx = indexed_sum(Wx / scales * da, k)
         elif transform == 'stft':
             # TODO validate
             Tx = indexed_sum(Wx * (ssq_freqs[1] - ssq_freqs[0]), k)
@@ -248,10 +248,10 @@ def phase_cwt(Wx, dWx, difftype='direct', gamma=None):
     if difftype == 'phase':
         # TODO gives bad results; shouldn't we divide by Wx?
         u = np.unwrap(np.angle(Wx)).T
-        w = np.vstack([np.diff(u, axis=0), u[-1] - u[0]]).T / (2 * pi)
+        w = np.vstack([np.diff(u, axis=0), u[-1] - u[0]]).T / (2*pi)
     else:
         with np.errstate(divide='ignore'):
-            w = np.imag(dWx / Wx) / (2 * pi)
+            w = np.imag(dWx / Wx) / (2*pi)
 
     gamma = gamma or np.sqrt(EPS)
     w[(np.abs(Wx) < gamma) | (w < 0)] = np.inf
@@ -294,7 +294,7 @@ def phase_cwt_num(Wx, dt, difforder=4, gamma=None):
         G. Thakur, E. Brevdo, N.-S. Fučkar, and H.-T. Wu.
         https://arxiv.org/abs/1105.0010
 
-        2. Synchrosqueezing Toolbox, (C) 2014--present. E. Brevdo, G. Thakur.
+        3. Synchrosqueezing Toolbox, (C) 2014--present. E. Brevdo, G. Thakur.
         https://github.com/ebrevdo/synchrosqueezing/blob/master/synchrosqueezing/
         phase_cwt_num.m
     """
@@ -333,6 +333,6 @@ def phase_cwt_num(Wx, dt, difforder=4, gamma=None):
 
     # calculate inst. freq for each scale
     # 2*pi norm per discretized inverse FT rather than inverse DFT
-    w = np.real(-1j * w / Wx) / (2 * pi)
+    w = np.real(-1j * w / Wx) / (2*pi)
     w[w < 0] = np.inf
     return w

@@ -106,8 +106,7 @@ def ssq_cwt(x, wavelet='morlet', scales='log', nv=None, fs=None, t=None,
         ssq_freqs: np.ndarray [nf]
             Frequencies associated with rows of `Tx`.
         Wx: np.ndarray [na x n]
-            Continuous Wavelet Transform of `x` L2-normed (see `cwt`);
-            to L1-norm, `Wx /= np.sqrt(scales)`
+            Continuous Wavelet Transform of `x` L1-normed (see `cwt`).
         scales: np.ndarray [na]
             Scales associated with rows of `Wx`.
         w: np.ndarray [na x n]
@@ -181,11 +180,11 @@ def ssq_cwt(x, wavelet='morlet', scales='log', nv=None, fs=None, t=None,
     scales, cwt_scaletype, *_ = process_scales(scales, N, wavelet, nv=nv,
                                                get_params=True)
 
-    # l1_norm=False to spare a multiplication; for SSWT L1 & L2 are exactly same
+    # l1_norm=True to spare a multiplication; for SSWT L1 & L2 are exactly same
     # anyway since we're inverting CWT over time-frequency plane
     rpadded = (difftype == 'numerical')
     Wx, scales, _, dWx = cwt(x, wavelet, scales=scales, fs=fs, nv=nv,
-                             l1_norm=False, derivative=True, padtype=padtype,
+                             l1_norm=True, derivative=True, padtype=padtype,
                              rpadded=rpadded)
 
     gamma = gamma or np.sqrt(EPS)

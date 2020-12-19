@@ -8,60 +8,6 @@ from .algos import find_closest, find_maximum
 
 
 #### Visualizations ##########################################################
-def _viz_cwt_scalebounds(wavelet, N, min_scale=None, max_scale=None,
-                         std_t=None, cutoff=1, stdevs=2, Nt=None):
-    """Can be used to visualize time & freq domains separately, where
-    `min_scale` refers to scale at which to show the freq-domain wavelet, and
-    `max_scale` the time-domain one.
-    """
-    def _viz_max(wavelet, N, max_scale, std_t, stdevs, Nt):
-        from .wavelets import time_resolution
-
-        Nt = Nt or 2*N  # assume single extension
-        if Nt is None:
-            Nt = 2*N
-        if std_t is None:
-            # permissive max_mult to not crash visual
-            std_t = time_resolution(wavelet, max_scale, N, nondim=False,
-                                    min_mult=2, max_mult=2, min_decay=1)
-
-        t = np.arange(-Nt/2, Nt/2, step=1)
-        t -= t.mean()
-        psi = wavelet.psifn(scale=max_scale, N=len(t))
-
-        plot(t, np.abs(psi)**2, ylims=(0, None),
-             title="|Time-domain wavelet|^2, extended (outside dashed)")
-
-        plt.axvline(std_t,          color='tab:red')
-        plt.axvline(std_t * stdevs, color='tab:green')
-        # mark target (non-extended) frame
-        [plt.axvline(v, color='k', linestyle='--') for v in (-N/2, N/2-1)]
-
-        _kw = dict(fontsize=16, xycoords='axes fraction', weight='bold')
-        plt.annotate("1 stdev",
-                     xy=(.88, .95), color='tab:red',   **_kw)
-        plt.annotate("%s stdevs" % stdevs,
-                     xy=(.88, .90), color='tab:green', **_kw)
-        plt.show()
-
-    def _viz_min(wavelet, N, min_scale, cutoff):
-        w = _xifn(1, N)[:N//2 + 1]  # drop negative freqs
-        psih = wavelet(min_scale * w, nohalf=True)
-        _, mx = find_maximum(wavelet)
-
-        plot(w, psih, title=("Frequency-domain wavelet, positive half "
-                             "(cutoff=%s, peak=%.3f)" % (cutoff, mx)))
-        plt.axhline(mx * abs(cutoff), color='tab:red')
-        plt.show()
-
-    if min_scale is not None:
-        _viz_min(wavelet, N, min_scale, cutoff)
-    if max_scale is not None:
-        _viz_max(wavelet, N, max_scale, std_t, stdevs, Nt)
-    if not (min_scale or max_scale):
-        raise ValueError("Must set at least one of `min_scale`, `max_scale`")
-
-
 def wavelet_tf(wavelet, N=2048, scale=100, notext=False, width=1.1, height=1):
     """Visualize `wavelet` joint time-frequency resolution. Plots frequency-domain
     wavelet (psih) along y-axis, and time-domain wavelet (psi) along x-axis.
@@ -460,7 +406,7 @@ def wavelet_waveforms(wavelet, N, scale, zoom=True):
 
     wavelet = Wavelet._init_if_not_isinstance(wavelet)
     ## Freq-domain sampled #######################
-    w_peak, peak = find_maximum(wavelet.fn)
+    w_peak, _ = find_maximum(wavelet.fn)
 
     w_ct = np.linspace(0, w_peak*2, max(4096, 2*N))  # 'continuous-time'
     w_dt = np.linspace(0, np.pi, N//2) * scale  # sampling pts at `scale`
@@ -469,7 +415,7 @@ def wavelet_waveforms(wavelet, N, scale, zoom=True):
 
     title = ("wavelet(w) sampled by xi at scale={:.2f}, N={} | {} wavelet, {}"
              ).format(scale, N, wavelet.name, wavelet.config_str)
-    plot(w_ct, psih_ct, title=title)
+    plot(w_ct, psih_ct, title=title, xlabel="radians")
     scat(w_dt, psih_dt, color='tab:red')
 
     plt.legend(["psih at scale=1", "sampled at scale=%.2f" % scale], fontsize=13)
@@ -486,7 +432,7 @@ def wavelet_waveforms(wavelet, N, scale, zoom=True):
         end += peak_idx + 3  # +3: give few more indices for visual
 
     w_dtn = w_dt * (np.pi / w_dt.max())  # norm to span true w
-    plot(w_dtn[:end], psih_dt[:end],
+    plot(w_dtn[:end], psih_dt[:end], xlabel="radians",
          title="Freq-domain waveform (psih)" + ", zoomed" * (end is not None))
     scat(w_dtn[:end], psih_dt[:end], color='tab:red', show=1)
 
@@ -503,10 +449,63 @@ def wavelet_waveforms(wavelet, N, scale, zoom=True):
         dt = np.where(apsi[peak_idx:] < 1e-3*apsi.max())[0][0]
         start, end = (N//2 - dt, N//2 + dt + 1)
 
-    plot(t[start:end], psi[start:end], complex=1,
+    plot(t[start:end], psi[start:end], complex=1, xlabel="samples",
          title="Time-domain waveform (psi)" + ", zoomed" * (end is not None))
     plot(t[start:end], apsi[start:end], color='k', linestyle='--', show=1)
 
+
+def _viz_cwt_scalebounds(wavelet, N, min_scale=None, max_scale=None,
+                         std_t=None, cutoff=1, stdevs=2, Nt=None):
+    """Can be used to visualize time & freq domains separately, where
+    `min_scale` refers to scale at which to show the freq-domain wavelet, and
+    `max_scale` the time-domain one.
+    """
+    def _viz_max(wavelet, N, max_scale, std_t, stdevs, Nt):
+        from .wavelets import time_resolution
+
+        Nt = Nt or 2*N  # assume single extension
+        if Nt is None:
+            Nt = 2*N
+        if std_t is None:
+            # permissive max_mult to not crash visual
+            std_t = time_resolution(wavelet, max_scale, N, nondim=False,
+                                    min_mult=2, max_mult=2, min_decay=1)
+
+        t = np.arange(-Nt/2, Nt/2, step=1)
+        t -= t.mean()
+        psi = wavelet.psifn(scale=max_scale, N=len(t))
+
+        plot(t, np.abs(psi)**2, ylims=(0, None),
+             title="|Time-domain wavelet|^2, extended (outside dashed)")
+
+        plt.axvline(std_t,          color='tab:red')
+        plt.axvline(std_t * stdevs, color='tab:green')
+        # mark target (non-extended) frame
+        _ = [plt.axvline(v, color='k', linestyle='--') for v in (-N/2, N/2-1)]
+
+        _kw = dict(fontsize=16, xycoords='axes fraction', weight='bold')
+        plt.annotate("1 stdev",
+                     xy=(.88, .95), color='tab:red',   **_kw)
+        plt.annotate("%s stdevs" % stdevs,
+                     xy=(.88, .90), color='tab:green', **_kw)
+        plt.show()
+
+    def _viz_min(wavelet, N, min_scale, cutoff):
+        w = _xifn(1, N)[:N//2 + 1]  # drop negative freqs
+        psih = wavelet(min_scale * w, nohalf=True)
+        _, mx = find_maximum(wavelet)
+
+        plot(w, psih, title=("Frequency-domain wavelet, positive half "
+                             "(cutoff=%s, peak=%.3f)" % (cutoff, mx)))
+        plt.axhline(mx * abs(cutoff), color='tab:red')
+        plt.show()
+
+    if min_scale is not None:
+        _viz_min(wavelet, N, min_scale, cutoff)
+    if max_scale is not None:
+        _viz_max(wavelet, N, max_scale, std_t, stdevs, Nt)
+    if not (min_scale or max_scale):
+        raise ValueError("Must set at least one of `min_scale`, `max_scale`")
 
 #### Visual tools ## messy code ##############################################
 def imshow(data, title=None, show=1, cmap=None, norm=None, complex=None, abs=0,
@@ -564,7 +563,7 @@ def imshow(data, title=None, show=1, cmap=None, norm=None, complex=None, abs=0,
 
 def plot(x, y=None, title=None, show=0, ax_equal=False, complex=0,
          c_annot=False, w=None, h=None, dx1=False, xlims=None, ylims=None,
-         vert=False, vlines=None, hlines=None, **kw):
+         vert=False, vlines=None, hlines=None, xlabel=None, ylabel=None, **kw):
     if y is None:
         y = x
         x = np.arange(len(x))
@@ -589,11 +588,13 @@ def plot(x, y=None, title=None, show=0, ax_equal=False, complex=0,
 
     _maybe_title(title)
     _scale_plot(plt.gcf(), plt.gca(), show=show, ax_equal=ax_equal, w=w, h=h,
-                xlims=xlims, ylims=ylims, dx1=(len(x) if dx1 else 0))
+                xlims=xlims, ylims=ylims, dx1=(len(x) if dx1 else 0),
+                xlabel=xlabel, ylabel=ylabel)
 
 
 def scat(x, y=None, title=None, show=0, ax_equal=False, s=18, w=None, h=None,
-         xlims=None, ylims=None, dx1=False, vlines=None, hlines=None, **kw):
+         xlims=None, ylims=None, dx1=False, vlines=None, hlines=None,
+         xlabel=None, ylabel=None, **kw):
     if y is None:
         y = x
         x = np.arange(len(x))
@@ -604,7 +605,8 @@ def scat(x, y=None, title=None, show=0, ax_equal=False, s=18, w=None, h=None,
     if hlines:
         vhlines(hlines, kind='h')
     _scale_plot(plt.gcf(), plt.gca(), show=show, ax_equal=ax_equal, w=w, h=h,
-                xlims=xlims, ylims=ylims, dx1=(len(x) if dx1 else 0))
+                xlims=xlims, ylims=ylims, dx1=(len(x) if dx1 else 0),
+                xlabel=xlabel, ylabel=ylabel)
 
 def hist(x, bins=500, title=None, show=0, stats=0):
     x = np.asarray(x)
@@ -647,7 +649,7 @@ def _maybe_title(title):
 
 
 def _scale_plot(fig, ax, show=False, ax_equal=False, w=None, h=None,
-                xlims=None, ylims=None, dx1=False):
+                xlims=None, ylims=None, dx1=False, xlabel=None, ylabel=None):
     xmin, xmax = ax.get_xlim()
     rng = xmax - xmin
 
@@ -666,6 +668,10 @@ def _scale_plot(fig, ax, show=False, ax_equal=False, w=None, h=None,
         plt.xticks(np.arange(dx1))
     if w or h:
         fig.set_size_inches(14*(w or 1), 8*(h or 1))
+    if xlabel is not None:
+        plt.xlabel(xlabel, weight='bold', fontsize=15)
+    if ylabel is not None:
+        plt.ylabel(ylabel, weight='bold', fontsize=15)
     if show:
         plt.show()
 

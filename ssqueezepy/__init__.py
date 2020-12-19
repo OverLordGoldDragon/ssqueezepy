@@ -2,6 +2,7 @@
 """
 MIT License
 ===========
+
 Some ssqueezepy source files under other terms (see NOTICE.txt).
 
 Copyright (c) 2020 OverLordGoldDragon

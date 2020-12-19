@@ -2,8 +2,7 @@
 import numpy as np
 import logging
 from scipy import integrate
-from .algos import _min_neglect_idx
-from .algos import find_maximum, find_first_occurrence
+from .algos import _min_neglect_idx, find_maximum, find_first_occurrence
 from .wavelets import Wavelet
 
 logging.basicConfig(format='')
@@ -185,6 +184,7 @@ def find_min_scale(wavelet, cutoff=1):
     `wavelet` to `cutoff * max(psih)`. If cutoff > 0, it lands to right of peak,
     else to left (i.e. peak excluded).
     """
+    wavelet = Wavelet._init_if_not_isinstance(wavelet)
     w_peak, peak = find_maximum(wavelet.fn)
     if cutoff > 0:
         # search to right of peak
@@ -231,6 +231,7 @@ def find_max_scale(wavelet, N, min_cutoff=.1, max_cutoff=.8):
         raise ValueError("must have `max_cutoff > min_cutoff` "
                          "(got %s, %s)" % (max_cutoff, min_cutoff))
 
+    wavelet = Wavelet._init_if_not_isinstance(wavelet)
     w_peak, peak = find_maximum(wavelet.fn)
 
     # we solve the inverse problem; instead of looking for spacing of xi
