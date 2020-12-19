@@ -4,7 +4,11 @@
 #### Disable Numba JIT during testing, as pytest can't measure its coverage ##
 print("numba.njit is now monkey")
 def njit(fn):
-    return fn
+    def decor(*args, **kw):
+        print("Ran", getattr(fn, '__qualname__',
+                             getattr(fn, '__name__', "function")))
+        return fn(*args, **kw)
+    return decor
 
 import numba
 numba.njit = njit
