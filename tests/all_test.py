@@ -2,20 +2,13 @@
 """Lazy tests just to ensure nothing breaks
 """
 #### Disable Numba JIT during testing, as pytest can't measure its coverage ##
-import sys
-import os
-cwd = os.getcwd()
+print("numba.njit is now monkey")
+def njit(fn):
+    return fn
 
-# try every reasonable combination, one should work
-paths = [os.path.join('numba'),
-         os.path.join('tests', 'numba'),
-         os.path.join('ssqueezepy', 'tests', 'numba')]
-for p in paths:
-    sys.path.insert(1, p)
-    sys.path.insert(1, os.path.join(cwd, p))
-
+import numba
+numba.njit = njit
 ##############################################################################
-#%%
 import pytest
 import numpy as np
 from ssqueezepy.wavelets import Wavelet, center_frequency, freq_resolution
@@ -29,7 +22,6 @@ from ssqueezepy import ssq_cwt, issq_cwt, cwt, icwt, ssqueeze
 
 # no visuals here but 1 runs as regular script instead of pytest, for debugging
 VIZ = 0
-
 
 def test_ssq_cwt():
     x = np.random.randn(64)
