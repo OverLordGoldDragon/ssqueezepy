@@ -26,9 +26,8 @@ before_install:
   - conda install numba
   - pip install -r requirements-dev.txt
   
-  
 script:
- - pytest -s
+ - pytest
 
 after_success:
   # Combine coverage reports from Travis jobs
