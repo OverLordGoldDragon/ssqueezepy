@@ -5,12 +5,17 @@
 import sys
 import os
 cwd = os.getcwd()
-if os.path.split(cwd)[-1] == 'tests':
-    sys.path.insert(0, os.path.join(cwd, 'monkey', 'numba.py'))
-else:
-    sys.path.insert(0, os.path.join(cwd, 'tests', 'monkey', 'numba.py'))
-##############################################################################
 
+# try every reasonable combination, one should work
+paths = [os.path.join('numba'),
+         os.path.join('tests', 'numba'),
+         os.path.join('ssqueezepy', 'tests', 'numba')]
+for p in paths:
+    sys.path.insert(1, p)
+    sys.path.insert(1, os.path.join(cwd, p))
+
+##############################################################################
+#%%
 import pytest
 import numpy as np
 from ssqueezepy.wavelets import Wavelet, center_frequency, freq_resolution
