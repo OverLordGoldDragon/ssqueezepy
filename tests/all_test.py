@@ -1,10 +1,15 @@
 # -*- coding: utf-8 -*-
 """Lazy tests just to ensure nothing breaks
 """
-# disable Numba JIT during testing, as pytest can't measure its coverage
+#### Disable Numba JIT during testing, as pytest can't measure its coverage ##
 import sys
-sys.path.insert(0, 'tests/monkey/numba.py')
-sys.path.insert(0, 'monkey/numba.py')  # in case working directory is in tests
+import os
+cwd = os.getcwd()
+if os.path.split(cwd)[-1] == 'tests':
+    sys.path.insert(0, os.path.join(cwd, 'monkey', 'numba.py'))
+else:
+    sys.path.insert(0, os.path.join(cwd, 'tests', 'monkey', 'numba.py'))
+##############################################################################
 
 import pytest
 import numpy as np
