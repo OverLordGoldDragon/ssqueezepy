@@ -24,7 +24,9 @@ Synchrosqueezing is a powerful _reassignment method_ that focuses time-frequency
   - Generalized Morse Wavelets
   
 ## Installation
-`pip install git+https://github.com/OverLordGoldDragon/ssqueezepy` or clone repository; PyPi-available after 0.5.0.
+`pip install ssqueezepy`. Or, for latest version (most likely stable): 
+
+`pip install git+https://github.com/OverLordGoldDragon/ssqueezepy`
 
 ## Examples
 
