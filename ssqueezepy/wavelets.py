@@ -225,7 +225,7 @@ class Wavelet():
         from .visuals import (
             wavelet_tf, wavelet_heatmap, wavelet_tf_anim, wavelet_waveforms,
             sweep_harea, sweep_std_t, sweep_std_w,
-            )
+        )
         kw['wavelet'] = kw.get('wavelet', self)
 
         if name == 'time-frequency':

@@ -44,6 +44,7 @@ def low_freqs(N):
 def high_freqs(N):
     return _freqs(N, np.array([N/2, N/2-1, N/20, N/4]) / 4)
 
+
 #### Tests ###################################################################
 test_fns = (echirp, lchirp, fast_transitions, low_freqs, high_freqs)
 wavelet = ('morlet', {'mu': 5})

@@ -174,7 +174,7 @@ def wavelet_tf_anim(wavelet, N=2048, scales=None, width=1.1, height=1,
         Wc[i]    = center_frequency(wavelet, float(scale), N, kind='energy')
         std_W[i] = freq_resolution( wavelet, float(scale), N, nondim=0)
         std_T[i] = time_resolution( wavelet, float(scale), N, nondim=0,
-                                   min_decay=1)
+                                    min_decay=1)
     _Wc = np.pi - Wc
 
     Wlix = find_closest((_Wc - std_W).reshape(-1, 1), w).squeeze()
