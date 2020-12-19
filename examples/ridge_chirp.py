@@ -33,10 +33,10 @@ Wx, *_ = cwt(x, t=ts, **kw)
 pkw = dict(abs=1, w=.86, h=.9, aspect='auto', cmap='bone')
 _Tx = np.pad(Tx, [[4, 4]])  # improve display of top- & bottom-most freqs
 imshow(Wx, **pkw)
-imshow(np.flipud(_Tx), norm=(0, 2e-1), **pkw)
+imshow(np.flipud(_Tx), norm=(0, 4e-1), **pkw)
 #%%# Estimate inversion ridge ###############################################
 bw, slope, offset = .035, .45, .45
-Cs, freqband = lin_band(Tx, slope, offset, bw, norm=(0, 2e-1))
+Cs, freqband = lin_band(Tx, slope, offset, bw, norm=(0, 4e-1))
 #%%###########################################################################
 xrec = issq_cwt(Tx, kw['wavelet'], Cs, freqband)[0]
 plot(xo)

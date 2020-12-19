@@ -18,14 +18,14 @@ wavelet = ('morlet', {'mu': 5})
 f, N = 12, 512
 
 x = cos_f([f], N=N)
-Wx, scales, *_ = cwt(x, wavelet, dt=1/N)
+Wx, scales, *_ = cwt(x, wavelet, fs=N)
 
 #%%# Show, print max row
 imshow(Wx, abs=1, yticks=scales, title="f=%d, N=%d" % (f, N), show=1)
 mxidx = np.where(np.abs(Wx) == np.abs(Wx).max())[0][0]
 print("Max row idx:", mxidx, flush=True)
 
-#%%# Plot around max row
+#%%# Plot aroundI max row
 idxs = slice(mxidx - 30, mxidx + 20)
 Wxz = Wx[idxs]
 imshow(Wxz, abs=1, title="abs(CWT), zoomed", show=0)

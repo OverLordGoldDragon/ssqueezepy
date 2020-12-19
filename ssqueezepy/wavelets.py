@@ -12,7 +12,7 @@ NOTE = lambda msg: logging.warning("NOTE: %s" % msg)
 
 class Wavelet():
     """Central wavelet class. `__call__` computes Fourier frequency-domain
-    wavelet,  `psih`, `.psifn` computes time-domain wavelet, `psi`.
+    wavelet, `psih`, `.psifn` computes time-domain wavelet, `psi`.
 
     `Wavelet.SUPPORTED` for names of built-in wavelets passable to `__init__()`;
     `Wavelet.VISUALS`   for names of visualizations    passable to `viz()`.
@@ -359,17 +359,18 @@ def _hhhat(_w):
 
 
 #### Wavelet properties ######################################################
-def center_frequency(wavelet, scale=10, N=1024, kind='energy', force_int=True,
+def center_frequency(wavelet, scale=10, N=1024, kind='energy', force_int=None,
                      viz=False):
     """Energy center frequency (radian); Eq 4.52 of [1]:
         wc_1     = int w |wavelet(w)|^2 dw  0..inf
         wc_scale = int (scale*w) |wavelet(scale*w)|^2 dw 0..inf = wc_1 / scale
 
-    `force_int` (relevant only if kind='energy') can be set to False to compute
-    via formula - i.e. first integrate at a "well-behaved" scale, then rescale.
-    For intermediate scales, not much difference either way. Fro extremes, it
-    matches the continuous-time result closer - but this isn't recommended, as it
-    overlooks limitations imposed by discretization (trimmed/few-sample bell).
+    `force_int` (relevant only if kind='energy', defaults to True) can be set to
+    False to compute via formula - i.e. first integrate at a "well-behaved" scale,
+    then rescale. For intermediate scales, not much difference either way. For
+    extremes, it matches the continuous-time result closer - but this isn't
+    recommended, as it overlooks limitations imposed by discretization
+    (trimmed/few-sample bell).
 
     For very high scales, 'energy' w/ `force_int=True` will match 'peak'; for
     very low scales, 'energy' will always be less than 'peak'.
@@ -428,6 +429,7 @@ def center_frequency(wavelet, scale=10, N=1024, kind='energy', force_int=True,
 
     wavelet = Wavelet._init_if_not_isinstance(wavelet)
     if kind == 'energy':
+        force_int = force_int or True
         wc, params = _energy_wc(wavelet, scale, N, force_int)
     elif kind == 'peak':
         wc, params = _peak_wc(wavelet, scale, N)
@@ -468,6 +470,7 @@ def freq_resolution(wavelet, scale=10, N=1024, nondim=True, force_int=True,
 
     wavelet = Wavelet._init_if_not_isinstance(wavelet)
 
+    # formula criterion not optimal; thresholds will vary by wavelet config
     use_formula = ((scale < 4 or scale > N / 5) and not force_int)
     if use_formula:
         scale_orig = scale
@@ -572,6 +575,7 @@ def time_resolution(wavelet, scale=10, N=1024, min_decay=1e3, max_mult=2,
 
     wavelet = Wavelet._init_if_not_isinstance(wavelet)
 
+    # formula criterion not optimal; thresholds will vary by wavelet config
     use_formula = ((scale < 4 or scale > N / 5) and not force_int)
     if use_formula:
         scale_orig = scale
