@@ -31,14 +31,6 @@ def indexed_sum(a, k):
     return out
 
 
-def nCk(n, k):
-    """Efficient n-Choose-k"""
-    mul = lambda a, b: a * b
-    r = min(k, n - k)
-    numer = reduce(mul, range(n, n - r, -1), 1)
-    denom = reduce(mul, range(1, r + 1), 1)
-    return numer / denom
-
 #### Replacers ###############################################################
 def _process_replace_fn_args(x, ref):
     if ref is None:

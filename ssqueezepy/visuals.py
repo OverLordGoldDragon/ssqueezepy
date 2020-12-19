@@ -109,7 +109,7 @@ def wavelet_tf(wavelet, N=2048, scale=100, notext=False, width=1.1, height=1):
 
 
 def wavelet_tf_anim(wavelet, N=2048, scales=None, width=1.1, height=1,
-                    savepath='wavanim.gif'):
+                    savepath='wavanim.gif', testing=False):
     """This method computes same as `wavelet_tf` but for all scales at once,
     and animates 'intelligently'. See help(wavelet_tf).
 
@@ -134,8 +134,8 @@ def wavelet_tf_anim(wavelet, N=2048, scales=None, width=1.1, height=1,
 
         s0 = (25/253)*na  # empircally-determined good value
 
-        srepl = int(s0)  # scales to keep from each end
-        srepr = int(s0)
+        srepl = max(int(s0), 1)  # scales to keep from each end
+        srepr = max(int(s0), 1)
         smull = 4        # extension factor
         smulr = 3
 
@@ -272,6 +272,9 @@ def wavelet_tf_anim(wavelet, N=2048, scales=None, width=1.1, height=1,
                scales.min(), scales.max(), sp), flush=True)
 
     frames = np.hstack([range(len(scales)), range(len(scales) - 1)[::-1]])
+    if testing:  # animation takes long; skip when unit-testing
+        print("Passed `testing=True`, won't animate")
+        return
     anim = FuncAnimation(fig, animate, frames=frames, interval=60,
                          blit=True, repeat=False)
 
