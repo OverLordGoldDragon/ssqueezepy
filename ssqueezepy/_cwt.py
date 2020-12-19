@@ -141,7 +141,7 @@ def cwt(x, wavelet, scales='log', fs=None, t=None, nv=32, l1_norm=True,
 
     def _process_args(x, scales, nv, fs, t):
         if np.isnan(x.max()) or np.isinf(x.max()) or np.isinf(x.min()):
-            print(WARN, "found NaN or inf values in `x`; will zero")
+            WARN("found NaN or inf values in `x`; will zero")
             replace_at_inf_or_nan(x, replacement=0.)
         if isinstance(scales, np.ndarray):
             nv = None
@@ -297,7 +297,7 @@ def _icwt_2int(Wx, scales, scaletype, l1_norm, wavelet, x_len,
         Wx = np.pad(Wx, [[0, 0], [n1, n2]])  # pad time axis, left=n1, right=n2
 
     # see help(cwt) on `norm` and `pn`
-    norm = _icwt_norm(scaletype, l1_norm, one_int=False)
+    norm = _icwt_norm(scaletype, l1_norm)
     pn = (-1)**np.arange(nup)
     x = np.zeros(nup)
 
@@ -312,11 +312,11 @@ def _icwt_2int(Wx, scales, scaletype, l1_norm, wavelet, x_len,
 
 def _icwt_1int(Wx, scales, scaletype, l1_norm):
     """One-integral iCWT; assumes analytic wavelet."""
-    norm = _icwt_norm(scaletype, l1_norm, one_int=True)
+    norm = _icwt_norm(scaletype, l1_norm)
     return (Wx.real / norm(scales)).sum(axis=0)
 
 
-def _icwt_norm(scaletype, l1_norm, one_int):
+def _icwt_norm(scaletype, l1_norm):
     if l1_norm:
         norm = ((lambda a: 1) if scaletype == 'log' else
                 (lambda a: a))

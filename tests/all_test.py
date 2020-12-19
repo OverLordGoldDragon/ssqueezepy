@@ -7,6 +7,7 @@ from ssqueezepy.wavelets import Wavelet, center_frequency, freq_resolution
 from ssqueezepy.wavelets import time_resolution, _xifn
 from ssqueezepy.wavelets import _aifftshift_even, _afftshift_even
 from ssqueezepy.utils import cwt_scalebounds, buffer, est_riskshrink_thresh
+from ssqueezepy._cwt import _icwt_norm
 from ssqueezepy.visuals import hist, plot, scat, imshow
 from ssqueezepy.toolkit import lin_band, cos_f, mad_rms
 from ssqueezepy import ssq_cwt, issq_cwt, cwt, icwt
@@ -50,6 +51,12 @@ def test_cwt():
     assert mae <= 1e-16, f"MAE = {mae} > 1e-16 for for-loop vs vectorized `cwt`"
 
     _ = est_riskshrink_thresh(Wx, nv=32)
+    _ = _icwt_norm(scaletype='linear', l1_norm=False)
+
+    x[0] = np.nan
+    x[1] = np.inf
+    x[2] = -np.inf
+    _ = cwt(x, 'morlet', vectorized=False, derivative=True, l1_norm=False)
 
 
 def test_wavelets():
