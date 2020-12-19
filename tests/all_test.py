@@ -12,6 +12,10 @@ from ssqueezepy.visuals import hist, plot, scat, imshow
 from ssqueezepy.toolkit import lin_band, cos_f, mad_rms
 from ssqueezepy import ssq_cwt, issq_cwt, cwt, icwt
 
+# disable Numba JIT during testing, as pytest can't measure its coverage
+import os
+os.environ['NUMBA_DISABLE_JIT'] = '1'
+
 # no visuals here but 1 runs as regular script instead of pytest, for debugging
 VIZ = 0
 
