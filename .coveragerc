@@ -1,0 +1,11 @@
+[run]
+parallel = True
+omit =
+    ssqueezepy/experimental.py
+	ssqueezepy/algos.py
+
+[report]
+omit =
+    ssqueezepy/experimental.py
+	ssqueezepy/algos.py
+precision = 3

@@ -3,8 +3,10 @@ import pytest
 import numpy as np
 from ssqueezepy import ssq_cwt, issq_cwt
 from ssqueezepy import cwt, icwt
+from ssqueezepy.toolkit import lin_band
 
 VIZ = 0  # set to 1 to enable various visuals and run without pytest
+
 
 #### Helper methods ##########################################################
 def _t(min, max, N):
@@ -43,6 +45,7 @@ def low_freqs(N):
 
 def high_freqs(N):
     return _freqs(N, np.array([N/2, N/2-1, N/20, N/4]) / 4)
+
 
 #### Tests ###################################################################
 test_fns = (echirp, lchirp, fast_transitions, low_freqs, high_freqs)
@@ -89,6 +92,39 @@ def test_cwt():
             assert errs[-1] < th, (errs[-1], fn.__name__, f"l1_norm: {l1_norm}")
     print("\ncwt PASSED\nerrs:", ', '.join(map(str, errs)))
 
+
+def test_component_inversion():
+    def echirp(N):
+        t = np.linspace(0, 10, N, False)
+        return np.cos(2 * np.pi * np.exp(t / 3)), t
+
+    N = 2048
+    noise_var = 6
+
+    x, ts = echirp(N)
+    x *= (1 + .3 * cos_f([1], N))  # amplitude modulation
+    xo = x.copy()
+    np.random.seed(4)
+    x += np.sqrt(noise_var) * np.random.randn(len(x))
+
+    wavelet = ('morlet', {'mu': 4.5})
+    Tx, *_ = ssq_cwt(x, wavelet, scales='log:maximal', nv=32, t=ts)
+
+    # hand-coded, subject to failure
+    bw, slope, offset = .035, .45, .45
+    Cs, freqband = lin_band(Tx, slope, offset, bw, norm=(0, 2e-1))
+
+    xrec = issq_cwt(Tx, wavelet, Cs, freqband)[0]
+
+    axof   = np.abs(np.fft.rfft(xo))
+    axrecf = np.abs(np.fft.rfft(xrec))
+
+    err_sig = mad_rms(xo, xrec)
+    err_spc = mad_rms(axof, axrecf)
+    print("signal   MAD/RMS: %.6f" % err_sig)
+    print("spectrum MAD/RMS: %.6f" % err_spc)
+    assert err_sig <= .42, f"{err_sig} > .42"
+    assert err_spc <= .14, f"{err_spc} > .14"
 
 
 def _maybe_viz(Wx, xo, xrec, title, err):

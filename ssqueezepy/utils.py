@@ -142,7 +142,7 @@ def padsignal(x, padtype='reflect', padlength=None):
 
 def adm_ssq(wavelet):
     """Calculates the synchrosqueezing admissibility constant, the term
-    R_psi in Eq 15 of [1] (also see Eq 2.5 of [2]). Uses numerical intergration.
+    R_psi in Eq 15 of [1] (also see Eq 2.5 of [2]). Uses numeric intergration.
 
         integral(conj(wavelet(w)) / w, w=0..inf)
 
@@ -164,13 +164,13 @@ def adm_ssq(wavelet):
 
 def adm_cwt(wavelet):
     """Calculates the cwt admissibility constant as per Eq. (4.67) of [1].
-    Uses numerical integration.
+    Uses numeric integration.
 
         integral(wavelet(w) * conj(wavelet(w)) / w, w=0..inf)
 
     1. Wavelet Tour of Signal Processing, 3rd ed. S. Mallat.
     https://www.di.ens.fr/~mallat/papiers/WaveletTourChap1-2-3.pdf
-	"""
+    """
     wavelet = Wavelet._init_if_not_isinstance(wavelet).fn
     Cpsi = _integrate_analytic(lambda w: np.conj(wavelet(w)) * wavelet(w) / w)
     Cpsi = Cpsi.real if abs(Cpsi.imag) < 1e-15 else Cpsi
@@ -356,7 +356,7 @@ def cwt_scalebounds(wavelet, N, preset=None, min_cutoff=None, max_cutoff=None,
             wavelet_waveforms(wavelet, M, min_scale)
             wavelet_waveforms(wavelet, M, max_scale)
         if viz == 3:
-            from  .visuals import sweep_harea
+            from .visuals import sweep_harea
             scales = make_scales(M, min_scale, max_scale)
             sweep_harea(wavelet, M, scales)
 
@@ -575,39 +575,39 @@ def _integrate_analytic(int_fn, nowarn=False):
     return integrate.trapz(arr, t) + int_nz
 
 
-def _integrate_bounded(int_fn, center=0, get_data=False):
-    """Assumes function is bounded on left and right (i.e. decays to zero).
+# def _integrate_bounded(int_fn, center=0, get_data=False):
+#     """Assumes function is bounded on left and right (i.e. decays to zero).
 
-    Currently unused.
-    """
-    def _est_arr(mxlim, N):
-        t = np.linspace(center - mxlim, center + mxlim, N)
-        arr = int_fn(t)
-        cidx = N // 2
+#     Currently unused.
+#     """
+#     def _est_arr(mxlim, N):
+#         t = np.linspace(center - mxlim, center + mxlim, N)
+#         arr = int_fn(t)
+#         cidx = N // 2
 
-        left_idx  = cidx - _min_neglect_idx(np.abs(arr[:cidx][::-1]), th=1e-15)
-        right_idx = cidx + _min_neglect_idx(np.abs(arr[cidx:]), th=1e-15)
-        return arr, t, cidx, left_idx, right_idx
+#         left_idx  = cidx - _min_neglect_idx(np.abs(arr[:cidx][::-1]), th=1e-15)
+#         right_idx = cidx + _min_neglect_idx(np.abs(arr[cidx:]), th=1e-15)
+#         return arr, t, cidx, left_idx, right_idx
 
-    def _find_convergent_array():
-        for i in (1, 4, 8):
-            arr, t, cidx, left_idx, right_idx = _est_arr(mxlim=20*i, N=10000*i)
-            # ensure sufficient decay between center and endpoints, and
-            # that `arr` isn't a flatline via normalized stdev
-            arr_nstd = np.std(np.abs(arr) / np.max(np.abs(arr)))
-            if ((len(t) - right_idx > 1000 * i) and
-                (left_idx - 0       > 1000 * i) and
-                arr_nstd > .1):
-                break
-        else:
-            raise Exception("Could not force function to converge, or to find "
-                            + ("non-(almost)zero values (nstd={:2e}, left_idx={},"
-                               " right_idx={}, center_idx={}").format(
-                                   arr_nstd, left_idx, right_idx, cidx))
-        return arr[left_idx:right_idx], t[left_idx:right_idx]
+#     def _find_convergent_array():
+#         for i in (1, 4, 8):
+#             arr, t, cidx, left_idx, right_idx = _est_arr(mxlim=20*i, N=10000*i)
+#             # ensure sufficient decay between center and endpoints, and
+#             # that `arr` isn't a flatline via normalized stdev
+#             arr_nstd = np.std(np.abs(arr) / np.max(np.abs(arr)))
+#             if ((len(t) - right_idx > 1000 * i) and
+#                 (left_idx - 0       > 1000 * i) and
+#                 arr_nstd > .1):
+#                 break
+#         else:
+#             raise Exception("Could not force function to converge, or to find "
+#                             + ("non-(almost)zero values (nstd={:2e}, left_idx={},"
+#                                " right_idx={}, center_idx={}").format(
+#                                    arr_nstd, left_idx, right_idx, cidx))
+#         return arr[left_idx:right_idx], t[left_idx:right_idx]
 
-    arr, t = _find_convergent_array()
-    _int = integrate.trapz(arr, t)
-    if get_data:
-        return _int, arr, t
-    return _int
+#     arr, t = _find_convergent_array()
+#     _int = integrate.trapz(arr, t)
+#     if get_data:
+#         return _int, arr, t
+#     return _int

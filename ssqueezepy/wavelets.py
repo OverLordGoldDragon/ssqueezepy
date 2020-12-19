@@ -225,7 +225,7 @@ class Wavelet():
         from .visuals import (
             wavelet_tf, wavelet_heatmap, wavelet_tf_anim, wavelet_waveforms,
             sweep_harea, sweep_std_t, sweep_std_w,
-            )
+        )
         kw['wavelet'] = kw.get('wavelet', self)
 
         if name == 'time-frequency':
@@ -266,10 +266,6 @@ class Wavelet():
     def _init_if_not_isinstance(self, wavelet, **kw):
         """Circumvents type change from IPython's super-/auto-reload,
         but first checks with usual isinstance."""
-        def _class_name(obj):
-            name = getattr(obj, '__qualname__', getattr(obj, '__name__', ''))
-            return (getattr(obj, '__module__', '') + '.' + name).lstrip('.')
-
         if isinstance_by_name(wavelet, Wavelet):
             return wavelet
         return Wavelet(wavelet, **kw)
@@ -341,7 +337,7 @@ def bump(mu=5., s=1., om=0.):
 def _bump(w, _w, om, s):
     return np.exp(2 * pi * 1j * om * w) / s * (
         np.abs(_w) < .999) * np.exp(-1. / (1 - (_w * (np.abs(_w) < .999))**2)
-                                   ) / .443993816053287
+                                    ) / .443993816053287
 
 
 def cmhat(mu=1., s=1.):
@@ -654,6 +650,7 @@ def isinstance_by_name(obj, ref):
         name = getattr(obj, '__qualname__', getattr(obj, '__name__', ''))
         return (getattr(obj, '__module__', '') + '.' + name).lstrip('.')
     return _class_name(type(obj)) == _class_name(ref)
+
 
 ##############################################################################
 from .visuals import plot

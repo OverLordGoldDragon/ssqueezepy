@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import numpy as np
-import matplotlib.pyplot as plt
-from .visuals import imshow
+from .visuals import imshow, plot
 
 
 #### Synchrosqueezing ########################################################
@@ -16,9 +15,8 @@ def lin_band(Tx, slope, offset, bw=.025, **kw):
     Cs, freqband = Cs.astype('int32'), freqband.astype('int32')
 
     imshow(Tx, abs=1, aspect='auto', show=0, **kw)
-    plt.plot(Cs + freqband, color='r')
-    plt.plot(Cs - freqband, color='r')
-    plt.show()
+    plot(Cs + freqband, color='r')
+    plot(Cs - freqband, color='r', show=1)
     return Cs, freqband
 
 

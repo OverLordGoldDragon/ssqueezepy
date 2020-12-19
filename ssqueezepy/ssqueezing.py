@@ -155,11 +155,10 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
         if scales is None and transform == 'cwt':
             raise ValueError("`scales` can't be None if `transform == 'cwt'`")
 
-        if mapkind != 'maximal':
-            if transform != 'cwt':
-                NOTE("`mapkind` currently only functional with `transform='cwt'`")
-            elif transform == 'cwt' and wavelet is None:
-                raise ValueError(f"must pass `wavelet` with mapkind='{mapkind}'")
+        if mapkind != 'naive' and transform == 'cwt' and wavelet is None:
+            raise ValueError(f"must pass `wavelet` with mapkind='{mapkind}'")
+        if mapkind != 'maximal' and transform != 'cwt':
+            NOTE("`mapkind` currently only functional with `transform='cwt'`")
 
         dt, *_ = _process_fs_and_t(fs, t, N)
         return dt
@@ -261,7 +260,7 @@ def phase_cwt(Wx, dWx, difftype='direct', gamma=None):
 def phase_cwt_num(Wx, dt, difforder=4, gamma=None):
     """Calculate the phase transform at each (scale, time) pair:
         w[a, b] = Im((1/2pi) * d/db (Wx[a,b]) / Wx[a,b])
-    Uses numerical differentiation (1st, 2nd, or 4th order). See above Eq 20.3
+    Uses numeric differentiation (1st, 2nd, or 4th order). See above Eq 20.3
     in [1], or Eq 13 in [2].
 
     # Arguments:

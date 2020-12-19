@@ -68,7 +68,7 @@ def wavelet_tf(wavelet, N=2048, scale=100, notext=False, width=1.1, height=1):
     lkw = dict(color='k', linewidth=1)
     plot([t_xmin,  t_xmin], [t_yminl, t_ymax], **lkw)
     plot([t_xmax,  t_xmax], [t_yminr, t_ymax], **lkw)
-    plot([w_xminu, w_xmax], [w_ymin , w_ymin], **lkw)
+    plot([w_xminu, w_xmax], [w_ymin,  w_ymin], **lkw)
     plot([w_xmind, w_xmax], [w_ymax,  w_ymax], **lkw)
     plt.xlim(t.min()*1.02, t.max()*1.02)
 
@@ -109,7 +109,7 @@ def wavelet_tf(wavelet, N=2048, scale=100, notext=False, width=1.1, height=1):
 
 
 def wavelet_tf_anim(wavelet, N=2048, scales=None, width=1.1, height=1,
-                    savepath='wavanim.gif'):
+                    savepath='wavanim.gif', testing=False):
     """This method computes same as `wavelet_tf` but for all scales at once,
     and animates 'intelligently'. See help(wavelet_tf).
 
@@ -134,8 +134,8 @@ def wavelet_tf_anim(wavelet, N=2048, scales=None, width=1.1, height=1,
 
         s0 = (25/253)*na  # empircally-determined good value
 
-        srepl = int(s0)  # scales to keep from each end
-        srepr = int(s0)
+        srepl = max(int(s0), 1)  # scales to keep from each end
+        srepr = max(int(s0), 1)
         smull = 4        # extension factor
         smulr = 3
 
@@ -174,7 +174,7 @@ def wavelet_tf_anim(wavelet, N=2048, scales=None, width=1.1, height=1,
         Wc[i]    = center_frequency(wavelet, float(scale), N, kind='energy')
         std_W[i] = freq_resolution( wavelet, float(scale), N, nondim=0)
         std_T[i] = time_resolution( wavelet, float(scale), N, nondim=0,
-                                   min_decay=1)
+                                    min_decay=1)
     _Wc = np.pi - Wc
 
     Wlix = find_closest((_Wc - std_W).reshape(-1, 1), w).squeeze()
@@ -272,6 +272,9 @@ def wavelet_tf_anim(wavelet, N=2048, scales=None, width=1.1, height=1,
                scales.min(), scales.max(), sp), flush=True)
 
     frames = np.hstack([range(len(scales)), range(len(scales) - 1)[::-1]])
+    if testing:  # animation takes long; skip when unit-testing
+        print("Passed `testing=True`, won't animate")
+        return
     anim = FuncAnimation(fig, animate, frames=frames, interval=60,
                          blit=True, repeat=False)
 
@@ -506,6 +509,7 @@ def _viz_cwt_scalebounds(wavelet, N, min_scale=None, max_scale=None,
         _viz_max(wavelet, N, max_scale, std_t, stdevs, Nt)
     if not (min_scale or max_scale):
         raise ValueError("Must set at least one of `min_scale`, `max_scale`")
+
 
 #### Visual tools ## messy code ##############################################
 def imshow(data, title=None, show=1, cmap=None, norm=None, complex=None, abs=0,
