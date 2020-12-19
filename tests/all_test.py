@@ -3,9 +3,11 @@
 """
 import pytest
 import numpy as np
-from ssqueezepy.wavelets import Wavelet
+from ssqueezepy.wavelets import Wavelet, center_frequency, freq_resolution
+from ssqueezepy.wavelets import time_resolution, _xifn
+from ssqueezepy.wavelets import _aifftshift_even, _afftshift_even
 from ssqueezepy.utils import cwt_scalebounds, buffer, est_riskshrink_thresh
-from ssqueezepy.visuals import hist, plot, scat
+from ssqueezepy.visuals import hist, plot, scat, imshow
 from ssqueezepy.toolkit import lin_band, cos_f, mad_rms
 from ssqueezepy import ssq_cwt, issq_cwt, cwt, icwt
 
@@ -54,8 +56,10 @@ def test_wavelets():
     for wavelet in ('morlet', ('morlet', {'mu': 4}), 'bump'):
         wavelet = Wavelet(wavelet)
 
-    wavelet = Wavelet('morlet')
-    wavelet.info()
+    wavelet = Wavelet(('morlet', {'mu': 5}))
+    wavelet.viz(name='overview')
+    wavelet.info(nondim=1)
+    wavelet.info(nondim=0)
 
     #### Visuals #############################################################
     for name in wavelet.VISUALS:
@@ -77,6 +81,10 @@ def test_wavelets():
 
     _ = cwt_scalebounds(wavelet, N=512, viz=3)
 
+    #### misc ################################################################
+    wavelet = Wavelet(lambda x: x)
+    _ = _xifn(scale=10, N=128)
+
 
 def test_toolkit():
     Tx = np.random.randn(20, 20)
@@ -94,10 +102,27 @@ def test_visuals():
     plot(y, complex=1, c_annot=1, vlines=1, ax_equal=1)
 
     scat(x, vlines=1, hlines=1)
+    imshow(np.random.randn(4, 4), complex=1)
 
 
 def test_utils():
     _ = buffer(np.random.randn(20), 4, 1)
+
+    wavelet = Wavelet(('morlet', {'mu': 6}))
+    _ = center_frequency(wavelet, viz=1)
+    _ = freq_resolution( wavelet, viz=1, scale=3, force_int=0)
+    _ = time_resolution( wavelet, viz=1)
+
+    xh = np.random.randn(128)
+    xhs = np.zeros(xh.size)
+    _aifftshift_even(xh, xhs)
+    _afftshift_even(xh, xhs)
+
+
+def test_anim():
+    # bare minimally (still takes long, but covers many lines of code)
+    wavelet = Wavelet(('morlet', {'mu': 6}))
+    wavelet.viz('anim:time-frequency', N=8, scales=np.linspace(10, 20, 3))
 
 
 if __name__ == '__main__':
@@ -105,5 +130,9 @@ if __name__ == '__main__':
         test_ssq_cwt()
         test_cwt()
         test_wavelets()
+        test_toolkit()
+        test_visuals()
+        test_utils()
+        test_anim()
     else:
         pytest.main([__file__, "-s"])

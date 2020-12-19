@@ -266,10 +266,6 @@ class Wavelet():
     def _init_if_not_isinstance(self, wavelet, **kw):
         """Circumvents type change from IPython's super-/auto-reload,
         but first checks with usual isinstance."""
-        def _class_name(obj):
-            name = getattr(obj, '__qualname__', getattr(obj, '__name__', ''))
-            return (getattr(obj, '__module__', '') + '.' + name).lstrip('.')
-
         if isinstance_by_name(wavelet, Wavelet):
             return wavelet
         return Wavelet(wavelet, **kw)
