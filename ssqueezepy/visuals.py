@@ -89,12 +89,13 @@ def wavelet_tf(wavelet, N=2048, scale=100, notext=False, width=1.1, height=1):
            "       = std_t * std_w\n\n"
            "(rad-c/s=\n radians*cycles/samples)"
            ).format(wc, std_t, std_w, std_t * std_w)
-    _kw = dict(s=txt, xycoords='axes fraction', xy=(.7, .76), weight='bold',
+    _kw = dict(xycoords='axes fraction', xy=(.7, .76), weight='bold',
                fontsize=16)
     try:
-        plt.annotate(family='Consolas', **_kw)  # 'Consolas' for vertical align
+        # 'Consolas' for vertical align
+        plt.annotate(txt, family='Consolas', **_kw)
     except:
-        plt.annotate(**_kw)  # in case platform lacks 'Consolas'
+        plt.annotate(txt, **_kw)  # in case platform lacks 'Consolas'
 
     ## Title: wavelet name & parameters
     title = wavelet._desc(N=N, scale=scale)
