@@ -27,7 +27,8 @@ before_install:
   - pip install -r requirements-dev.txt
   
 script:
- - pytest
+  - pycodestyle --max-line-length=85 --ignore=E221,E241,E225,E226,E402,E722,E741,E272,W503,W504 ssqueezepy tests
+  - pytest -s --cov=ssqueezepy tests/
 
 after_success:
   # Combine coverage reports from Travis jobs
