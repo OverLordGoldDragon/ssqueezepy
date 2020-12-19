@@ -37,7 +37,7 @@ after_success:
   # Combine coverage reports from Travis jobs
   - coverage combine --append
   - coveralls
-  - codecov
+
 notifications:
   webhooks:
     - https://coveralls.io/webhook

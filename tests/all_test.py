@@ -197,3 +197,4 @@ if __name__ == '__main__':
             obj = getattr(ssqueezepy, name)
             if isinstance(obj, ModuleType):
                 reload(obj)
+        print("numba.njit is no longer monkey")

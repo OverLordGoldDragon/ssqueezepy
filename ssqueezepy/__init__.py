@@ -27,7 +27,7 @@ SOFTWARE.
 """
 
 
-__version__ = '0.5.0rc2'
+__version__ = '0.5.0'
 __title__ = 'ssqueezepy'
 __author__ = 'OverLordGoldDragon'
 __license__ = __doc__
@@ -39,8 +39,9 @@ from . import _ssq_cwt
 from . import _cwt
 from . import wavelets
 from . import utils
-from . import algos
+from . import toolkit
 from . import visuals
+from . import algos
 from . import experimental
 
 from .ssqueezing import *
