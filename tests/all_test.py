@@ -2,8 +2,9 @@
 """Lazy tests just to ensure nothing breaks
 """
 # disable Numba JIT during testing, as pytest can't measure its coverage
-import os
-os.environ['NUMBA_DISABLE_JIT'] = '1'
+import sys
+sys.path.insert(0, 'tests/monkey/numba.py')
+sys.path.insert(0, 'monkey/numba.py')  # in case working directory is in tests
 
 import pytest
 import numpy as np
@@ -15,7 +16,6 @@ from ssqueezepy._cwt import _icwt_norm
 from ssqueezepy.visuals import hist, plot, scat, imshow
 from ssqueezepy.toolkit import lin_band, cos_f, mad_rms
 from ssqueezepy import ssq_cwt, issq_cwt, cwt, icwt, ssqueeze
-
 
 # no visuals here but 1 runs as regular script instead of pytest, for debugging
 VIZ = 0
