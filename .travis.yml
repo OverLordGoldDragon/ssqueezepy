@@ -29,3 +29,12 @@ before_install:
   
 script:
  - pytest -s
+
+after_success:
+  # Combine coverage reports from Travis jobs
+  - coverage combine --append
+  - coveralls
+  - codecov
+notifications:
+  webhooks:
+    - https://coveralls.io/webhook
