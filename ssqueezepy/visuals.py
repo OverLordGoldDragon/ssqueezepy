@@ -548,14 +548,8 @@ def imshow(data, title=None, show=1, cmap=None, norm=None, complex=None, abs=0,
     if not ticks:
         plt.xticks([])
         plt.yticks([])
-    if yticks is not None:
-        idxs = np.linspace(0, len(yticks) - 1, 8).astype('int32')
-        yt = ["%.2f" % h for h in yticks[idxs]]
-        plt.yticks(idxs, yt)
-    if xticks is not None:
-        idxs = np.linspace(0, len(xticks) - 1, 8).astype('int32')
-        xt = ["%.2f" % h for h in xticks[idxs]]
-        plt.xticks(idxs, xt)
+    if xticks is not None or yticks is not None:
+        _ticks(xticks, yticks)
     if xlabel is not None:
         plt.xlabel(xlabel, weight='bold', fontsize=15)
     if ylabel is not None:
@@ -566,9 +560,10 @@ def imshow(data, title=None, show=1, cmap=None, norm=None, complex=None, abs=0,
         plt.show()
 
 
-def plot(x, y=None, title=None, show=0, ax_equal=False, complex=0,
+def plot(x, y=None, title=None, show=0, ax_equal=False, complex=0, abs=0,
          c_annot=False, w=None, h=None, dx1=False, xlims=None, ylims=None,
-         vert=False, vlines=None, hlines=None, xlabel=None, ylabel=None, **kw):
+         vert=False, vlines=None, hlines=None, xlabel=None, ylabel=None,
+         xticks=None, yticks=None, **kw):
     if y is None:
         y = x
         x = np.arange(len(x))
@@ -582,6 +577,8 @@ def plot(x, y=None, title=None, show=0, ax_equal=False, complex=0,
             plt.annotate("real", xy=(.93, .95), color='tab:blue', **_kw)
             plt.annotate("imag", xy=(.93, .90), color='tab:orange', **_kw)
     else:
+        if abs:
+            y = np.abs(y)
         plt.plot(x, y, **kw)
     if dx1:
         plt.xticks(np.arange(len(x)))
@@ -590,6 +587,8 @@ def plot(x, y=None, title=None, show=0, ax_equal=False, complex=0,
         vhlines(vlines, kind='v')
     if hlines:
         vhlines(hlines, kind='h')
+    if xticks is not None or yticks is not None:
+        _ticks(xticks, yticks)
 
     _maybe_title(title)
     _scale_plot(plt.gcf(), plt.gca(), show=show, ax_equal=ax_equal, w=w, h=h,
@@ -647,6 +646,19 @@ def _fmt(*nums):
     return [(("%.3e" % n) if (abs(n) > 1e3 or abs(n) < 1e-3) else
              ("%.3f" % n)) for n in nums]
 
+def _ticks(xticks, yticks):
+    def fmt(ticks):
+        return ("%.d" if all(float(h).is_integer() for h in ticks) else
+                "%.2f")
+
+    if yticks is not None:
+        idxs = np.linspace(0, len(yticks) - 1, 8).astype('int32')
+        yt = [fmt(yticks) % h for h in np.asarray(yticks)[idxs]]
+        plt.yticks(idxs, yt)
+    if xticks is not None:
+        idxs = np.linspace(0, len(xticks) - 1, 8).astype('int32')
+        xt = [fmt(xticks) % h for h in np.asarray(xticks)[idxs]]
+        plt.xticks(idxs, xt)
 
 def _maybe_title(title):
     if title is not None:

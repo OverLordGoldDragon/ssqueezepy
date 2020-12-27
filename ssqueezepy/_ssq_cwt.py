@@ -202,7 +202,7 @@ def ssq_cwt(x, wavelet='morlet', scales='log', nv=None, fs=None, t=None,
         Wx = Wx[:, 4:-4]
         w  = w[:,  4:-4]
         Tx = Tx[:, 4:-4]
-    return Tx, ssq_freqs, Wx, scales, w
+    return Tx, ssq_freqs, Wx, scales, w  # TODO change return order
 
 
 def issq_cwt(Tx, wavelet, cc=None, cw=None):

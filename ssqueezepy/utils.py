@@ -67,8 +67,8 @@ def p2up(n):
     eps = np.finfo(np.float64).eps  # machine epsilon for float64
     up = 2 ** (1 + np.round(np.log2(n + eps)))
 
-    n1 = np.floor((up - n) / 2)
-    n2 = n1 + n % 2           # if n is odd, right-pad by (n1 + 1), else n2=n1
+    n2 = np.floor((up - n) / 2)
+    n1 = n2 + n % 2           # if n is odd, left-pad by (n2 + 1), else n1=n2
     assert n1 + n + n2 == up  # [left_pad, original, right_pad]
     return int(up), int(n1), int(n2)
 
