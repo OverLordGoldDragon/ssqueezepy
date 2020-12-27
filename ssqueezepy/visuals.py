@@ -662,7 +662,7 @@ def _ticks(xticks, yticks):
 
 def _maybe_title(title):
     if title is not None:
-        plt.title(str(title), loc='left', weight='bold', fontsize=17)
+        plt.title(str(title), loc='left', weight='bold', fontsize=16)
 
 
 def _scale_plot(fig, ax, show=False, ax_equal=False, w=None, h=None,
