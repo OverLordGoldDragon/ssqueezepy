@@ -135,7 +135,8 @@ def test_visuals():
     hist(x, show=1, stats=1)
 
     y = x * (1 + 1j)
-    plot(y, complex=1, c_annot=1, vlines=1, ax_equal=1)
+    plot(y, complex=1, c_annot=1, vlines=1, ax_equal=1,
+         xticks=np.arange(len(y)), yticks=y)
 
     scat(x, vlines=1, hlines=1)
     imshow(np.random.randn(4, 4), complex=1)
