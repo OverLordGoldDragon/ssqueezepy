@@ -82,6 +82,17 @@ Tx, _, Wx, *_ = ssq_cwt(x, 'morlet')
 viz(x, Tx, Wx)
 ```
 
+## Learning resources
+
+ 1. [Continuous Wavelet Transform, & vs STFT](https://ccrma.stanford.edu/~unjung/mylec/WTpart1.html)
+ 2. [Synchrosqueezing's phase transform, intuitively](https://dsp.stackexchange.com/a/72238/50076)
+ 3. [Wavelet time & frequency resolution visuals](https://dsp.stackexchange.com/a/72044/50076)
+ 4. [Why oscillations in SSQ of mixed sines? Separability visuals](https://dsp.stackexchange.com/a/72239/50076)
+ 5. [Zero-padding's effect on spectrum](https://dsp.stackexchange.com/a/70498/50076)
+
+**Introductory DSP**: I recommend starting with 3b1b's [Fourier Transform](https://youtu.be/spUNpyF58BY), then proceeding with [DSP Guide](https://www.dspguide.com/CH7.PDF) chapters 7-11.
+The Discrete Fourier Transform lays the foundation of signal processing with real data. Deeper on DFT coefficients [here](https://dsp.stackexchange.com/a/70395/50076), also [3b1b](https://youtu.be/g8RkArhtCc4).
+
 ## References
 
 `ssqueezepy` was originally ported from MATLAB's [Synchrosqueezing Toolbox](https://github.com/ebrevdo/synchrosqueezing), authored by E. Brevdo and G. Thakur [1]. Synchrosqueezed Wavelet Transform was introduced by I. Daubechies and S. Maes [2], which was followed-up in [3]. Many implementation details draw from [4].
