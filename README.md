@@ -90,7 +90,7 @@ viz(x, Tx, Wx)
  4. [Why oscillations in SSQ of mixed sines? Separability visuals](https://dsp.stackexchange.com/a/72239/50076)
  5. [Zero-padding's effect on spectrum](https://dsp.stackexchange.com/a/70498/50076)
 
-**Introductory DSP**: I recommend starting with 3b1b's [Fourier Transform](https://youtu.be/spUNpyF58BY), then proceeding with [DSP Guide](https://www.dspguide.com/CH7.PDF) chapters 7-11.
+**DSP fundamentals**: I recommend starting with 3b1b's [Fourier Transform](https://youtu.be/spUNpyF58BY), then proceeding with [DSP Guide](https://www.dspguide.com/CH7.PDF) chapters 7-11.
 The Discrete Fourier Transform lays the foundation of signal processing with real data. Deeper on DFT coefficients [here](https://dsp.stackexchange.com/a/70395/50076), also [3b1b](https://youtu.be/g8RkArhtCc4).
 
 ## References
