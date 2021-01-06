@@ -2,14 +2,17 @@
 """NOT FOR USE; will be ready for v0.6.0"""
 import numpy as np
 from .wavelets import Wavelet
-from .stft_transforms import stft_fwd, phase_stft
+from ._stft import stft_fwd, phase_stft
 from .ssqueezing import ssqueeze
-from quadpy import quad as quadgk
+# from quadpy import quad as quadgk
+from scipy.integrate import quad as quadgk
 
 pi = np.pi
 
 
-def synsq_stft_fwd(t, x, opts={}):
+def ssq_stft(x, window=None, n_fft=None, win_len=None, hop_len=1,
+             dt=1, padtype='reflect', stft_type='normal', rpadded=False,
+             squeezing='sum'):
     """Calculates the STFt synchrosqueezing transform of vector `x`, with
     samples taken at times given in vector `t`. This implements the algorithm
     described in Sec. III of [1].
@@ -31,33 +34,23 @@ def synsq_stft_fwd(t, x, opts={}):
         Sfs: frequencies associated with rows of `Sx`
         w: phase transform of `Sx`
     """
-    def _validate_spacing_uniformity(t):
-        if np.any([(np.diff(t, 2) / (t[-1] - t[0]) > 1e-5)]):
-            raise Exception("Time vector `t` must be uniformly sampled.")
-
-    _validate_spacing_uniformity(t)
-
-    opts['type']    = opts.get('type', 'bump')
-    opts['rpadded'] = opts.get('rpadded', False)
-
-    dt = t[1] - t[0]
-
     # Calculate the modified STFT, using window of opts['winlen']
     # in frequency domain
-    opts['stfttype'] = 'modified'
-    Sx, Sfs, dSx = stft_fwd(x, dt, opts)
+    Sx, Sfs, dSx = stft_fwd(x, window, n_fft=n_fft, win_len=win_len,
+                            hop_len=hop_len, dt=dt, padtype=padtype,
+                            stft_type=stft_type, rpadded=rpadded)
 
-    w = phase_stft(Sx, dSx, Sfs, t, opts)
+    w = phase_stft(Sx, dSx, Sfs, N=len(x))
 
     # Calculate the synchrosqueezed frequency decomposition
     # The parameter alpha from reference [2] is given by Sfs[1] - Sfs[0]
-    opts['transform'] = 'STFT'
-    Tx, fs = ssqueeze(Sx, w, t, None, opts)
+    Tx, fs = ssqueeze(Sx, w, transform='stft', scales='linear',
+                      squeezing=squeezing)
 
     return Tx, fs, Sx, Sfs, w, dSx
 
 
-def synsq_stft_inv(Tx, fs, opts, Cs=None, freqband=None):
+def issq_stft(Tx, fs, opts, Cs=None, freqband=None):
     """Inverse STFT synchrosqueezing transform of `Tx` with associated
     frequencies in `fs` and curve bands in time-frequency plane
     specified by `Cs` and `freqband`. This implements Eq. 5 of [1].

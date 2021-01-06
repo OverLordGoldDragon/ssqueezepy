@@ -35,8 +35,10 @@ __project_url__ = 'https://github.com/OverLordGoldDragon/ssqueezepy'
 
 
 from . import ssqueezing
-from . import _ssq_cwt
 from . import _cwt
+from . import _stft
+from . import _ssq_cwt
+from . import _ssq_stft
 from . import wavelets
 from . import utils
 from . import toolkit
@@ -46,7 +48,9 @@ from . import experimental
 
 from .ssqueezing import *
 from ._ssq_cwt import *
+from ._ssq_stft import *
 from ._cwt import *
+from ._stft import *
 from .wavelets import *
 
 

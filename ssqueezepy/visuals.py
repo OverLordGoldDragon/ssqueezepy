@@ -598,11 +598,16 @@ def plot(x, y=None, title=None, show=0, ax_equal=False, complex=0, abs=0,
 
 def scat(x, y=None, title=None, show=0, ax_equal=False, s=18, w=None, h=None,
          xlims=None, ylims=None, dx1=False, vlines=None, hlines=None,
-         xlabel=None, ylabel=None, **kw):
+         complex=False, xlabel=None, ylabel=None, **kw):
     if y is None:
         y = x
         x = np.arange(len(x))
-    plt.scatter(x, y, s=s, **kw)
+    if complex:
+        plt.scatter(x, y.real, s=s, **kw)
+        plt.scatter(x, y.imag, s=s, **kw)
+    else:
+        plt.scatter(x, y, s=s, **kw)
+
     _maybe_title(title)
     if vlines:
         vhlines(vlines, kind='v')
@@ -611,6 +616,15 @@ def scat(x, y=None, title=None, show=0, ax_equal=False, s=18, w=None, h=None,
     _scale_plot(plt.gcf(), plt.gca(), show=show, ax_equal=ax_equal, w=w, h=h,
                 xlims=xlims, ylims=ylims, dx1=(len(x) if dx1 else 0),
                 xlabel=xlabel, ylabel=ylabel)
+
+
+def plotscat(*args, **kw):
+    show = kw.pop('show', False)
+    plot(*args, **kw)
+    scat(*args, **kw)
+    if show:
+        plt.show()
+
 
 def hist(x, bins=500, title=None, show=0, stats=0):
     x = np.asarray(x)
@@ -662,7 +676,12 @@ def _ticks(xticks, yticks):
 
 def _maybe_title(title):
     if title is not None:
-        plt.title(str(title), loc='left', weight='bold', fontsize=16)
+        title, kw = (title if isinstance(title, tuple) else
+                     (title, {}))
+        defaults = dict(loc='left', weight='bold', fontsize=16)
+        for name in defaults:
+            kw[name] = kw.get(name, defaults[name])
+        plt.title(str(title), **kw)
 
 
 def _scale_plot(fig, ax, show=False, ax_equal=False, w=None, h=None,

@@ -107,32 +107,37 @@ def padsignal(x, padtype='reflect', padlength=None):
         6-lifting%20wavelet%20and%20filterbank.pdf
     """
     # TODO @padlength: change to denote *total* pad length?
+    # TODO: padlength -> padded_len
     padtypes = ('reflect', 'symmetric', 'replicate', 'zero')
     if padtype not in padtypes:
         raise ValueError(("Unsupported `padtype` {}; must be one of: {}"
                           ).format(padtype, ", ".join(padtypes)))
-    n = len(x)
 
+    n = len(x)
     if padlength is None:
         # pad up to the nearest power of 2
         n_up, n1, n2 = p2up(n)
     else:
-        n_up = n + 2 * padlength
-        n1 = n2 = padlength
+        n_up = padlength
+        if abs(padlength - n) % 2 == 0:
+            n1 = n2 = (n_up - n) // 2
+        else:
+            n2 = (n_up - n) // 2
+            n1 = n2 + 1
     n_up, n1, n2 = int(n_up), int(n1), int(n2)
 
-    # comments use (n=4, n1=3, n2=4) as example, but this combination can't occur
+    # comments use (n=4, n1=4, n2=3) as example, but this combination can't occur
     if padtype == 'reflect':
-        # [1,2,3,4] -> [4,3,2, 1,2,3,4, 3,2,1,2]
+        # [1,2,3,4] -> [3,4,3,2, 1,2,3,4, 3,2,1]
         xpad = np.pad(x, [n1, n2], mode='reflect')
     elif padtype == 'symmetric':
-        # [1,2,3,4] -> [3,2,1, 1,2,3,4, 4,3,2,1]
+        # [1,2,3,4] -> [4,3,2,1, 1,2,3,4, 4,3,2]
         xpad = np.hstack([x[::-1][-n1:], x, x[::-1][:n2]])
     elif padtype == 'replicate':
-        # [1,2,3,4] -> [1,1,1, 1,2,3,4, 4,4,4,4]
+        # [1,2,3,4] -> [1,1,1,1, 1,2,3,4, 4,4,4]
         xpad = np.pad(x, [n1, n2], mode='edge')
     elif padtype == 'zero':
-        # [1,2,3,4] -> [0,0,0, 1,2,3,4, 0,0,0,0]
+        # [1,2,3,4] -> [0,0,0,0, 1,2,3,4, 0,0,0]
         xpad = np.pad(x, [n1, n2])
 
     _ = (len(xpad), n_up, n1, n, n2)

@@ -138,8 +138,8 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
             elif transform == 'stft':
                 # ??? seems to be 0 to f_sampling/2, but why use N?
                 # what about fm and fM?
-                ssq_freqs = np.linspace(0, 1, N) / dt
-                ssq_freqs = ssq_freqs[:N // 2]
+                ssq_freqs = np.linspace(0, .5, na) / dt
+                # ssq_freqs = ssq_freqs[:na // 2]
         return ssq_freqs
 
     def _process_args(w, fs, t, N, transform, squeezing, scales, mapkind,
@@ -149,9 +149,9 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
         if transform not in ('cwt', 'stft'):
             raise ValueError("`transform` must be one of: cwt, stft "
                              "(got %s)" % squeezing)
-        if squeezing not in ('sum', 'lebesgue'):
-            raise ValueError("`squeezing` must be one of: sum, lebesgue "
-                             "(got %s)" % squeezing)
+        # if squeezing not in ('sum', 'lebesgue'):  # TODO
+        #     raise ValueError("`squeezing` must be one of: sum, lebesgue "
+        #                      "(got %s)" % squeezing)
         if scales is None and transform == 'cwt':
             raise ValueError("`scales` can't be None if `transform == 'cwt'`")
 
@@ -167,7 +167,10 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
     dt = _process_args(w, fs, t, N, transform, squeezing, scales,
                        mapkind, wavelet)
 
-    scales, cwt_scaletype, _, nv = process_scales(scales, N, get_params=True)
+    if transform == 'cwt':
+        scales, cwt_scaletype, _, nv = process_scales(scales, N, get_params=True)
+    else:
+        cwt_scaletype, nv = None, None
 
     if not isinstance(ssq_freqs, np.ndarray):
         if isinstance(ssq_freqs, str):
@@ -182,6 +185,11 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
 
     if squeezing == 'lebesgue':  # from reference [3]
         Wx = np.ones(Wx.shape) / len(Wx)
+    elif squeezing == 'abs':
+        Wx = np.abs(Wx)
+    elif squeezing == 'square':
+        Wx = np.abs(Wx)**2
+    # TODO custom (isinstance(squeezing, FunctionType))
 
     Tx = _ssqueeze(w, Wx, nv, ssq_freqs, transform, ssq_scaletype, cwt_scaletype)
     return Tx, ssq_freqs
