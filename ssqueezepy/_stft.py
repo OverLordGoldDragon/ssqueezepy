@@ -3,9 +3,8 @@
 import numpy as np
 import numpy.matlib
 from numpy.fft import fft, ifft, rfft, irfft, fftshift, ifftshift
-from scipy import integrate
 import scipy.signal as sig
-from .utils import padsignal, buffer, WARN
+from .utils import WARN, padsignal, buffer, unbuffer, window_norm
 from .wavelets import _xifn
 
 
@@ -81,55 +80,8 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, dt=1,
     return Sx, Sfs, dSx  # TODO change return order, remove Sfs? make dSx optnl
 
 
-    # def _unbuffer(xbuf, win_len, hop_len):
-    #     # Undo the effect of 'buffering' by overlap-add;
-    #     # returns the signal A that is the unbuffered version of B
-    #     x = []
-    #     N = np.ceil(win_len / hop_len)
-    #     L = (xbuf.shape[1] - 1) * hop_len + xbuf.shape[0]
-
-    #     # zero-pad columns to make length nearest integer multiple of `skip`
-    #     if xbuf.shape[0] < hop_len * N:
-    #         xbuf[hop_len * N - 1, -1] = 0  # TODO columns?
-
-    #     # selectively reshape columns of input into 1d signals
-    #     for i in range(N):
-    #         t = xbuf[:, i:len(xbuf) - 1:N].reshape(1, -1)
-    #         l = len(t)
-    #         x[i, l + (i - 1)*hop_len - 1] = 0
-    #         x[i, np.arange(l) + (i - 1)*hop_len] = t
-
-    #     # overlap-add
-    #     x = x.sum(axis=0)
-    #     x = x[:L]
-    #     return x
-
-
-    # window /= norm(window, 2) --> Unit norm
-
-    #### find length of padding, similar to outputs of `padsignal`
-    # n = Sx.shape[1]
-    # if not rpadded:
-    #     xLen = n
-    # else:
-    #     xLen == n - n_fft
-
-    # n_up = xLen + 2 * n_win
-    # n1 = n_fft - 1
-    # n2 = n_win
-    # new_n1 = int((n1 - 1) / 2)
-
-    # rpadded = False  # TODO rid of?
-    # # add STFT padding if it doesn't exist
-    # if not rpadded:
-    #     Sxp = np.zeros(Sx.shape)
-    #     Sxp[:, new_n1:new_n1 + n + 1] = Sx
-    #     Sx = Sxp
-    # else:
-    #     n = xLen
-
-
-def istft(Sx, window=None, win_len=None, hop_len=None, N=None):
+def istft(Sx, window=None, win_len=None, hop_len=None, n_fft=None, N=None,
+          modulated=True):
     """Inverse short-time Fourier transform.
 
     Nice visuals and explanations on istft:
@@ -144,83 +96,23 @@ def istft(Sx, window=None, win_len=None, hop_len=None, N=None):
     # Returns:
         x: the signal, as reconstructed from `Sx`.
     """
-    def _overlap_add(xbuf, window, hop_len, N):
-        n_fft = len(window)
-        x = np.zeros(N + n_fft)
-
-        print(xbuf.shape, window.shape, x.shape, sep='\n')
-        for i in range(xbuf.shape[1]):
-            n = i * hop_len
-            # `min` to ensure not summing or drawing from beyond array ends
-            # print(i, n, n_fft + N, N - 1, N - 1 - n, flush=True)
-
-            x[n:n + n_fft] += xbuf[:, i] * window
-            # start = max(0, n_fft // 2 - n)
-            # end   = min(n_fft, N - 1 - n)
-            # print(start, end, n, n + end - start, N - 1)
-            # x[n:min(n + end - start, N - 1)] += (xbuf[:, i] * window)[start:end]
-        x = x[n_fft//2:-n_fft//2]
-        return x
-
-    def _window_norm(window, hop_len, N):
-        n_fft = len(window)
-        wn = np.zeros(N + n_fft)
-        max_hops = N // hop_len + 1
-        wsq = window ** 2
-
-        for i in range(max_hops):
-            n = i * hop_len
-            # `min` to ensure not summing or drawing from beyond array ends
-
-            wn[n:n + n_fft] += wsq
-            # start = max(0, n_fft // 2 - n)
-            # end   = min(n_fft, N - 1 - n)
-            # wn[n:min(n + end - start, N - 1)] += wsq[start:end]
-        wn = wn[n_fft//2:-n_fft//2]
-        return wn
-
-    def _unbuffer(xbuf, window, hop_len, N):
-        if N is None:
-            # assume greatest possible len(x) (unpadded)
-            N = xbuf.shape[1] * hop_len + len(window) - 1
-
-        x = _overlap_add(xbuf, window, hop_len, N)
-        wn = _window_norm(window, hop_len, N)
-        # x /= wn
-        return x, wn
-
     # TODO if not NOLA then print warning
     ### process args #####################################
-    n_fft = (Sx.shape[0] - 1) * 2  # TODO
+    n_fft = n_fft or (Sx.shape[0] - 1) * 2  # TODO
     win_len = win_len or n_fft
     hop_len = hop_len or 1
     window = _get_window(window, win_len, n_fft=n_fft)
 
-    # take the inverse fft over the columns
-    xbuf = irfft(Sx, axis=0).real
-
-    # apply the window to the columns
-    # xbuf *= window.reshape(-1, 1)
+    xbuf = irfft(Sx, n=n_fft, axis=0).real
+    if modulated:
+        xbuf = fftshift(xbuf, axes=0)
 
     # overlap-add the columns
-    x, wn = _unbuffer(xbuf, window, hop_len, N)
+    x = unbuffer(xbuf, window, hop_len, n_fft, N)
+    wn = window_norm(window, hop_len, n_fft, N)
+    x /= wn
 
     return x, wn
-
-
-    # keep the unpadded part only
-    # x = x[n1:n1 + n + 1]
-
-    # compute L2-norm of window to normalize STFT with
-    # windowfunc = wfiltfn(opts['type'], opts, derivative=False)
-    # C = lambda x: integrate.quad(windowfunc(x) ** 2, -np.inf, np.inf)
-
-    # `quadgk` is a bit inaccurate with the 'bump' function,
-    # this scales it correctly
-    # if window == 'bump':
-    #     C *= 0.8675
-
-    # x *= 2 / (pi * C)
 
 
 def phase_stft(Sx, dSx, Sfs, N, gamma=None):
@@ -265,6 +157,9 @@ def _get_window(window, win_len, n_fft=None, derivative=False):
     if n_fft is None:
         pl, pr = 0, 0
     else:
+        if win_len > n_fft:
+            raise ValueError("Can't have `win_len > n_fft` ({} > {})".format(
+                win_len, n_fft))
         pl = (n_fft - win_len) // 2
         pr = (n_fft - win_len - pl)
 

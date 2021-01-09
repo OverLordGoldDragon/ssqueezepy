@@ -2,6 +2,7 @@
 import numpy as np
 import logging
 from scipy import integrate
+from numba import jit
 from .algos import _min_neglect_idx, find_maximum, find_first_occurrence
 from .wavelets import Wavelet
 
@@ -393,6 +394,39 @@ def buffer(x, seg_len, n_overlap):
         end   = start + seg_len
         out[:, i] = x[start:end]
     return out
+
+
+def unbuffer(xbuf, window, hop_len, n_fft, N):
+    if N is None:
+        # assume greatest possible len(x) (unpadded)
+        N = xbuf.shape[1] * hop_len + len(window) - 1
+
+    x = np.zeros(N + n_fft)
+    _overlap_add(x, xbuf, window, hop_len, n_fft)
+    return x[int(np.ceil(n_fft / 2)) : -int(np.floor(n_fft / 2))]
+
+
+def window_norm(window, hop_len, n_fft, N):
+    wn = np.zeros(N + n_fft)
+    _window_norm(wn, window, hop_len, n_fft)
+    return wn[int(np.ceil(n_fft / 2)) : -int(np.floor(n_fft / 2))]
+
+
+@jit(nopython=True, cache=True)
+def _overlap_add(x, xbuf, window, hop_len, n_fft):
+    for i in range(xbuf.shape[1]):
+        n = i * hop_len
+        x[n:n + n_fft] += xbuf[:, i] * window
+
+
+@jit(nopython=True, cache=True)
+def _window_norm(wn, window, hop_len, n_fft):
+    max_hops = (len(wn) - n_fft) // hop_len + 1
+    wsq = window ** 2
+
+    for i in range(max_hops):
+        n = i * hop_len
+        wn[n:n + n_fft] += wsq
 
 
 def _assert_positive_integer(g, name=''):
