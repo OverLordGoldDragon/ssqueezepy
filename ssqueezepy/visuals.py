@@ -563,57 +563,140 @@ def imshow(data, title=None, show=1, cmap=None, norm=None, complex=None, abs=0,
 def plot(x, y=None, title=None, show=0, ax_equal=False, complex=0, abs=0,
          c_annot=False, w=None, h=None, dx1=False, xlims=None, ylims=None,
          vert=False, vlines=None, hlines=None, xlabel=None, ylabel=None,
-         xticks=None, yticks=None, **kw):
-    if y is None:
+         xticks=None, yticks=None, ax=None, fig=None, ticks=True, **kw):
+    ax  = ax  or plt.gca()
+    fig = fig or plt.gcf()
+
+    if x is None and y is None:
+        raise Exception("`x` and `y` cannot both be None")
+    elif x is None:
+        x = np.arange(len(y))
+    elif y is None:
         y = x
         x = np.arange(len(x))
+
     if vert:
         x, y = y, x
     if complex:
-        plt.plot(x, y.real, color='tab:blue', **kw)
-        plt.plot(x, y.imag, color='tab:orange', **kw)
+        ax.plot(x, y.real, color='tab:blue', **kw)
+        ax.plot(x, y.imag, color='tab:orange', **kw)
         if c_annot:
             _kw = dict(fontsize=15, xycoords='axes fraction', weight='bold')
-            plt.annotate("real", xy=(.93, .95), color='tab:blue', **_kw)
-            plt.annotate("imag", xy=(.93, .90), color='tab:orange', **_kw)
+            ax.annotate("real", xy=(.93, .95), color='tab:blue', **_kw)
+            ax.annotate("imag", xy=(.93, .90), color='tab:orange', **_kw)
     else:
         if abs:
             y = np.abs(y)
-        plt.plot(x, y, **kw)
+        ax.plot(x, y, **kw)
     if dx1:
-        plt.xticks(np.arange(len(x)))
+        ax.set_xticks(np.arange(len(x)))
 
     if vlines:
         vhlines(vlines, kind='v')
     if hlines:
         vhlines(hlines, kind='h')
+    if not ticks:
+        ax.set_xticks([])
+        ax.set_yticks([])
     if xticks is not None or yticks is not None:
         _ticks(xticks, yticks)
 
     _maybe_title(title)
-    _scale_plot(plt.gcf(), plt.gca(), show=show, ax_equal=ax_equal, w=w, h=h,
+    _scale_plot(fig, ax, show=show, ax_equal=ax_equal, w=w, h=h,
                 xlims=xlims, ylims=ylims, dx1=(len(x) if dx1 else 0),
                 xlabel=xlabel, ylabel=ylabel)
 
 
+def plots(X, Y=None, nrows=None, ncols=None, tight=True, sharex=False,
+          sharey=False, skw=None, pkw=None, _scat=0, show=1, **kw):
+    """Example:
+    X = [[None, np.arange(xc, xc + wl)],
+         [None, np.arange(xc + hop, xc + hop + wl)],
+         None,
+         None]
+    Y = [[x, window],
+         [x, window],
+         xbuf[:, xbc],
+         xbuf[:, xbc + 1]]
+    pkw = [[{}]*2, [{}]*2, *[{'color': 'tab:green'}]*2]
+    plots(X, Y, nrows=2, ncols=2, sharey='row', tight=tight, pkw=pkw)
+    """
+    def _process_args(X, Y, nrows, ncols, tight, skw, pkw, kw):
+        X = X if isinstance(X, list) else [X]
+        Y = Y if isinstance(Y, list) else [Y]
+        skw = skw or {}
+        pkw = pkw or [{}] * len(X)
+
+        if nrows is None and ncols is None:
+            nrows, ncols = len(X), 1
+        elif nrows is None:
+            ncols = max(len(X) // ncols, 1)
+        elif ncols is None:
+            nrows = max(len(X) // nrows, 1)
+
+        default = dict(left=0, right=1, bottom=0, top=1, hspace=.1, wspace=.05)
+        if tight:
+            if not isinstance(tight, dict):
+                tight = default.copy()
+            else:
+                for name in default:
+                    if name not in tight:
+                        tight[name] = default[name]
+
+        kw['w'] = kw.get('w', .8)
+        kw['h'] = kw.get('h', .8)  # default 'tight' enlarges plot
+        return X, Y, nrows, ncols, tight, skw, pkw, kw
+
+    X, Y, nrows, ncols, tight, skw, pkw, kw = _process_args(
+        X, Y, nrows, ncols, tight, skw, pkw, kw)
+
+    fig, axes = plt.subplots(nrows, ncols, sharex=sharex, sharey=sharey, **skw)
+    for ax, x, y, _pkw in zip(axes.flat, X, Y, pkw):
+        if isinstance(x, list):
+            for _x, _y, __pkw in zip(x, y, _pkw):
+                plot(_x, _y, ax=ax, **__pkw, **kw)
+                if _scat:
+                    scat(_x, _y, ax=ax, **__pkw, **kw)
+        else:
+            plot(x, y, ax=ax, **_pkw, **kw)
+            if _scat:
+                scat(x, y, ax=ax, **_pkw, **kw)
+
+    if tight:
+        plt.subplots_adjust(**tight)
+    if show:
+        plt.show()
+
+
 def scat(x, y=None, title=None, show=0, ax_equal=False, s=18, w=None, h=None,
-         xlims=None, ylims=None, dx1=False, vlines=None, hlines=None,
-         complex=False, xlabel=None, ylabel=None, **kw):
-    if y is None:
+         xlims=None, ylims=None, dx1=False, vlines=None, hlines=None, ticks=1,
+         complex=False, xlabel=None, ylabel=None, ax=None, fig=None, **kw):
+    ax  = ax  or plt.gca()
+    fig = fig or plt.gcf()
+
+    if x is None and y is None:
+        raise Exception("`x` and `y` cannot both be None")
+    elif x is None:
+        x = np.arange(len(y))
+    elif y is None:
         y = x
         x = np.arange(len(x))
+
     if complex:
-        plt.scatter(x, y.real, s=s, **kw)
-        plt.scatter(x, y.imag, s=s, **kw)
+        ax.scatter(x, y.real, s=s, **kw)
+        ax.scatter(x, y.imag, s=s, **kw)
     else:
-        plt.scatter(x, y, s=s, **kw)
+        ax.scatter(x, y, s=s, **kw)
+    if not ticks:
+        ax.set_xticks([])
+        ax.set_yticks([])
 
     _maybe_title(title)
     if vlines:
         vhlines(vlines, kind='v')
     if hlines:
         vhlines(hlines, kind='h')
-    _scale_plot(plt.gcf(), plt.gca(), show=show, ax_equal=ax_equal, w=w, h=h,
+    _scale_plot(fig, ax, show=show, ax_equal=ax_equal, w=w, h=h,
                 xlims=xlims, ylims=ylims, dx1=(len(x) if dx1 else 0),
                 xlabel=xlabel, ylabel=ylabel)
 

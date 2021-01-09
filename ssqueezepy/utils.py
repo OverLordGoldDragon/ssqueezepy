@@ -108,7 +108,7 @@ def padsignal(x, padtype='reflect', padlength=None):
     """
     # TODO @padlength: change to denote *total* pad length?
     # TODO: padlength -> padded_len
-    padtypes = ('reflect', 'symmetric', 'replicate', 'zero')
+    padtypes = ('reflect', 'symmetric', 'replicate', 'wrap', 'zero')
     if padtype not in padtypes:
         raise ValueError(("Unsupported `padtype` {}; must be one of: {}"
                           ).format(padtype, ", ".join(padtypes)))
@@ -136,6 +136,9 @@ def padsignal(x, padtype='reflect', padlength=None):
     elif padtype == 'replicate':
         # [1,2,3,4] -> [1,1,1,1, 1,2,3,4, 4,4,4]
         xpad = np.pad(x, [n1, n2], mode='edge')
+    elif padtype == 'wrap':
+        # [1,2,3,4] -> [1,2,3,4, 1,2,3,4, 1,2,3]
+        xpad = np.pad(x, [n1, n2], mode='wrap')
     elif padtype == 'zero':
         # [1,2,3,4] -> [0,0,0,0, 1,2,3,4, 0,0,0]
         xpad = np.pad(x, [n1, n2])

@@ -2,17 +2,15 @@
 """NOT FOR USE; will be ready for v0.6.0"""
 import numpy as np
 from .wavelets import Wavelet
-from ._stft import stft_fwd, phase_stft
+from ._stft import stft, phase_stft
 from .ssqueezing import ssqueeze
-# from quadpy import quad as quadgk
 from scipy.integrate import quad as quadgk
 
 pi = np.pi
 
 
 def ssq_stft(x, window=None, n_fft=None, win_len=None, hop_len=1,
-             dt=1, padtype='reflect', stft_type='normal', rpadded=False,
-             squeezing='sum'):
+             dt=1, padtype='reflect', modulated=True, squeezing='sum'):
     """Calculates the STFt synchrosqueezing transform of vector `x`, with
     samples taken at times given in vector `t`. This implements the algorithm
     described in Sec. III of [1].
@@ -36,9 +34,9 @@ def ssq_stft(x, window=None, n_fft=None, win_len=None, hop_len=1,
     """
     # Calculate the modified STFT, using window of opts['winlen']
     # in frequency domain
-    Sx, Sfs, dSx = stft_fwd(x, window, n_fft=n_fft, win_len=win_len,
-                            hop_len=hop_len, dt=dt, padtype=padtype,
-                            stft_type=stft_type, rpadded=rpadded)
+    Sx, Sfs, dSx = stft(x, window, n_fft=n_fft, win_len=win_len,
+                        hop_len=hop_len, dt=dt, padtype=padtype,
+                        modulated=modulated)
 
     w = phase_stft(Sx, dSx, Sfs, N=len(x))
 
