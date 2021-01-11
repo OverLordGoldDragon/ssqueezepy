@@ -142,14 +142,17 @@ def test_stft():
                     Sx, *_ = stft(x, **kw)
                     xr = istft(Sx, N=len(x), **kw)
 
-                    txt = ("\n{}: (N, n_fft, hop_len, modulated) = ({}, {}, {}, "
-                           "{}) ").format("STFT", N, n_fft, hop_len, modulated)
+                    txt = ("\nSTFT: (N, n_fft, hop_len, modulated) = ({}, {}, "
+                           "{}, {})").format(N, n_fft, hop_len, modulated)
                     assert len(x) == len(xr), "%s != %s %s" % (N, len(xr), txt)
                     mae = np.abs(x - xr).mean()
                     assert mae < th, "MAE = %.2e > %.2e %s" % (mae, th, txt)
 
 
 def test_ssq_stft():
+    """Same as `test_stft` except don't test `hop_len` or `modulated` since
+    only `1` and `True` are invertible (by the library, and maybe theoretically).
+    """
     th = 2e-2
     for N in (128, 129):
         for n_fft in (120, 121):
@@ -158,7 +161,7 @@ def test_ssq_stft():
             Sx, *_ = ssq_stft(x, n_fft=n_fft)
             xr = issq_stft(Sx, n_fft=n_fft, N=N)
 
-            txt = "\nSTFT: (N, n_fft) = ({}, {})".format(N, n_fft)
+            txt = "\nSSQ_STFT: (N, n_fft) = ({}, {})".format(N, n_fft)
             assert len(x) == len(xr), "%s != %s %s" % (N, len(xr), txt)
             mae = np.abs(x - xr).mean()
             assert mae < th, "MAE = %.2e > %.2e %s" % (mae, th, txt)
