@@ -53,6 +53,9 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, dt=1,
             once synchrosqueezed.
             Recommended to use `True`; see "Modulation" below.
 
+        derivative: bool (default False)
+            Whether to compute and return `dSx`. Requires `fs` or `t`.
+
 
     Modulation:
         `True` will center DFT cisoids at the window for each shift `u`:
@@ -67,11 +70,15 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, dt=1,
         https://github.com/OverLordGoldDragon/ssqueezepy/pull/25
 
     # Returns:
-        Sx: (na x n) size matrix (rows = scales, cols = times) containing
-            samples of the CWT of `x`.
-        Sfs: vector containign the associated frequencies.
-        dSx: (na x n) size matrix containing samples of the time-derivatives
-             of the STFT of `x`.
+        Sx: [(n_fft//2 + 1) x n_hops] np.ndarray
+            CWT of `x`.
+            (n_hops = (len(x) - 1)//hop_len + 1)
+            (rows=scales, cols=timeshifts)
+        dWx: [(n_fft//2 + 1) x n_hops] np.ndarray
+            Returned only if `derivative=True`.
+            Time-derivative of the CWT of `x`, computed via frequency-domain
+            differentiation (effectively, derivative of trigonometric
+            interpolation; see [4]). Implements as described in Sec IIIB of [2].
 
     Recommended:
         - odd win_len with odd n_fft and even with even, not vice versa

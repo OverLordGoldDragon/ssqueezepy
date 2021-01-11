@@ -80,7 +80,7 @@ def cwt(x, wavelet, scales='log', fs=None, t=None, nv=32, l1_norm=True,
 
     # Returns:
         Wx: [na x n] np.ndarray (na = number of scales; n = len(x))
-            The CWT of `x`. (rows=scales, cols=timeshifts)
+            CWT of `x`. (rows=scales, cols=timeshifts)
         scales: [na] np.ndarray
             Scales at which CWT was computed.
         dWx: [na x n] np.ndarray

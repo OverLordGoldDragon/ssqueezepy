@@ -398,7 +398,6 @@ def buffer(x, seg_len, n_overlap):
                [2, 3, 4, 5, 6],
                [4, 5, 6, 7, 8]].T
     """
-    # TODO docstr
     hop_len = seg_len - n_overlap
     n_segs = (len(x) - seg_len) // hop_len + 1
     out = np.zeros((seg_len, n_segs))
@@ -425,6 +424,9 @@ def unbuffer(xbuf, window, hop_len, n_fft, N, win_exp=1):
     if N is None:
         # assume greatest possible len(x) (unpadded)
         N = xbuf.shape[1] * hop_len + len(window) - 1
+    if len(window) != n_fft:
+        raise ValueError("Must have `len(window) == n_fft` "
+                         "(got %s != %s)" % (len(window), n_fft))
     if win_exp == 0:
         window = 1
     elif win_exp != 1:

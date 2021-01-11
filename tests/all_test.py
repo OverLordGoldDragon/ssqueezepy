@@ -188,8 +188,8 @@ def test_utils():
     _ = padsignal(xh, padlength=len(xh)*2, padtype='wrap')
 
     g = np.ones((128, 200))
-    unbuffer(g, xh, 1, 1, N=None, win_exp=0)
-    unbuffer(g, xh, 1, 1, 1, win_exp=2)
+    unbuffer(g, xh, 1, n_fft=len(xh), N=None, win_exp=0)
+    unbuffer(g, xh, 1, n_fft=len(xh), N=g.shape[1], win_exp=2)
 
     #### errors / warnings ###################################################
     _pass_on_error(find_max_scale, 1, 1, -1, -1)
@@ -254,6 +254,8 @@ if __name__ == '__main__':
         test_visuals()
         test_utils()
         test_anim()
+        test_ssqueezing()
+        test_windows()
     else:
         pytest.main([__file__, "-s"])
 
