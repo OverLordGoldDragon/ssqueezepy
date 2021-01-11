@@ -20,10 +20,51 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, dt=1,
     # Arguments:
         x: np.ndarray
             Input vector, 1D.
+
         window: str / np.ndarray / None
             STFT windowing kernel. If string, will fetch per
             `scipy.signal.get_window(window, win_len, fftbins=True)`.
             Defaults to `scipy.signal.windows.dpss`.
+
+        n_fft: int / None
+            FFT length, or STFT column length. If `win_len < n_fft`, will
+            pad `window`. Every STFT column is `fft(window * x_slice)`.
+            Defaults to `len(x)`.
+
+        win_len: int / None
+            Length of `window` to use. Used to generate a window if `window`
+            is string, and ignored if it's np.ndarray.
+            Defaults to `n_fft//8` or `len(window)` (if `window` is np.ndarray).
+
+        hop_len: int
+            STFT stride, or number of samples to skip/hop over between subsequent
+            windowings. Relates to 'overlap' as `overlap = n_fft - hop_len`.
+            Must be 1 for invertible synchrosqueezed STFT.
+
+        padtype: str
+            Pad scheme to apply on input. One of:
+                ('zero', 'reflect', 'symmetric', 'replicate', 'wrap').
+            'zero' is most naive, while 'reflect' (default) partly mitigates
+            boundary effects. See `help(utils.padsignal)`.
+
+        modulated: bool (default True)
+            Whether to use "modified" variant as in [1], which centers DFT
+            cisoids at the window for each shift `u`. `False` will not invert
+            once synchrosqueezed.
+            Recommended to use `True`; see "Modulation" below.
+
+
+    Modulation:
+        `True` will center DFT cisoids at the window for each shift `u`:
+            Sm(u, k) = sum_{0}^{N-1} f[n] * g[n - u] * exp(-j*2pi*k*(n - u)/N)
+        as opposed to usual STFT:
+            S(u, k)  = sum_{0}^{N-1} f[n] * g[n - u] * exp(-j*2pi*k*n/N)
+
+        Most implementations (including `scipy`, `librosa`) compute *neither*,
+        but rather center the window for each slice, thus shifting DFT bases
+        relative to n=0 (t=0). These create spectra that, viewed as signals, are
+        of high frequency, making inversion and synchrosqueezing very unstable.
+        https://github.com/OverLordGoldDragon/ssqueezepy/pull/25
 
     # Returns:
         Sx: (na x n) size matrix (rows = scales, cols = times) containing

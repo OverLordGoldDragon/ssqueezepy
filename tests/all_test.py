@@ -187,8 +187,9 @@ def test_utils():
     _ = padsignal(xh, padlength=len(xh)*2, padtype='symmetric')
     _ = padsignal(xh, padlength=len(xh)*2, padtype='wrap')
 
-    unbuffer(xh, 1, 1, 1, N=None, win_exp=0)
-    unbuffer(xh, 1, 1, 1, 1, win_exp=2)
+    g = np.ones((128, 200))
+    unbuffer(g, xh, 1, 1, N=None, win_exp=0)
+    unbuffer(g, xh, 1, 1, 1, win_exp=2)
 
     #### errors / warnings ###################################################
     _pass_on_error(find_max_scale, 1, 1, -1, -1)
