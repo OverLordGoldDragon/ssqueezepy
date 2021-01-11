@@ -13,7 +13,7 @@ EPS = np.finfo(np.float64).eps  # machine epsilon for float64
 
 
 def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, dt=1,
-         modulated=True, padtype='reflect', derivative=False):
+         padtype='reflect', modulated=True, derivative=False):
     """Compute the short-time Fourier transform and modified short-time
     Fourier transform from [1].
 

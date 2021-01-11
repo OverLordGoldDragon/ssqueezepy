@@ -136,10 +136,7 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
             if transform == 'cwt':
                 ssq_freqs = np.linspace(fm, fM, na)
             elif transform == 'stft':
-                # ??? seems to be 0 to f_sampling/2, but why use N?
-                # what about fm and fM?
                 ssq_freqs = np.linspace(0, .5, na) / dt
-                # ssq_freqs = ssq_freqs[:na // 2]
         return ssq_freqs
 
     def _process_args(w, fs, t, N, transform, squeezing, scales, mapkind,
