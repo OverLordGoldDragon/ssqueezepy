@@ -20,6 +20,8 @@ from ssqueezepy.wavelets import time_resolution, _xifn
 from ssqueezepy.wavelets import _aifftshift_even, _afftshift_even
 from ssqueezepy.utils import cwt_scalebounds, buffer, est_riskshrink_thresh
 from ssqueezepy._cwt import _icwt_norm
+from ssqueezepy._stft import _get_window, window_norm, window_resolution
+from ssqueezepy._stft import window_area
 from ssqueezepy.visuals import hist, plot, scat, imshow
 from ssqueezepy.toolkit import lin_band, cos_f, mad_rms
 from ssqueezepy import ssq_cwt, issq_cwt, cwt, icwt, ssqueeze
@@ -177,6 +179,14 @@ def test_ssqueezing():
     _pass_on_error(ssqueeze, Wx, w, transform='stft', mapkind='minimal')
     _pass_on_error(ssqueeze, Wx, w, transform='abs')
     _pass_on_error(ssqueeze, Wx, w, squeezing='big_bird')
+
+
+def test_windows():
+    window = _get_window(None, win_len=100, n_fft=128)
+
+    window_norm(window)
+    window_area(window, time=True, frequency=True)
+    window_resolution(window)
 
 
 if __name__ == '__main__':

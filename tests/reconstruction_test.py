@@ -141,7 +141,7 @@ def test_stft():
 
                     kw = dict(hop_len=hop_len, n_fft=n_fft, modulated=modulated)
 
-                    Sx, *_ = stft(x, **kw)
+                    Sx = stft(x, **kw)
                     xr = istft(Sx, N=len(x), **kw)
 
                     txt = ("\nSTFT: (N, n_fft, hop_len, modulated) = ({}, {}, "
