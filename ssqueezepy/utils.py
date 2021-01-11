@@ -385,6 +385,19 @@ def cwt_scalebounds(wavelet, N, preset=None, min_cutoff=None, max_cutoff=None,
 
 
 def buffer(x, seg_len, n_overlap):
+    """Build 2D array where each column is a successive slice of `x` of length
+    `seg_len` and overlapping by `n_overlap` (or equivalently incrementing
+    starting index of each slice by `hop_len = seg_len - n_overlap`.
+
+    Mimics MATLAB's `buffer`, with less functionality.
+
+    Ex:
+        x = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+        xb = buffer(x, seg_len=5, n_overlap=3)
+        xb == [[0, 1, 2, 3, 4],
+               [2, 3, 4, 5, 6],
+               [4, 5, 6, 7, 8]].T
+    """
     # TODO docstr
     hop_len = seg_len - n_overlap
     n_segs = (len(x) - seg_len) // hop_len + 1
@@ -398,7 +411,7 @@ def buffer(x, seg_len, n_overlap):
 
 
 def unbuffer(xbuf, window, hop_len, n_fft, N, win_exp=1):
-    """Padding logic:
+    """Undoes `buffer`, per padding logic used in `stft`:
         (N, n_fft) : logic
          even, even: left = right + 1
              (N, n_fft, len(xp), pl, pr) -> (128, 120, 247, 60, 59)
@@ -424,6 +437,7 @@ def unbuffer(xbuf, window, hop_len, n_fft, N, win_exp=1):
 
 
 def window_norm(window, hop_len, n_fft, N, win_exp=1):
+    """Computes window modulation array for use in `stft` and `istft`."""
     wn = np.zeros(N + n_fft - 1)
 
     _window_norm(wn, window, hop_len, n_fft, win_exp)

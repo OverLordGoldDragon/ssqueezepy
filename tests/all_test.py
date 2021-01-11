@@ -19,9 +19,9 @@ from ssqueezepy.wavelets import Wavelet, center_frequency, freq_resolution
 from ssqueezepy.wavelets import time_resolution, _xifn
 from ssqueezepy.wavelets import _aifftshift_even, _afftshift_even
 from ssqueezepy.utils import cwt_scalebounds, buffer, est_riskshrink_thresh
+from ssqueezepy.utils import window_norm, window_resolution, window_area
 from ssqueezepy._cwt import _icwt_norm
-from ssqueezepy._stft import _get_window, window_norm, window_resolution
-from ssqueezepy._stft import window_area
+from ssqueezepy._stft import _get_window
 from ssqueezepy.visuals import hist, plot, scat, imshow
 from ssqueezepy.toolkit import lin_band, cos_f, mad_rms
 from ssqueezepy import ssq_cwt, issq_cwt, cwt, icwt, ssqueeze
