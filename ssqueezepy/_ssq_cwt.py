@@ -9,7 +9,7 @@ from ._cwt import cwt
 def ssq_cwt(x, wavelet='morlet', scales='log', nv=None, fs=None, t=None,
             ssq_freqs=None, padtype='reflect', squeezing='sum', mapkind='maximal',
             difftype='direct', difforder=None, gamma=None):
-    """Calculates the synchrosqueezed Continuous Wavelet Transform of `x`.
+    """Synchrosqueezed Continuous Wavelet Transform.
     Implements the algorithm described in Sec. III of [1].
 
     # Arguments:

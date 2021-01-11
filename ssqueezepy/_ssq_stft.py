@@ -11,9 +11,8 @@ pi = np.pi
 
 def ssq_stft(x, window=None, n_fft=None, win_len=None, hop_len=1,
              dt=1, padtype='reflect', modulated=True, squeezing='sum'):
-    """Calculates the STFt synchrosqueezing transform of vector `x`, with
-    samples taken at times given in vector `t`. This implements the algorithm
-    described in Sec. III of [1].
+    """Synchrosqueezed Short-Time Fourier Transform.
+    Implements the algorithm described in Sec. III of [1].
 
     # Arguments:
         t: np.ndarray. Vector of times samples are taken
@@ -31,6 +30,12 @@ def ssq_stft(x, window=None, n_fft=None, win_len=None, hop_len=1,
         Sx: STFT of `x` (see `stft_fw`)
         Sfs: frequencies associated with rows of `Sx`
         w: phase transform of `Sx`
+
+    # References:
+        1. The Synchrosqueezing algorithm for time-varying spectral analysis:
+        robustness properties and new paleoclimate applications.
+        G. Thakur, E. Brevdo, N.-S. Fučkar, and H.-T. Wu.
+        https://arxiv.org/abs/1105.0010
     """
     n_fft = n_fft or len(x)
     # Calculate the modified STFT, using window of opts['winlen']
