@@ -15,14 +15,8 @@ def ssq_stft(x, window=None, n_fft=None, win_len=None, hop_len=1,
     Implements the algorithm described in Sec. III of [1].
 
     # Arguments:
-        t: np.ndarray. Vector of times samples are taken
-           (e.g. np.linspace(0, 1, n))
-        x: np.ndarray. Vector of signal samples (e.g. x = np.cos(20 * pi * t))
-        opts: dict. Options:
-            'type': str. Type of wavelet (see `wfiltfn`)
-            's', 'mu': float. Wavelet parameters (see `wfiltfn`)
-            'gamma': float. Wavelet hard thresholding value
-                     (see `cwt_freq_direct`)
+        x: np.ndarray
+            Input vector, 1D.
 
     # Returns:
         Tx: synchrosqueezed output of `x` (columns associated with time `t`)

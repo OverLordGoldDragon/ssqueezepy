@@ -171,7 +171,6 @@ def test_visuals():
     _pass_on_error(plot, None, None)
 
 
-
 def test_utils():
     _ = buffer(np.random.randn(20), 4, 1)
 
@@ -185,8 +184,8 @@ def test_utils():
     _aifftshift_even(xh, xhs)
     _afftshift_even(xh, xhs)
 
-    _ = padsignal(xh, len(xh)*2, padtype='symmetric')
-    _ = padsignal(xh, len(xh)*2, padtype='wrap')
+    _ = padsignal(xh, padlength=len(xh)*2, padtype='symmetric')
+    _ = padsignal(xh, padlength=len(xh)*2, padtype='wrap')
 
     unbuffer(xh, 1, 1, 1, N=None, win_exp=0)
     unbuffer(xh, 1, 1, 1, 1, win_exp=2)

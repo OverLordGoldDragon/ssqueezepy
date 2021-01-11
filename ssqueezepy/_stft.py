@@ -18,18 +18,12 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, dt=1,
     Fourier transform from [1].
 
     # Arguments:
-        x: np.ndarray. Input signal vector, length `n` (need not be dyadic).
-        dt: int, sampling period (defaults to 1).
-        opts: dict. Options:
-            'type': str. Wavelet type. See `wfiltfn`
-            'winlen': int. length of window in samples; Nyquist frequency
-                      is winlen/2
-            'padtype': str ('symmetric', 'repliace', 'circular'). Type
-                       of padding (default = 'symmetric')
-            'rpadded': bool. Whether to return padded `Sx` and `dSx`
-                       (default = True)
-            's', 'mu', ... : window options (see `wfiltfn`)
-        # 'padtype' is one of: 'symmetric', 'replicate', 'circular'
+        x: np.ndarray
+            Input vector, 1D.
+        window: str / np.ndarray / None
+            STFT windowing kernel. If string, will fetch per
+            `scipy.signal.get_window(window, win_len, fftbins=True)`.
+            Defaults to `scipy.signal.windows.dpss`.
 
     # Returns:
         Sx: (na x n) size matrix (rows = scales, cols = times) containing

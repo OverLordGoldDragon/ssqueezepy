@@ -630,9 +630,9 @@ def plots(X, Y=None, nrows=None, ncols=None, tight=True, sharex=False,
         if nrows is None and ncols is None:
             nrows, ncols = len(X), 1
         elif nrows is None:
-            ncols = max(len(X) // ncols, 1)
+            nrows = max(len(X) // ncols, 1)
         elif ncols is None:
-            nrows = max(len(X) // nrows, 1)
+            ncols = max(len(X) // nrows, 1)
 
         default = dict(left=0, right=1, bottom=0, top=1, hspace=.1, wspace=.05)
         if tight:
