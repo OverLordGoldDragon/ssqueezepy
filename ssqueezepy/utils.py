@@ -475,7 +475,7 @@ def window_resolution(window):
 
 def window_area(window, time=True, frequency=False):
     """Minimal function to compute a window's time or frequency 'area' as area
-    under curve of `abs(window)**2`.
+    under curve of `abs(window)**2`. `window` must be np.ndarray.
     """
     from .wavelets import _xifn
     if not time and not frequency:

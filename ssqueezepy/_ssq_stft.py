@@ -35,9 +35,9 @@ def ssq_stft(x, window=None, n_fft=None, win_len=None, hop_len=1,
     n_fft = n_fft or len(x)
     # Calculate the modified STFT, using window of opts['winlen']
     # in frequency domain
-    Sx, Sfs, dSx = stft(x, window, n_fft=n_fft, win_len=win_len,
-                        hop_len=hop_len, dt=dt, padtype=padtype,
-                        modulated=modulated, derivative=True)
+    Sx, dSx = stft(x, window, n_fft=n_fft, win_len=win_len,
+                   hop_len=hop_len, dt=dt, padtype=padtype,
+                   modulated=modulated, derivative=True)
 
     Sfs = np.linspace(0, .5, n_fft // 2 + 1) / dt
     w = phase_stft(Sx, dSx, Sfs)
