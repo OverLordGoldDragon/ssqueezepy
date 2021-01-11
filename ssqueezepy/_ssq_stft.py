@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """NOT FOR USE; will be ready for v0.6.0"""
 import numpy as np
-from ._stft import stft, istft, phase_stft, _get_window, _check_NOLA
+from ._stft import stft, phase_stft, _get_window, _check_NOLA
 from ._ssq_cwt import _invert_components
-from .utils import window_area
+from .utils import WARN
 from .ssqueezing import ssqueeze
 
 pi = np.pi
@@ -32,13 +32,15 @@ def ssq_stft(x, window=None, n_fft=None, win_len=None, hop_len=1,
         Sfs: frequencies associated with rows of `Sx`
         w: phase transform of `Sx`
     """
+    n_fft = n_fft or len(x)
     # Calculate the modified STFT, using window of opts['winlen']
     # in frequency domain
     Sx, Sfs, dSx = stft(x, window, n_fft=n_fft, win_len=win_len,
                         hop_len=hop_len, dt=dt, padtype=padtype,
-                        modulated=modulated)
+                        modulated=modulated, derivative=True)
 
-    w = phase_stft(Sx, dSx, Sfs, N=len(x))
+    Sfs = np.linspace(0, .5, n_fft // 2 + 1) / dt
+    w = phase_stft(Sx, dSx, Sfs)
 
     # Calculate the synchrosqueezed frequency decomposition
     # The parameter alpha from reference [2] is given by Sfs[1] - Sfs[0]
@@ -75,6 +77,10 @@ def issq_stft(Tx, window=None, cc=None, cw=None, win_len=None, hop_len=1,
 
         window = _get_window(window, win_len, n_fft=n_fft)
         _check_NOLA(window, hop_len)
+
+        if abs(np.argmax(window) - len(window)//2) > 1:
+            WARN("`window` maximum not centered; results may be unreliable.")
+
         return window, cc, cw, win_len, hop_len, n_fft, full_inverse
 
     (window, cc, cw, win_len, hop_len, n_fft, full_inverse
@@ -86,20 +92,5 @@ def issq_stft(Tx, window=None, cc=None, cw=None, win_len=None, hop_len=1,
     else:
         x = _invert_components(Tx, cc, cw)
 
-    # C = window_area(window, time=True, frequency=False)
-    # C = 2 * _adm_ssq(window)
-    # x /= (pi * C)
-    # x /= (pi * C * np.sqrt(len(x)) / 4)
+    x *= (2 / window[len(window)//2])
     return x
-
-
-def _adm_ssq(window):
-    from numpy.fft import fft, fftshift
-    from .wavelets import _xifn
-    from scipy.integrate import trapz
-
-    ws = fftshift(_xifn(1, len(window)))
-    ws[np.where(ws==0)] = 1e-4
-    psihs = fftshift(fft(window))
-    C = trapz(np.conj(psihs) / ws, ws)
-    return C

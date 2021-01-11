@@ -83,8 +83,6 @@ def cwt(x, wavelet, scales='log', fs=None, t=None, nv=32, l1_norm=True,
             The CWT of `x`. (rows=scales, cols=timeshifts)
         scales: [na] np.ndarray
             Scales at which CWT was computed.
-        x_mean: float
-            mean of `x` to use in inversion (CWT needs scale=inf to capture).
         dWx: [na x n] np.ndarray
             Returned only if `derivative=True`.
             Time-derivative of the CWT of `x`, computed via frequency-domain
@@ -150,14 +148,12 @@ def cwt(x, wavelet, scales='log', fs=None, t=None, nv=32, l1_norm=True,
 
     nv, dt = _process_args(x, scales, nv, fs, t)
 
-    x_mean = x.mean()  # store original mean
-    n = len(x)         # store original length
-    x, nup, n1, n2 = padsignal(x, padtype)
+    xp, nup, n1, n2 = padsignal(x, padtype, get_params=True)
 
-    x -= x.mean()
-    xh = fft(x)
+    xp -= xp.mean()
+    xh = fft(xp)
     wavelet = Wavelet._init_if_not_isinstance(wavelet)
-    scales = process_scales(scales, n, wavelet, nv=nv)
+    scales = process_scales(scales, len(x), wavelet, nv=nv)
     pn = (-1)**np.arange(nup)
 
     N_orig = wavelet.N
@@ -168,17 +164,17 @@ def cwt(x, wavelet, scales='log', fs=None, t=None, nv=32, l1_norm=True,
 
     if not rpadded:
         # shorten to pre-padded size
-        Wx = Wx[:, n1:n1 + n]
+        Wx = Wx[:, n1:n1 + len(x)]
         if derivative:
-            dWx = dWx[:, n1:n1 + n]
+            dWx = dWx[:, n1:n1 + len(x)]
     if not l1_norm:
         # normalize energy per L2 wavelet norm, else already L1-normalized
         Wx *= np.sqrt(scales)
         if derivative:
             dWx *= np.sqrt(scales)
 
-    return ((Wx, scales, x_mean, dWx) if derivative else
-            (Wx, scales, x_mean))
+    return ((Wx, scales, dWx) if derivative else
+            (Wx, scales))
 
 
 def icwt(Wx, wavelet, scales='log', nv=None, one_int=True, x_len=None, x_mean=0,

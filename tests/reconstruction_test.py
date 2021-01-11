@@ -3,6 +3,7 @@ import pytest
 import numpy as np
 from ssqueezepy import ssq_cwt, issq_cwt, ssq_stft, issq_stft
 from ssqueezepy import cwt, icwt, stft, istft
+from ssqueezepy._stft import _get_window
 from ssqueezepy.toolkit import lin_band
 
 VIZ = 0  # set to 1 to enable various visuals and run without pytest
@@ -133,10 +134,11 @@ def test_stft():
     """
     th = 1e-14
     for N in (128, 129):
+        x = np.random.randn(N)
         for n_fft in (120, 121):
             for hop_len in (1, 2, 3):
                 for modulated in (True, False):
-                    x = np.random.randn(N)
+
                     kw = dict(hop_len=hop_len, n_fft=n_fft, modulated=modulated)
 
                     Sx, *_ = stft(x, **kw)
@@ -152,19 +154,28 @@ def test_stft():
 def test_ssq_stft():
     """Same as `test_stft` except don't test `hop_len` or `modulated` since
     only `1` and `True` are invertible (by the library, and maybe theoretically).
+
+    `window_scaling=.5` has >x2 greater MAE for some reason. May look into.
     """
-    th = 2e-2
+    th = 1e-1
     for N in (128, 129):
+        x = np.random.randn(N)
         for n_fft in (120, 121):
-            x = np.random.randn(N)
+            for window_scaling in (1., .5):
+                if window_scaling == 1:
+                    window = None
+                else:
+                    window = _get_window(window, win_len=n_fft//1, n_fft=n_fft)
+                    window *= window_scaling
 
-            Sx, *_ = ssq_stft(x, n_fft=n_fft)
-            xr = issq_stft(Sx, n_fft=n_fft, N=N)
+                Sx, *_ = ssq_stft(x, window=window, n_fft=n_fft)
+                xr = issq_stft(Sx, window=window, n_fft=n_fft, N=N)
 
-            txt = "\nSSQ_STFT: (N, n_fft) = ({}, {})".format(N, n_fft)
-            assert len(x) == len(xr), "%s != %s %s" % (N, len(xr), txt)
-            mae = np.abs(x - xr).mean()
-            assert mae < th, "MAE = %.2e > %.2e %s" % (mae, th, txt)
+                txt = ("\nSSQ_STFT: (N, n_fft, window_scaling) = ({}, {}, {})"
+                       ).format(N, n_fft, window_scaling)
+                assert len(x) == len(xr), "%s != %s %s" % (N, len(xr), txt)
+                mae = np.abs(x - xr).mean()
+                assert mae < th, "MAE = %.2e > %.2e %s" % (mae, th, txt)
 
 
 def _maybe_viz(Wx, xo, xrec, title, err):

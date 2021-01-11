@@ -180,12 +180,11 @@ def ssq_cwt(x, wavelet='morlet', scales='log', nv=None, fs=None, t=None,
     scales, cwt_scaletype, *_ = process_scales(scales, N, wavelet, nv=nv,
                                                get_params=True)
 
-    # l1_norm=True to spare a multiplication; for SSWT L1 & L2 are exactly same
-    # anyway since we're inverting CWT over time-frequency plane
+    # l1_norm=True to spare a multiplication; for SSWT L1 & L2 are exactly
+    # same anyway since we're inverting CWT over time-frequency plane
     rpadded = (difftype == 'numeric')
-    Wx, scales, _, dWx = cwt(x, wavelet, scales=scales, fs=fs, nv=nv,
-                             l1_norm=True, derivative=True, padtype=padtype,
-                             rpadded=rpadded)
+    Wx, scales, dWx = cwt(x, wavelet, scales=scales, fs=fs, nv=nv, l1_norm=True,
+                          derivative=True, padtype=padtype, rpadded=rpadded)
 
     gamma = gamma or np.sqrt(EPS)
     Wx, w = _phase_transform(Wx, dWx, N, dt, gamma, difftype, difforder)
