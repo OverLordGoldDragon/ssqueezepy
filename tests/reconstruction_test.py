@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 import pytest
 import numpy as np
-from ssqueezepy import ssq_cwt, issq_cwt
-from ssqueezepy import cwt, icwt
+from ssqueezepy import ssq_cwt, issq_cwt, ssq_stft, issq_stft
+from ssqueezepy import cwt, icwt, stft, istft
 from ssqueezepy.toolkit import lin_band
 
 VIZ = 0  # set to 1 to enable various visuals and run without pytest
@@ -125,6 +125,43 @@ def test_component_inversion():
     print("spectrum MAD/RMS: %.6f" % err_spc)
     assert err_sig <= .42, f"{err_sig} > .42"
     assert err_spc <= .14, f"{err_spc} > .14"
+
+
+def test_stft():
+    """Ensure every combination of even & odd configs can be handled;
+    leave window length unspecified to ensure unspecified inverts unspecified.
+    """
+    th = 1e-14
+    for N in (128, 129):
+        for n_fft in (120, 121):
+            for hop_len in (1, 2, 3):
+                for modulated in (True, False):
+                    x = np.random.randn(N)
+                    kw = dict(hop_len=hop_len, n_fft=n_fft, modulated=modulated)
+
+                    Sx, *_ = stft(x, **kw)
+                    xr = istft(Sx, N=len(x), **kw)
+
+                    txt = ("\n{}: (N, n_fft, hop_len, modulated) = ({}, {}, {}, "
+                           "{}) ").format("STFT", N, n_fft, hop_len, modulated)
+                    assert len(x) == len(xr), "%s != %s %s" % (N, len(xr), txt)
+                    mae = np.abs(x - xr).mean()
+                    assert mae < th, "MAE = %.2e > %.2e %s" % (mae, th, txt)
+
+
+def test_ssq_stft():
+    th = 2e-2
+    for N in (128, 129):
+        for n_fft in (120, 121):
+            x = np.random.randn(N)
+
+            Sx, *_ = ssq_stft(x, n_fft=n_fft)
+            xr = issq_stft(Sx, n_fft=n_fft, N=N)
+
+            txt = "\nSTFT: (N, n_fft) = ({}, {})".format(N, n_fft)
+            assert len(x) == len(xr), "%s != %s %s" % (N, len(xr), txt)
+            mae = np.abs(x - xr).mean()
+            assert mae < th, "MAE = %.2e > %.2e %s" % (mae, th, txt)
 
 
 def _maybe_viz(Wx, xo, xrec, title, err):

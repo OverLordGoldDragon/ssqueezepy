@@ -104,7 +104,8 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
                 Tx = indexed_sum(Wx / scales * da, k)
         elif transform == 'stft':
             # TODO validate
-            Tx = indexed_sum(Wx * (ssq_freqs[1] - ssq_freqs[0]), k)
+            dfs = (ssq_freqs[1] - ssq_freqs[0]) * 2
+            Tx = indexed_sum(Wx * dfs, k)
         return Tx
 
     def _ssq_freqrange(mapkind, dt, N, wavelet, scales):

@@ -532,7 +532,7 @@ def imshow(data, title=None, show=1, cmap=None, norm=None, complex=None, abs=0,
     elif complex:
         fig, axes = plt.subplots(1, 2)
         axes[0].imshow(data.real, **_kw)
-        axes[0].imshow(data.imag, **_kw)
+        axes[1].imshow(data.imag, **_kw)
         plt.subplots_adjust(left=0, right=1, bottom=0, top=1,
                             wspace=0, hspace=0)
     else:

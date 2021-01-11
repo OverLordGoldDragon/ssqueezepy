@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 import logging
+from numpy.fft import fft, fftshift
 from scipy import integrate
 from numba import jit
 from .algos import _min_neglect_idx, find_maximum, find_first_occurrence
@@ -396,20 +397,37 @@ def buffer(x, seg_len, n_overlap):
     return out
 
 
-def unbuffer(xbuf, window, hop_len, n_fft, N):
+def unbuffer(xbuf, window, hop_len, n_fft, N, win_exp=1):
+    """Padding logic:
+        (N, n_fft) : logic
+         even, even: left = right + 1
+             (N, n_fft, len(xp), pl, pr) -> (128, 120, 247, 60, 59)
+          odd,  odd: left = right
+             (N, n_fft, len(xp), pl, pr) -> (129, 121, 249, 60, 60)
+         even,  odd: left = right
+             (N, n_fft, len(xp), pl, pr) -> (128, 121, 248, 60, 60)
+          odd, even: left = right + 1
+             (N, n_fft, len(xp), pl, pr) -> (129, 120, 248, 60, 59)
+    """
     if N is None:
         # assume greatest possible len(x) (unpadded)
         N = xbuf.shape[1] * hop_len + len(window) - 1
+    if win_exp == 0:
+        window = 1
+    elif win_exp != 1:
+        window = window ** win_exp
+    x = np.zeros(N + n_fft - 1)
 
-    x = np.zeros(N + n_fft)
     _overlap_add(x, xbuf, window, hop_len, n_fft)
-    return x[int(np.ceil(n_fft / 2)) : -int(np.floor(n_fft / 2))]
+    x = x[n_fft//2 : -((n_fft - 1)//2)]
+    return x
 
 
-def window_norm(window, hop_len, n_fft, N):
-    wn = np.zeros(N + n_fft)
-    _window_norm(wn, window, hop_len, n_fft)
-    return wn[int(np.ceil(n_fft / 2)) : -int(np.floor(n_fft / 2))]
+def window_norm(window, hop_len, n_fft, N, win_exp=1):
+    wn = np.zeros(N + n_fft - 1)
+
+    _window_norm(wn, window, hop_len, n_fft, win_exp)
+    return wn[n_fft//2 : -((n_fft - 1)//2)]
 
 
 @jit(nopython=True, cache=True)
@@ -420,13 +438,62 @@ def _overlap_add(x, xbuf, window, hop_len, n_fft):
 
 
 @jit(nopython=True, cache=True)
-def _window_norm(wn, window, hop_len, n_fft):
+def _window_norm(wn, window, hop_len, n_fft, win_exp=1):
     max_hops = (len(wn) - n_fft) // hop_len + 1
-    wsq = window ** 2
+    wpow = window ** (win_exp + 1)
 
     for i in range(max_hops):
         n = i * hop_len
-        wn[n:n + n_fft] += wsq
+        wn[n:n + n_fft] += wpow
+
+
+def window_resolution(window):
+    """Minimal function to compute a window's time & frequency widths, assuming
+    Fourier spectrum centered about dc (else use `ssqueezepy.wavelets` methods).
+
+    Returns std_w, std_t, harea. `window` must be np.ndarray and >=0.
+    """
+    from .wavelets import _xifn
+    assert np.all(window >= 0), "`window` must be >= 0 (mi"
+    assert window.min() >= 0, "`window` must be >= 0 (got min=%s)" % window.min()
+    N = len(window)
+
+    t  = np.arange(-N/2, N/2, step=1)
+    ws = fftshift(_xifn(1, N))
+
+    psihs   = fftshift(fft(window))
+    apsi2   = np.abs(window)**2
+    apsih2s = np.abs(psihs)**2
+
+    var_w = integrate.trapz(ws**2 * apsih2s, ws) / integrate.trapz(apsih2s, ws)
+    var_t = integrate.trapz(t**2  * apsi2, t)    / integrate.trapz(apsi2, t)
+
+    std_w, std_t = np.sqrt(var_w), np.sqrt(var_t)
+    harea = std_w * std_t
+    return std_w, std_t, harea
+
+
+def window_area(window, time=True, frequency=False):
+    """Minimal function to compute a window's time or frequency 'area' as area
+    under curve of `abs(window)**2`.
+    """
+    from .wavelets import _xifn
+    if not time and not frequency:
+        raise ValueError("must compute something")
+
+    if time:
+        t = np.arange(-len(window)/2, len(window)/2, step=1)
+        at = integrate.trapz(np.abs(window)**2, t)
+    if frequency:
+        ws = fftshift(_xifn(1, len(window)))
+        apsih2s = np.abs(fftshift(fft(window)))**2
+        aw = integrate.trapz(apsih2s, ws)
+
+    if time and frequency:
+        return at, aw
+    elif time:
+        return at
+    return aw
 
 
 def _assert_positive_integer(g, name=''):

@@ -258,30 +258,6 @@ def issq_cwt(Tx, wavelet, cc=None, cw=None):
         https://github.com/ebrevdo/synchrosqueezing/blob/master/synchrosqueezing/
         synsq_cwt_iw.m
     """
-    def _invert_components(Tx, cc, cw):
-        # Invert Tx around curve masks in the time-frequency plane to recover
-        # individual components; last one is the remaining signal
-        x = np.zeros((cc.shape[1] + 1, cc.shape[0]))
-        TxRemainder = Tx.copy()
-
-        for n in range(cc.shape[1]):
-            TxMask = np.zeros(Tx.shape, dtype='complex128')
-            upper_cc = np.clip(cc[:, n] + cw[:, n], 0, len(Tx))
-            lower_cc = np.clip(cc[:, n] - cw[:, n], 0, len(Tx))
-
-            # cc==-1 denotes no curve at that time,
-            # removing such points from inversion
-            upper_cc[np.where(cc[:, n] == -1)] = 0
-            lower_cc[np.where(cc[:, n] == -1)] = 1
-            for m in range(Tx.shape[1]):
-                idxs = slice(lower_cc[m], upper_cc[m] + 1)
-                TxMask[idxs, m] = Tx[idxs, m]
-                TxRemainder[idxs, m] = 0
-            x[n] = TxMask.real.sum(axis=0).T
-
-        x[n + 1] = TxRemainder.real.sum(axis=0).T
-        return x
-
     def _process_args(cc, cw):
         if (cc is None) and (cw is None):
             return None, None, True
@@ -305,4 +281,29 @@ def issq_cwt(Tx, wavelet, cc=None, cw=None):
     Css = adm_ssq(wavelet)  # admissibility coefficient
     # *2 per analytic wavelet & taking real part; Theorem 4.5 [2]
     x *= (2 / Css)
+    return x
+
+
+def _invert_components(Tx, cc, cw):
+    # Invert Tx around curve masks in the time-frequency plane to recover
+    # individual components; last one is the remaining signal
+    x = np.zeros((cc.shape[1] + 1, cc.shape[0]))
+    TxRemainder = Tx.copy()
+
+    for n in range(cc.shape[1]):
+        TxMask = np.zeros(Tx.shape, dtype='complex128')
+        upper_cc = np.clip(cc[:, n] + cw[:, n], 0, len(Tx))
+        lower_cc = np.clip(cc[:, n] - cw[:, n], 0, len(Tx))
+
+        # cc==-1 denotes no curve at that time,
+        # removing such points from inversion
+        upper_cc[np.where(cc[:, n] == -1)] = 0
+        lower_cc[np.where(cc[:, n] == -1)] = 1
+        for m in range(Tx.shape[1]):
+            idxs = slice(lower_cc[m], upper_cc[m] + 1)
+            TxMask[idxs, m] = Tx[idxs, m]
+            TxRemainder[idxs, m] = 0
+        x[n] = TxMask.real.sum(axis=0).T
+
+    x[n + 1] = TxRemainder.real.sum(axis=0).T
     return x

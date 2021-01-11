@@ -175,6 +175,7 @@ def test_ssqueezing():
     _pass_on_error(ssqueeze, Wx, w, transform='cwt', wavelet=None,
                    mapkind='maximal')
     _pass_on_error(ssqueeze, Wx, w, transform='stft', mapkind='minimal')
+    _pass_on_error(ssqueeze, Wx, w, transform='abs')
     _pass_on_error(ssqueeze, Wx, w, squeezing='big_bird')
 
 

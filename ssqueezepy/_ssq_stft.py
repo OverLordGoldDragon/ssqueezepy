@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 """NOT FOR USE; will be ready for v0.6.0"""
 import numpy as np
-from .wavelets import Wavelet
-from ._stft import stft, phase_stft
+from ._stft import stft, istft, phase_stft, _get_window, _check_NOLA
+from ._ssq_cwt import _invert_components
+from .utils import window_area
 from .ssqueezing import ssqueeze
-from scipy.integrate import quad as quadgk
 
 pi = np.pi
 
@@ -48,64 +48,58 @@ def ssq_stft(x, window=None, n_fft=None, win_len=None, hop_len=1,
     return Tx, fs, Sx, Sfs, w, dSx
 
 
-def issq_stft(Tx, fs, opts, Cs=None, freqband=None):
-    """Inverse STFT synchrosqueezing transform of `Tx` with associated
-    frequencies in `fs` and curve bands in time-frequency plane
-    specified by `Cs` and `freqband`. This implements Eq. 5 of [1].
-
-    # Arguments:
-        Tx: np.ndarray. Synchrosqueeze-transformed `x` (see `synsq_cwt`).
-        fs: np.ndarray. Frequencies associated with rows of Tx.
-            (see `synsq_cwt`).
-        opts. dict. Options:
-            'type': type of wavelet used in `synsq_cwt` (required).
-
-            other wavelet options ('mu', 's') should also match those
-            used in `synsq_cwt`
-            'Cs': (optional) curve centerpoints
-            'freqs': (optional) curve bands
-
-    # Returns:
-        x: components of reconstructed signal, and residual error
-
-    Example:
-        Tx, fs = synsq_cwt(t, x, 32)  # synchrosqueezing
-        Txf = synsq_filter_pass(Tx, fs, -np.inf, 1)  # pass band filter
-        xf  = synsq_cwt_inv(Txf, fs)  # filtered signal reconstruction
+def issq_stft(Tx, window=None, cc=None, cw=None, win_len=None, hop_len=1,
+              n_fft=None, N=None, modulated=True, win_exp=0):
+    """Docstring
     """
-    Cs       = Cs       or np.ones((Tx.shape[1], 1))
-    freqband = freqband or Tx.shape[0]
+    def _process_args(Tx, window, cc, cw, win_len, hop_len, n_fft, modulated):
+        if not modulated:
+            raise ValueError("inversion with `modulated == False` "
+                             "is unsupported.")
+        if hop_len != 1:
+            raise ValueError("inversion with `hop_len != 1` is unsupported.")
 
-    windowfunc = Wavelet((opts['type'], opts))
-    inf_lim = 1000  # quadpy can't handle np.inf limits
-    C = quadgk(lambda x: windowfunc(x)**2, -inf_lim, inf_lim)
-    if opts['type'] == 'bump':
-        C *= 0.8675
+        if (cc is None) and (cw is None):
+            full_inverse = True
+        else:
+            full_inverse = False
+            if cc.ndim == 1:
+                cc = cc.reshape(-1, 1)
+            if cw.ndim == 1:
+                cw = cw.reshape(-1, 1)
+            cc = cc.astype('int32')
+            cw = cw.astype('int32')
 
-    # Invert Tx around curve masks in the time-frequency plane to recover
-    # individual components; last one is the remaining signal
-    # Integration over all frequencies recovers original signal
-    # Factor of 2 is because real parts contain half the energy
-    x = np.zeros((Cs.shape[0], Cs.shape[1] + 1))
-    TxRemainder = Tx
-    for n in range(Cs.shape[1]):
-        TxMask = np.zeros(Tx.shape)
-        UpperCs = min(max(Cs[:, n] + freqband[:, n], 1), len(fs))
-        LowerCs = min(max(Cs[:, n] - freqband[:, n], 1), len(fs))
+        n_fft = n_fft or (Tx.shape[0] - 1) * 2
+        win_len = win_len or n_fft
 
-        # Cs==0 corresponds to no curve at that time, so this removes
-        # such points from the inversion
-        # NOTE: transposed + flattened to match MATLAB's 'linear indices'
-        UpperCs[np.where(Cs[:, n].T.flatten() < 1)] = 1
-        LowerCs[np.where(Cs[:, n].T.flatten() < 1)] = 2
+        window = _get_window(window, win_len, n_fft=n_fft)
+        _check_NOLA(window, hop_len)
+        return window, cc, cw, win_len, hop_len, n_fft, full_inverse
 
-        for m in range(Tx.shape[1]):
-            idxs = slice(LowerCs[m] - 1, UpperCs[m])
-            TxMask[idxs, m] = Tx[idxs, m]
-            TxRemainder[idxs, m] = 0
-        x[:, n] = 1 / (pi * C) * np.sum(np.real(TxMask),      axis=0).T
+    (window, cc, cw, win_len, hop_len, n_fft, full_inverse
+     ) = _process_args(Tx, window, cc, cw, win_len, hop_len, n_fft, modulated)
 
-    x[:, n + 1] = 1 / (pi * C) * np.sum(np.real(TxRemainder), axis=0).T
-    x = x.T
+    if full_inverse:
+        # Integration over all frequencies recovers original signal
+        x = Tx.real.sum(axis=0)
+    else:
+        x = _invert_components(Tx, cc, cw)
 
+    # C = window_area(window, time=True, frequency=False)
+    # C = 2 * _adm_ssq(window)
+    # x /= (pi * C)
+    # x /= (pi * C * np.sqrt(len(x)) / 4)
     return x
+
+
+def _adm_ssq(window):
+    from numpy.fft import fft, fftshift
+    from .wavelets import _xifn
+    from scipy.integrate import trapz
+
+    ws = fftshift(_xifn(1, len(window)))
+    ws[np.where(ws==0)] = 1e-4
+    psihs = fftshift(fft(window))
+    C = trapz(np.conj(psihs) / ws, ws)
+    return C

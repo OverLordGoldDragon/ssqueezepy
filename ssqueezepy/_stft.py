@@ -67,21 +67,33 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, dt=1,
         return Sx, dSx
 
     n_fft = n_fft or len(x)
-    win_len = win_len or len(x) // 8
+    win_len = win_len or n_fft // 8
     window, diff_window = _get_window(window, win_len, n_fft, derivative=True)
+    _check_NOLA(window, hop_len)
 
-    padlength = len(x) + n_fft  # pad `x` to length `padlength`
-    x, *_ = padsignal(x, padtype, padlength=padlength)
+    padlength = len(x) + n_fft - 1  # pad `x` to length `padlength`
+    xp, *_ = padsignal(x, padtype, padlength=padlength)
 
+    # plot(xp[:len(window)])
+    # plot(window, show=1)
+    # plot(xp[-len(window):])
+    # plot(window, show=1)
+    # midx = np.argmax(window)
+    # if abs(window.max() - window[midx - 1]) < 1e-8:
+    #     midx -= 1
+    # print(xp[midx], xp[-len(window):][midx])
+    # print(len(x), n_fft, len(xp), len(xp) - len(x))
+
+    x=xp
     Sx, dSx = _stft(x, window, n_fft, hop_len, dt, modulated)
     # associated frequency range
     Sfs = np.linspace(0, .5, n_fft // 2 + 1) / dt
 
     return Sx, Sfs, dSx  # TODO change return order, remove Sfs? make dSx optnl
 
-
+from .visuals import plot
 def istft(Sx, window=None, win_len=None, hop_len=None, n_fft=None, N=None,
-          modulated=True):
+          modulated=True, win_exp=1):
     """Inverse short-time Fourier transform.
 
     Nice visuals and explanations on istft:
@@ -96,23 +108,25 @@ def istft(Sx, window=None, win_len=None, hop_len=None, n_fft=None, N=None,
     # Returns:
         x: the signal, as reconstructed from `Sx`.
     """
-    # TODO if not NOLA then print warning
     ### process args #####################################
-    n_fft = n_fft or (Sx.shape[0] - 1) * 2  # TODO
-    win_len = win_len or n_fft
+    n_fft = n_fft or (Sx.shape[0] - 1) * 2
+    win_len = win_len or n_fft // 8
     hop_len = hop_len or 1
+    N = N or (hop_len * Sx.shape[1] - 1)  # assume largest possible N if not given
+
     window = _get_window(window, win_len, n_fft=n_fft)
+    _check_NOLA(window, hop_len)
 
     xbuf = irfft(Sx, n=n_fft, axis=0).real
     if modulated:
         xbuf = fftshift(xbuf, axes=0)
 
     # overlap-add the columns
-    x = unbuffer(xbuf, window, hop_len, n_fft, N)
-    wn = window_norm(window, hop_len, n_fft, N)
+    x  = unbuffer(xbuf, window, hop_len, n_fft, N, win_exp)
+    wn = window_norm(   window, hop_len, n_fft, N, win_exp)
     x /= wn
 
-    return x, wn
+    return x
 
 
 def phase_stft(Sx, dSx, Sfs, N, gamma=None):
@@ -179,8 +193,8 @@ def _get_window(window, win_len, n_fft=None, derivative=False):
         # fftbins=True -> 'periodic' window -> narrower main side-lobe and
         # closer to zero-phase in left=right padded case
         # for windows edging at 0
-        window = sig.get_window('hann', win_len, fftbins=True)
-        # window = sig.windows.dpss(win_len, 4, sym=False)
+        # window = sig.get_window('hann', win_len, fftbins=True)
+        window = sig.windows.dpss(win_len, 4, sym=False)
         window = np.pad(window, [pl, pr])
 
     if derivative:
@@ -192,3 +206,9 @@ def _get_window(window, win_len, n_fft=None, derivative=False):
         diff_window = ifft(wf * 1j * xi).real
         return window, diff_window
     return window
+
+
+def _check_NOLA(window, hop_len):
+    if not sig.check_NOLA(window, len(window), len(window) - hop_len):
+        WARN("`window` fails Non-zero Overlap Add (NOLA) criterion; STFT "
+             "not invertible")
