@@ -257,18 +257,7 @@ def issq_cwt(Tx, wavelet, cc=None, cw=None):
         https://github.com/ebrevdo/synchrosqueezing/blob/master/synchrosqueezing/
         synsq_cwt_iw.m
     """
-    def _process_args(cc, cw):
-        if (cc is None) and (cw is None):
-            return None, None, True
-        if cc.ndim == 1:
-            cc = cc.reshape(-1, 1)
-        if cw.ndim == 1:
-            cw = cw.reshape(-1, 1)
-        cc = cc.astype('int32')
-        cw = cw.astype('int32')
-        return cc, cw, False
-
-    cc, cw, full_inverse = _process_args(cc, cw)
+    cc, cw, full_inverse = _process_component_inversion_args(cc, cw)
 
     if full_inverse:
         # Integration over all frequencies recovers original signal
@@ -306,3 +295,17 @@ def _invert_components(Tx, cc, cw):
 
     x[n + 1] = TxRemainder.real.sum(axis=0).T
     return x
+
+
+def _process_component_inversion_args(cc, cw):
+    if (cc is None) and (cw is None):
+        full_inverse = True
+    else:
+        full_inverse = False
+        if cc.ndim == 1:
+            cc = cc.reshape(-1, 1)
+        if cw.ndim == 1:
+            cw = cw.reshape(-1, 1)
+        cc = cc.astype('int32')
+        cw = cw.astype('int32')
+    return cc, cw, full_inverse

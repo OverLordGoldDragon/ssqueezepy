@@ -4,14 +4,24 @@
 #### Disable Numba JIT during testing, as pytest can't measure its coverage ##
 # TODO find shorter way to do this
 print("numba.njit is now monkey")
+print("numba.jit  is now monkey")
 def njit(fn):
     def decor(*args, **kw):
         return fn(*args, **kw)
     return decor
 
+def jit(*args, **kw):
+    def wrap(fn):
+        def decor(*_args, **_kw):
+            return fn(*_args, **_kw)
+        return decor
+    return wrap
+
 import numba
 njit_orig = numba.njit
+jit_orig  = numba.jit
 numba.njit = njit
+numba.jit  = jit
 ##############################################################################
 import pytest
 import numpy as np
@@ -19,11 +29,13 @@ from ssqueezepy.wavelets import Wavelet, center_frequency, freq_resolution
 from ssqueezepy.wavelets import time_resolution, _xifn
 from ssqueezepy.wavelets import _aifftshift_even, _afftshift_even
 from ssqueezepy.utils import cwt_scalebounds, buffer, est_riskshrink_thresh
-from ssqueezepy.utils import window_resolution, window_area
+from ssqueezepy.utils import window_resolution, window_area, padsignal
+from ssqueezepy.utils import find_max_scale, unbuffer, _assert_positive_integer
+from ssqueezepy.utils import _infer_scaletype, _process_fs_and_t, make_scales
 from ssqueezepy._cwt import _icwt_norm
 from ssqueezepy._stft import _get_window
-from ssqueezepy.visuals import hist, plot, scat, imshow
-from ssqueezepy.toolkit import lin_band, cos_f, mad_rms
+from ssqueezepy.visuals import hist, plot, plots, scat, plotscat, imshow
+from ssqueezepy.toolkit import lin_band, cos_f, sin_f, mad_rms, amax
 from ssqueezepy import ssq_cwt, issq_cwt, cwt, icwt, ssqueeze
 
 #### Ensure cached imports reloaded ##########################################
@@ -33,6 +45,7 @@ import ssqueezepy
 
 reload(numba)
 numba.njit = njit
+numba.jit  = jit
 reload(ssqueezepy)
 for name in dir(ssqueezepy):
     obj = getattr(ssqueezepy, name)
@@ -129,6 +142,8 @@ def test_toolkit():
     Cs, freqband = lin_band(Tx, slope=1, offset=.1, bw=.025)
 
     _ = cos_f([1], N=64)
+    _ = sin_f([1], N=64)
+    _ = amax(Tx)
     _ = mad_rms(np.random.randn(10), np.random.randn(10))
 
 
@@ -139,9 +154,22 @@ def test_visuals():
     y = x * (1 + 1j)
     plot(y, complex=1, c_annot=1, vlines=1, ax_equal=1,
          xticks=np.arange(len(y)), yticks=y)
+    plot(y, abs=1, vert=1, dx1=1, ticks=0)
 
     scat(x, vlines=1, hlines=1)
-    imshow(np.random.randn(4, 4), complex=1)
+    scat(y, complex=1, ticks=0)
+    plotscat(y, show=1, xlims=(-1, 1), dx1=1, ylabel="5")
+
+    plots([y, y], tight=1, show=1)
+    plots([y, y], nrows=2)
+    plots([y, y], ncols=2)
+
+    g = np.random.randn(4, 4)
+    imshow(g * (1 + 2j), complex=1)
+    imshow(g, ridge=1, ticks=0)
+
+    _pass_on_error(plot, None, None)
+
 
 
 def test_utils():
@@ -157,6 +185,32 @@ def test_utils():
     _aifftshift_even(xh, xhs)
     _afftshift_even(xh, xhs)
 
+    _ = padsignal(xh, len(xh)*2, padtype='symmetric')
+    _ = padsignal(xh, len(xh)*2, padtype='wrap')
+
+    unbuffer(xh, 1, 1, 1, N=None, win_exp=0)
+    unbuffer(xh, 1, 1, 1, 1, win_exp=2)
+
+    #### errors / warnings ###################################################
+    _pass_on_error(find_max_scale, 1, 1, -1, -1)
+
+    _pass_on_error(cwt_scalebounds, 1, 1, preset='etc', min_cutoff=0)
+    _pass_on_error(cwt_scalebounds, 1, 1, min_cutoff=-1)
+    _pass_on_error(cwt_scalebounds, 1, 1, min_cutoff=.2, max_cutoff=.1)
+    _pass_on_error(cwt_scalebounds, 1, 1, cutoff=0)
+
+    _pass_on_error(_assert_positive_integer, -1, 'w')
+
+    _pass_on_error(_infer_scaletype, 1)
+    _pass_on_error(_infer_scaletype, np.array([1]))
+    _pass_on_error(_infer_scaletype, np.array([1., 2., 5.]))
+
+    _pass_on_error(_process_fs_and_t, 1, np.array([1]), 2)
+    _pass_on_error(_process_fs_and_t, 1, np.array([1., 2, 4]), 3)
+    _pass_on_error(_process_fs_and_t, -1, None, 1)
+
+    _pass_on_error(make_scales, 128, scaletype='banana')
+
 
 def test_anim():
     # bare minimally (still takes long, but covers many lines of code)
@@ -165,10 +219,6 @@ def test_anim():
 
 
 def test_ssqueezing():
-    def _pass_on_error(fn, *args, **kw):
-        try: fn(*args, **kw)
-        except: pass
-
     Wx = np.random.randn(4, 4)
     w = np.abs(Wx)
 
@@ -184,8 +234,15 @@ def test_ssqueezing():
 def test_windows():
     window = _get_window(None, win_len=100, n_fft=128)
 
-    window_area(window, time=True, frequency=True)
+    window_area(window, time=True,  frequency=True)
+    window_area(window, time=True,  frequency=False)
+    window_area(window, time=False, frequency=True)
     window_resolution(window)
+
+
+def _pass_on_error(fn, *args, **kw):
+    try: fn(*args, **kw)
+    except: pass
 
 
 if __name__ == '__main__':
@@ -203,9 +260,11 @@ if __name__ == '__main__':
         # restore original in case it matters for future testing
         reload(numba)
         numba.njit = njit_orig
+        numba.jit  = jit_orig
         reload(ssqueezepy)
         for name in dir(ssqueezepy):
             obj = getattr(ssqueezepy, name)
             if isinstance(obj, ModuleType):
                 reload(obj)
         print("numba.njit is no longer monkey")
+        print("numba.jit  is no longer monkey")

@@ -2,7 +2,7 @@
 """NOT FOR USE; will be ready for v0.6.0"""
 import numpy as np
 from ._stft import stft, phase_stft, _get_window, _check_NOLA
-from ._ssq_cwt import _invert_components
+from ._ssq_cwt import _invert_components, _process_component_inversion_args
 from .utils import WARN
 from .ssqueezing import ssqueeze
 
@@ -66,23 +66,13 @@ def issq_stft(Tx, window=None, cc=None, cw=None, win_len=None, hop_len=1,
         if hop_len != 1:
             raise ValueError("inversion with `hop_len != 1` is unsupported.")
 
-        if (cc is None) and (cw is None):
-            full_inverse = True
-        else:
-            full_inverse = False
-            if cc.ndim == 1:
-                cc = cc.reshape(-1, 1)
-            if cw.ndim == 1:
-                cw = cw.reshape(-1, 1)
-            cc = cc.astype('int32')
-            cw = cw.astype('int32')
+        cc, cw, full_inverse = _process_component_inversion_args(cc, cw)
 
         n_fft = n_fft or (Tx.shape[0] - 1) * 2
         win_len = win_len or n_fft
 
         window = _get_window(window, win_len, n_fft=n_fft)
         _check_NOLA(window, hop_len)
-
         if abs(np.argmax(window) - len(window)//2) > 1:
             WARN("`window` maximum not centered; results may be unreliable.")
 
