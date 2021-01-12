@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-"""NOT FOR USE; will be ready for v0.6.0"""
 import numpy as np
 import numpy.matlib
 from numpy.fft import fft, ifft, rfft, irfft, fftshift, ifftshift
@@ -12,7 +11,7 @@ pi = np.pi
 EPS = np.finfo(np.float64).eps  # machine epsilon for float64
 
 
-def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, dt=1,
+def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=1.,
          padtype='reflect', modulated=True, derivative=False):
     """Compute the short-time Fourier transform and modified short-time
     Fourier transform from [1].
@@ -26,20 +25,26 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, dt=1,
             `scipy.signal.get_window(window, win_len, fftbins=True)`.
             Defaults to `scipy.signal.windows.dpss`.
 
-        n_fft: int / None
+        n_fft: int >= 0 / None
             FFT length, or STFT column length. If `win_len < n_fft`, will
             pad `window`. Every STFT column is `fft(window * x_slice)`.
             Defaults to `len(x)`.
 
-        win_len: int / None
+        win_len: int >= 0 / None
             Length of `window` to use. Used to generate a window if `window`
             is string, and ignored if it's np.ndarray.
             Defaults to `n_fft//8` or `len(window)` (if `window` is np.ndarray).
 
-        hop_len: int
+        hop_len: int > 0
             STFT stride, or number of samples to skip/hop over between subsequent
             windowings. Relates to 'overlap' as `overlap = n_fft - hop_len`.
             Must be 1 for invertible synchrosqueezed STFT.
+
+        fs: float
+            Sampling frequency of `x`. Defaults to 1, which makes ssq
+            frequencies range from 0 to 0.5*fs, i.e. as fraction of reference
+            sampling rate up to Nyquist limit. Used to compute `dSx` and
+            `ssq_freqs`.
 
         padtype: str
             Pad scheme to apply on input. One of:
@@ -54,14 +59,13 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, dt=1,
             Recommended to use `True`; see "Modulation" below.
 
         derivative: bool (default False)
-            Whether to compute and return `dSx`. Requires `fs` or `t`.
+            Whether to compute and return `dSx`. Requires `fs`.
 
-
-    Modulation:
+    **Modulation:**
         `True` will center DFT cisoids at the window for each shift `u`:
-            Sm(u, k) = sum_{0}^{N-1} f[n] * g[n - u] * exp(-j*2pi*k*(n - u)/N)
+            Sm[u, k] = sum_{0}^{N-1} f[n] * g[n - u] * exp(-j*2pi*k*(n - u)/N)
         as opposed to usual STFT:
-            S(u, k)  = sum_{0}^{N-1} f[n] * g[n - u] * exp(-j*2pi*k*n/N)
+            S[u, k]  = sum_{0}^{N-1} f[n] * g[n - u] * exp(-j*2pi*k*n/N)
 
         Most implementations (including `scipy`, `librosa`) compute *neither*,
         but rather center the window for each slice, thus shifting DFT bases
@@ -71,14 +75,16 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, dt=1,
 
     # Returns:
         Sx: [(n_fft//2 + 1) x n_hops] np.ndarray
-            CWT of `x`.
+            STFT of `x`. Positive frequencies only (+dc), via `rfft`.
             (n_hops = (len(x) - 1)//hop_len + 1)
             (rows=scales, cols=timeshifts)
+
         dWx: [(n_fft//2 + 1) x n_hops] np.ndarray
             Returned only if `derivative=True`.
-            Time-derivative of the CWT of `x`, computed via frequency-domain
-            differentiation (effectively, derivative of trigonometric
-            interpolation; see [4]). Implements as described in Sec IIIB of [2].
+            Time-derivative of the STFT of `x`, computed via STFT done with
+            time-differentiated `window`, as in [1]. This differs from CWT's,
+            where its (and Sx's) DFTs are taken along columns rather than rows.
+            d/dt(window) obtained via freq-domain differentiation (help(cwt)).
 
     Recommended:
         - odd win_len with odd n_fft and even with even, not vice versa
@@ -86,12 +92,11 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, dt=1,
         it zero phase, desired in some applications
 
     # References:
-        1. G. Thakur and H.-T. Wu,
-        "Synchrosqueezing-based Recovery of Instantaneous Frequency
-        from Nonuniform Samples",
-        SIAM Journal on Mathematical Analysis, 43(5):2078-2095, 2011.
+        1. Synchrosqueezing-based Recovery of Instantaneous Frequency from
+        Nonuniform Samples. G. Thakur and H.-T. Wu.
+        https://arxiv.org/abs/1006.2533
     """
-    def _stft(xp, window, n_fft, hop_len, dt, modulated, derivative):
+    def _stft(xp, window, n_fft, hop_len, fs, modulated, derivative):
         Sx  = buffer(xp, n_fft, n_fft - hop_len)
         dSx = Sx.copy()
         Sx  *= window.reshape(-1, 1)
@@ -100,54 +105,77 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, dt=1,
         if modulated:
             # shift windowed slices so they're always DFT-centered (about n=0),
             # thus shifting bases (cisoids) along the window: e^(-j*(w - u))
-            Sx = ifftshift(Sx,  axes=0)
+            Sx = ifftshift(Sx, axes=0)
             if derivative:
                 dSx = ifftshift(dSx, axes=0)
 
         # keep only positive frequencies (Hermitian symmetry assuming real `x`)
-        Sx = rfft(Sx,  axis=0)
+        Sx = rfft(Sx, axis=0)
         if derivative:
-            dSx = rfft(dSx, axis=0) / dt
+            dSx = rfft(dSx, axis=0) * fs
         return (Sx, dSx) if derivative else (Sx, None)
 
     n_fft = n_fft or len(x)
     if win_len is None:
         win_len = (len(window) if isinstance(window, np.ndarray) else
                    n_fft//8)
-    window, diff_window = _get_window(window, win_len, n_fft, derivative=True)
+    window, diff_window = get_window(window, win_len, n_fft, derivative=True)
     _check_NOLA(window, hop_len)
 
     padlength = len(x) + n_fft - 1  # pad `x` to length `padlength`
     xp = padsignal(x, padtype, padlength=padlength)
 
-    Sx, dSx = _stft(xp, window, n_fft, hop_len, dt, modulated, derivative)
+    Sx, dSx = _stft(xp, window, n_fft, hop_len, fs, modulated, derivative)
 
     return (Sx, dSx) if derivative else Sx
 
 
-def istft(Sx, window=None, win_len=None, hop_len=None, n_fft=None, N=None,
+def istft(Sx, window=None, n_fft=None, win_len=None, hop_len=1, N=None,
           modulated=True, win_exp=1):
-    """Inverse short-time Fourier transform.
+    """Inverse Short-Time Fourier transform. Computed with least-squares
+    estimate for `win_exp`=1 per Griffin-Lim [1], recommended for STFT with
+    modifications, else simple inversion with `win_exp`=0:
 
+        x[n] = sum(y_t[n] * w^a[n - tH]) / sum(w^{a+1}[n - tH]),
+        y_t = ifft(Sx), H = hop_len, a = win_exp, t = hop index, n = sample index
+
+    Warns if `window` NOLA constraint isn't met (see [2]), invalidating inversion.
     Nice visuals and explanations on istft:
-        https://www.mathworks.com/help/signal/ref/iscola.html
+        https://www.mathworks.com/help/signal/ref/istft.html
 
     # Arguments:
-        Sx: np.ndarray. Wavelet transform of a signal (see `stft_fwd`).
-        opts: dict. Options:
-            'type': str. Wavelet type. See `stft_fwd`, and `wfiltfn`.
-            Others; see `stft_fwd` and source code.
+        Sx: np.ndarray
+            STFT of 1D `x`.
+
+        window, n_fft, win_len, hop_len, modulated
+            Should be same as used in forward STFT. See `help(stft)`.
+
+        N: int > 0 / None
+            `len(x)` of original `x`, used in inversion padding and windowing.
+            If None, assumes longest possible `x` given `hop_len`, `Sx.shape[1]`.
+
+        win_exp: int >= 0
+            Window power used in inversion per:
 
     # Returns:
-        x: the signal, as reconstructed from `Sx`.
+        x: np.ndarray, 1D
+            Signal as reconstructed from `Sx`.
+
+    # References:
+        1. Signal Estimation from Modified Short-Time Fourier Transform.
+        D. W. Griffin, J. S. Lim.
+        https://citeseerx.ist.psu.edu/viewdoc/
+        download?doi=10.1.1.306.7858&rep=rep1&type=pdf
+
+        2. Invertibility of overlap-add processing. B. Sharpe.
+        https://gauss256.github.io/blog/cola.html
     """
     ### process args #####################################
     n_fft = n_fft or (Sx.shape[0] - 1) * 2
     win_len = win_len or n_fft // 8
-    hop_len = hop_len or 1
     N = N or (hop_len * Sx.shape[1] - 1)  # assume largest possible N if not given
 
-    window = _get_window(window, win_len, n_fft=n_fft)
+    window = get_window(window, win_len, n_fft=n_fft)
     _check_NOLA(window, hop_len)
 
     xbuf = irfft(Sx, n=n_fft, axis=0).real
@@ -162,45 +190,7 @@ def istft(Sx, window=None, win_len=None, hop_len=None, n_fft=None, N=None,
     return x
 
 
-def phase_stft(Sx, dSx, Sfs, gamma=None):
-    """Calculate the phase transform of modified STFT at each (freq, time) pair:
-        w[a, b] = Im( eta - d/dt(Sx[t, eta]) / Sx[t, eta] / (2*pi*j))
-    Uses direct differentiation by calculating dSx/dt in frequency domain
-    (the secondary output of `stft_fwd`, see `stft_fwd`).
-
-    # Arguments:
-        Sx: np.ndarray. Wavelet transform of `x` (see `stft_fwd`).
-        dSx: np.ndarray. Samples of time-derivative of STFT of `x`
-             (see `stft_fwd`).
-        opts: dict. Options:
-            'gamma': float. Wavelet threshold (default: sqrt(machine epsilon))
-
-    # Returns:
-        w: phase transform, w.shape == Sx.shape
-
-    # References:
-        1. G. Thakur and H.-T. Wu,
-        "Synchrosqueezing-based Recovery of Instantaneous Frequency from
-        Nonuniform Samples",
-        SIAM Journal on Mathematical Analysis, 43(5):2078-2095, 2011.
-
-        2. G. Thakur, E. Brevdo, N.-S. Fučkar, and H.-T. Wu,
-        "The Synchrosqueezing algorithm for time-varying spectral analysis:
-        robustness properties and new paleoclimate applications,"
-        Signal Processing, 93:1079-1094, 2013.
-    """
-    gamma = gamma or np.sqrt(EPS)
-
-    w = Sfs.reshape(-1, 1) - np.imag(dSx / Sx / (2*pi))
-    # threshold out small points
-    w[(np.abs(Sx) < gamma)] = np.inf
-    # reassign negative phase (should be minority) as if positive
-    w = np.abs(w)  # TODO also for CWT?
-
-    return w
-
-
-def _get_window(window, win_len, n_fft=None, derivative=False):
+def get_window(window, win_len, n_fft=None, derivative=False):
     if n_fft is None:
         pl, pr = 0, 0
     else:
@@ -238,6 +228,55 @@ def _get_window(window, win_len, n_fft=None, derivative=False):
         diff_window = ifft(wf * 1j * xi).real
 
     return (window, diff_window) if derivative else window
+
+
+def phase_stft(Sx, dSx, Sfs, gamma=None):
+    """Phase transform of STFT:
+        w[u, k] = Im( k - d/dt(Sx[u, k]) / Sx[u, k] / (j*2pi) )
+
+    # Arguments:
+        Sx: np.ndarray
+            STFT of `x`, where `x` is 1D.
+
+        dSx: np.ndarray
+            Time-derivative of STFT of `x`
+
+        Sfs: np.ndarray
+            Associated physical frequencies, according to `dt` used in `stft`.
+            Spans 0 to fs/2, linearly.
+
+        gamma: float / None
+            STFT phase threshold. Sets `w=inf` for small values of `Sx` where
+            phase computation is unstable and inaccurate (like in DFT):
+                w[abs(Sx) < beta] = inf
+            This is used to zero `Wx` where `w=0` in computing `Tx` to ignore
+            contributions from points with indeterminate phase.
+            Default = sqrt(machine epsilon) = np.sqrt(np.finfo(np.float64).eps)
+
+    # Returns:
+        w: np.ndarray
+            Phase transform for each element of `Sx`. w.shape == Sx.shape.
+
+    # References:
+        1. Synchrosqueezing-based Recovery of Instantaneous Frequency from
+        Nonuniform Samples. G. Thakur and H.-T. Wu.
+        https://arxiv.org/abs/1006.2533
+
+        2. The Synchrosqueezing algorithm for time-varying spectral analysis:
+        robustness properties and new paleoclimate applications.
+        G. Thakur, E. Brevdo, N.-S. Fučkar, and H.-T. Wu.
+        https://arxiv.org/abs/1105.0010
+    """
+    w = Sfs.reshape(-1, 1) - np.imag(dSx / Sx) / (2*pi)
+
+    # treat negative phases as positive; these are in small minority, and
+    # slightly aid invertibility (as less of `Wx` is zeroed in ssqueezing)
+    w = np.abs(w)
+
+    gamma = gamma or np.sqrt(EPS)
+    # threshold out small points
+    w[np.abs(Sx) < gamma] = np.inf
+    return w
 
 
 def _check_NOLA(window, hop_len):

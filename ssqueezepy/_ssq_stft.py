@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
-"""NOT FOR USE; will be ready for v0.6.0"""
 import numpy as np
-from ._stft import stft, phase_stft, _get_window, _check_NOLA
+from ._stft import stft, phase_stft, get_window, _check_NOLA
 from ._ssq_cwt import _invert_components, _process_component_inversion_args
 from .utils import WARN
 from .ssqueezing import ssqueeze
@@ -10,7 +9,7 @@ pi = np.pi
 
 
 def ssq_stft(x, window=None, n_fft=None, win_len=None, hop_len=1,
-             dt=1, padtype='reflect', modulated=True, squeezing='sum'):
+             fs=1., padtype='reflect', modulated=True, squeezing='sum'):
     """Synchrosqueezed Short-Time Fourier Transform.
     Implements the algorithm described in Sec. III of [1].
 
@@ -18,40 +17,69 @@ def ssq_stft(x, window=None, n_fft=None, win_len=None, hop_len=1,
         x: np.ndarray
             Input vector, 1D.
 
+        window, n_fft, win_len, hop_len, fs, padtype, modulated
+            See `help(stft)`.
+
+        squeezing: str
+            Synchrosqueezing scheme to use. See `help(ssqueeze)`.
+
     # Returns:
-        Tx: synchrosqueezed output of `x` (columns associated with time `t`)
-        fs: frequencies associated with rows of `Tx`
-        Sx: STFT of `x` (see `stft_fw`)
-        Sfs: frequencies associated with rows of `Sx`
-        w: phase transform of `Sx`
+        Tx: np.ndarray
+            Synchrosqueezed STFT of `x`, of same shape as `Sx` (see `stft`).
+        ssq_freqs: np.ndarray
+            Frequencies associated with rows of `Tx` and `Sx`.
+        Sx: np.ndarray
+            STFT of `x`. See `help(stft)`.
+        dSx: np.ndarray
+            Time-derivative of STFT of `x`. See `help(stft)`.
+        w: np.ndarray
+            Phase transform of STFT of `x`. See `help(phase_stft)`.
 
     # References:
-        1. The Synchrosqueezing algorithm for time-varying spectral analysis:
-        robustness properties and new paleoclimate applications.
-        G. Thakur, E. Brevdo, N.-S. Fučkar, and H.-T. Wu.
-        https://arxiv.org/abs/1105.0010
+        1. Synchrosqueezing-based Recovery of Instantaneous Frequency from
+        Nonuniform Samples. G. Thakur and H.-T. Wu.
+        https://arxiv.org/abs/1006.2533
     """
     n_fft = n_fft or len(x)
-    # Calculate the modified STFT, using window of opts['winlen']
-    # in frequency domain
+
     Sx, dSx = stft(x, window, n_fft=n_fft, win_len=win_len,
-                   hop_len=hop_len, dt=dt, padtype=padtype,
+                   hop_len=hop_len, fs=fs, padtype=padtype,
                    modulated=modulated, derivative=True)
 
-    Sfs = np.linspace(0, .5, n_fft // 2 + 1) / dt
+    Sfs = np.linspace(0, .5, Sx.shape[0]) * fs
     w = phase_stft(Sx, dSx, Sfs)
 
-    # Calculate the synchrosqueezed frequency decomposition
-    # The parameter alpha from reference [2] is given by Sfs[1] - Sfs[0]
-    Tx, fs = ssqueeze(Sx, w, transform='stft', scales='linear',
-                      squeezing=squeezing)
+    Tx, ssq_freqs = ssqueeze(Sx, w, transform='stft', squeezing=squeezing,
+                             ssq_freqs=Sfs)
 
-    return Tx, fs, Sx, Sfs, w, dSx
+    return Tx, ssq_freqs, Sx, dSx, w
 
 
-def issq_stft(Tx, window=None, cc=None, cw=None, win_len=None, hop_len=1,
-              n_fft=None, N=None, modulated=True, win_exp=0):
-    """Docstring
+def issq_stft(Tx, window=None, cc=None, cw=None, n_fft=None, win_len=None,
+              hop_len=1, N=None, modulated=True):
+    """Inverse synchrosqueezed STFT.
+
+    # Arguments:
+        x: np.ndarray
+            Input vector, 1D.
+
+        window, n_fft, win_len, hop_len, modulated
+            See `help(stft)`. Must match those used in `ssq_stft`.
+
+        cc, cw: np.ndarray
+            See `help(issq_cwt)`.
+
+    # Returns:
+        x: np.ndarray
+            Signal as reconstructed from `Tx`.
+
+    # References:
+        1. Synchrosqueezing-based Recovery of Instantaneous Frequency from
+        Nonuniform Samples. G. Thakur and H.-T. Wu.
+        https://arxiv.org/abs/1006.2533
+
+        2. Fourier synchrosqueezed transform MATLAB docs.
+        https://www.mathworks.com/help/signal/ref/fsst.html
     """
     def _process_args(Tx, window, cc, cw, win_len, hop_len, n_fft, modulated):
         if not modulated:
@@ -65,7 +93,7 @@ def issq_stft(Tx, window=None, cc=None, cw=None, win_len=None, hop_len=1,
         n_fft = n_fft or (Tx.shape[0] - 1) * 2
         win_len = win_len or n_fft
 
-        window = _get_window(window, win_len, n_fft=n_fft)
+        window = get_window(window, win_len, n_fft=n_fft)
         _check_NOLA(window, hop_len)
         if abs(np.argmax(window) - len(window)//2) > 1:
             WARN("`window` maximum not centered; results may be unreliable.")

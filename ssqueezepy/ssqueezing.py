@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import numpy as np
+from types import FunctionType
 from .algos import find_closest, indexed_sum, replace_at_inf
 from .utils import process_scales, _infer_scaletype, _process_fs_and_t
 from .utils import NOTE, EPS, pi
@@ -28,7 +29,7 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
 
         fs: float / None
             Sampling frequency of `x`. Defaults to 1, which makes ssq
-            frequencies range from 1/dT to 0.5, i.e. as fraction of reference
+            frequencies range from 1/dT to 0.5*fs, i.e. as fraction of reference
             sampling rate up to Nyquist limit; dT = total duration (N/fs).
             Overridden by `t`, if provided.
             Relevant on `t` and `dT`: https://dsp.stackexchange.com/a/71580/50076
@@ -42,11 +43,22 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
         transform: str['cwt', 'stft']
             Whether `Wx` is from CWT or STFT (`Sx`).
 
-        squeezing: str['sum', 'lebesgue']
-            - 'sum' = standard synchrosqueezing using `Wx`.
-            - 'lebesgue' = as in [4], setting `Wx=ones()/len(Wx)`, which is
-            not invertible but has better robustness properties in some cases.
-            Not recommended unless purpose is understood.
+        squeezing: str['sum', 'lebesgue'] / function
+            - 'sum': summing `Wx` according to `w`. Standard synchrosqueezing.
+            Invertible.
+            - 'lebesgue': as in [3], summing `Wx=ones()/len(Wx)`. Effectively,
+            raw `Wx` phase is synchrosqueezed, independent of `Wx` values. Not
+            recommended with CWT or STFT with `modulated=True`. Not invertible.
+            For `modulated=False`, provides a more stable and accurate
+            representation.
+            - 'abs': summing `abs(Wx)` according to `w`. Not invertible
+            (but theoretically possible to get close with least-squares estimate,
+             so much "more invertible" than 'lebesgue'). Alt to 'lebesgue',
+            providing same benefits while losing much less information.
+
+            Custom function can be used to transform `Wx` arbitrarily for
+            summation, e.g. `Wx**2` via `lambda x: x**2`. Output shape
+            must match `Wx.shape`.
 
         mapkind: str['maximal', 'peak', 'energy']
             See help(ssq_cwt).
@@ -103,7 +115,7 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
                 da = (scales[1] - scales[0])
                 Tx = indexed_sum(Wx / scales * da, k)
         elif transform == 'stft':
-            df = (ssq_freqs[1] - ssq_freqs[0])
+            df = (ssq_freqs[1] - ssq_freqs[0])  # 'alpha' from [3]
             Tx = indexed_sum(Wx * df, k)
         return Tx
 
@@ -146,9 +158,15 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
         if transform not in ('cwt', 'stft'):
             raise ValueError("`transform` must be one of: cwt, stft "
                              "(got %s)" % squeezing)
-        # if squeezing not in ('sum', 'lebesgue'):  # TODO
-        #     raise ValueError("`squeezing` must be one of: sum, lebesgue "
-        #                      "(got %s)" % squeezing)
+
+        supported = ('sum', 'lebesgue', 'abs')
+        if not isinstance(squeezing, (str, FunctionType)):
+            raise TypeError("`squeezing` must be string or function "
+                            "(got %s)" % type(squeezing))
+        elif isinstance(squeezing, str) and squeezing not in supported:
+            raise ValueError("`squeezing` must be one of: sum, lebesgue, abs "
+                              "(got %s)" % ', '.join(supported))
+
         if scales is None and transform == 'cwt':
             raise ValueError("`scales` can't be None if `transform == 'cwt'`")
 
@@ -180,13 +198,12 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
     else:
         ssq_scaletype = _infer_scaletype(ssq_freqs)
 
-    if squeezing == 'lebesgue':  # from reference [3]
+    if isinstance(squeezing, FunctionType):
+        Wx = squeezing(Wx)
+    elif squeezing == 'lebesgue':  # from reference [3]
         Wx = np.ones(Wx.shape) / len(Wx)
     elif squeezing == 'abs':
         Wx = np.abs(Wx)
-    elif squeezing == 'square':
-        Wx = np.abs(Wx)**2
-    # TODO custom (isinstance(squeezing, FunctionType))
 
     Tx = _ssqueeze(w, Wx, nv, ssq_freqs, transform, ssq_scaletype, cwt_scaletype)
     return Tx, ssq_freqs
@@ -248,7 +265,6 @@ def phase_cwt(Wx, dWx, difftype='direct', gamma=None):
         https://github.com/ebrevdo/synchrosqueezing/blob/master/synchrosqueezing/
         phase_cwt.m
     """
-    # Calculate phase transform for each `ai`, normalize by 2pi
     if difftype == 'phase':
         # TODO gives bad results; shouldn't we divide by Wx?
         u = np.unwrap(np.angle(Wx)).T
@@ -256,9 +272,12 @@ def phase_cwt(Wx, dWx, difftype='direct', gamma=None):
     else:
         with np.errstate(divide='ignore'):
             w = np.imag(dWx / Wx) / (2*pi)
+    # treat negative phases as positive; these are in small minority, and
+    # slightly aid invertibility (as less of `Wx` is zeroed in ssqueezing)
+    w = np.abs(w)
 
     gamma = gamma or np.sqrt(EPS)
-    w[(np.abs(Wx) < gamma) | (w < 0)] = np.inf
+    w[np.abs(Wx) < gamma] = np.inf
     return w
 
 

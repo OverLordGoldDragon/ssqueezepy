@@ -42,7 +42,7 @@ def cwt(x, wavelet, scales='log', fs=None, t=None, nv=32, l1_norm=True,
 
         fs: float / None
             Sampling frequency of `x`. Defaults to 1, which makes ssq
-            frequencies range from 1/dT to 0.5, i.e. as fraction of reference
+            frequencies range from 1/dT to 0.5*fs, i.e. as fraction of reference
             sampling rate up to Nyquist limit; dT = total duration (N/fs).
             Used to compute `dt`, which is only used if `derivative=True`.
             Overridden by `t`, if provided.

@@ -3,7 +3,7 @@ import pytest
 import numpy as np
 from ssqueezepy import ssq_cwt, issq_cwt, ssq_stft, issq_stft
 from ssqueezepy import cwt, icwt, stft, istft
-from ssqueezepy._stft import _get_window
+from ssqueezepy._stft import get_window
 from ssqueezepy.toolkit import lin_band
 
 VIZ = 0  # set to 1 to enable various visuals and run without pytest
@@ -165,7 +165,7 @@ def test_ssq_stft():
                 if window_scaling == 1:
                     window = None
                 else:
-                    window = _get_window(window, win_len=n_fft//1, n_fft=n_fft)
+                    window = get_window(window, win_len=n_fft//1, n_fft=n_fft)
                     window *= window_scaling
 
                 Sx, *_ = ssq_stft(x, window=window, n_fft=n_fft)

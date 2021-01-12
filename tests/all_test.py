@@ -33,7 +33,7 @@ from ssqueezepy.utils import window_resolution, window_area, padsignal
 from ssqueezepy.utils import find_max_scale, unbuffer, _assert_positive_integer
 from ssqueezepy.utils import _infer_scaletype, _process_fs_and_t, make_scales
 from ssqueezepy._cwt import _icwt_norm
-from ssqueezepy._stft import _get_window
+from ssqueezepy._stft import get_window
 from ssqueezepy.visuals import hist, plot, plots, scat, plotscat, imshow
 from ssqueezepy.toolkit import lin_band, cos_f, sin_f, mad_rms, amax
 from ssqueezepy import ssq_cwt, issq_cwt, cwt, icwt, ssqueeze
@@ -229,10 +229,11 @@ def test_ssqueezing():
     _pass_on_error(ssqueeze, Wx, w, transform='stft', mapkind='minimal')
     _pass_on_error(ssqueeze, Wx, w, transform='abs')
     _pass_on_error(ssqueeze, Wx, w, squeezing='big_bird')
+    _pass_on_error(ssqueeze, Wx, w, squeezing=lambda x: x**2)
 
 
 def test_windows():
-    window = _get_window(None, win_len=100, n_fft=128)
+    window = get_window(None, win_len=100, n_fft=128)
 
     window_area(window, time=True,  frequency=True)
     window_area(window, time=True,  frequency=False)
