@@ -64,10 +64,7 @@ def cwt(x, wavelet, scales='log', fs=None, t=None, nv=32, l1_norm=True,
             Whether to compute and return `dWx`. Requires `fs` or `t`.
 
         padtype: str
-            Pad scheme to apply on input. One of:
-                ('zero', 'reflect', 'symmetric', 'replicate').
-            'zero' is most naive, while 'reflect' (default) partly mitigates
-            boundary effects. See `padsignal`.
+            Pad scheme to apply on input. See `help(utils.padsignal)`.
 
         rpadded: bool (default False)
              Whether to return padded Wx and dWx.
@@ -213,10 +210,7 @@ def icwt(Wx, wavelet, scales='log', nv=None, one_int=True, x_len=None, x_mean=0,
             infinite scale component). Default 0.
 
         padtype: str
-            Pad scheme to apply on input. One of:
-                ('zero', 'symmetric', 'replicate').
-            'zero' is most naive, while 'reflect' (default) partly mitigates
-            boundary effects. See `padsignal`.
+            Pad scheme to apply on input. See `help(utils.padsignal)`.
             !!! currently uses only 'zero'
 
         rpadded: bool (default False)

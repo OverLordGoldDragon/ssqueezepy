@@ -1,14 +1,10 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 import numpy.matlib
-from numpy.fft import fft, ifft, rfft, irfft, fftshift, ifftshift
 import scipy.signal as sig
+from numpy.fft import fft, ifft, rfft, irfft, fftshift, ifftshift
 from .utils import WARN, padsignal, buffer, unbuffer, window_norm
 from .wavelets import _xifn
-
-
-pi = np.pi
-EPS = np.finfo(np.float64).eps  # machine epsilon for float64
 
 
 def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=1.,
@@ -23,7 +19,12 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=1.,
         window: str / np.ndarray / None
             STFT windowing kernel. If string, will fetch per
             `scipy.signal.get_window(window, win_len, fftbins=True)`.
-            Defaults to `scipy.signal.windows.dpss`.
+            Defaults to `scipy.signal.windows.dpss(win_len, 4)`; the DPSS
+            window provides the best time-frequency resolution.
+
+            Always padded to `n_fft`, so for accurate filter characteristics
+            (side lobe decay, etc), best to pass in pre-designed `window`
+            with `win_len == n_fft`.
 
         n_fft: int >= 0 / None
             FFT length, or STFT column length. If `win_len < n_fft`, will
@@ -47,10 +48,7 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=1.,
             `ssq_freqs`.
 
         padtype: str
-            Pad scheme to apply on input. One of:
-                ('zero', 'reflect', 'symmetric', 'replicate', 'wrap').
-            'zero' is most naive, while 'reflect' (default) partly mitigates
-            boundary effects. See `help(utils.padsignal)`.
+            Pad scheme to apply on input. See `help(utils.padsignal)`.
 
         modulated: bool (default True)
             Whether to use "modified" variant as in [1], which centers DFT
@@ -215,7 +213,6 @@ def get_window(window, win_len, n_fft=None, derivative=False):
         # fftbins=True -> 'periodic' window -> narrower main side-lobe and
         # closer to zero-phase in left=right padded case
         # for windows edging at 0
-        # window = sig.get_window('hann', win_len, fftbins=True)
         window = sig.windows.dpss(win_len, 4, sym=False)
         window = np.pad(window, [pl, pr])
 
@@ -228,55 +225,6 @@ def get_window(window, win_len, n_fft=None, derivative=False):
         diff_window = ifft(wf * 1j * xi).real
 
     return (window, diff_window) if derivative else window
-
-
-def phase_stft(Sx, dSx, Sfs, gamma=None):
-    """Phase transform of STFT:
-        w[u, k] = Im( k - d/dt(Sx[u, k]) / Sx[u, k] / (j*2pi) )
-
-    # Arguments:
-        Sx: np.ndarray
-            STFT of `x`, where `x` is 1D.
-
-        dSx: np.ndarray
-            Time-derivative of STFT of `x`
-
-        Sfs: np.ndarray
-            Associated physical frequencies, according to `dt` used in `stft`.
-            Spans 0 to fs/2, linearly.
-
-        gamma: float / None
-            STFT phase threshold. Sets `w=inf` for small values of `Sx` where
-            phase computation is unstable and inaccurate (like in DFT):
-                w[abs(Sx) < beta] = inf
-            This is used to zero `Wx` where `w=0` in computing `Tx` to ignore
-            contributions from points with indeterminate phase.
-            Default = sqrt(machine epsilon) = np.sqrt(np.finfo(np.float64).eps)
-
-    # Returns:
-        w: np.ndarray
-            Phase transform for each element of `Sx`. w.shape == Sx.shape.
-
-    # References:
-        1. Synchrosqueezing-based Recovery of Instantaneous Frequency from
-        Nonuniform Samples. G. Thakur and H.-T. Wu.
-        https://arxiv.org/abs/1006.2533
-
-        2. The Synchrosqueezing algorithm for time-varying spectral analysis:
-        robustness properties and new paleoclimate applications.
-        G. Thakur, E. Brevdo, N.-S. Fučkar, and H.-T. Wu.
-        https://arxiv.org/abs/1105.0010
-    """
-    w = Sfs.reshape(-1, 1) - np.imag(dSx / Sx) / (2*pi)
-
-    # treat negative phases as positive; these are in small minority, and
-    # slightly aid invertibility (as less of `Wx` is zeroed in ssqueezing)
-    w = np.abs(w)
-
-    gamma = gamma or np.sqrt(EPS)
-    # threshold out small points
-    w[np.abs(Sx) < gamma] = np.inf
-    return w
 
 
 def _check_NOLA(window, hop_len):
