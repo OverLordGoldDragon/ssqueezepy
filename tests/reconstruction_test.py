@@ -169,7 +169,7 @@ def test_ssq_stft():
                     window *= window_scaling
 
                 Sx, *_ = ssq_stft(x, window=window, n_fft=n_fft)
-                xr = issq_stft(Sx, window=window, n_fft=n_fft, N=N)
+                xr = issq_stft(Sx, window=window, n_fft=n_fft)
 
                 txt = ("\nSSQ_STFT: (N, n_fft, window_scaling) = ({}, {}, {})"
                        ).format(N, n_fft, window_scaling)
