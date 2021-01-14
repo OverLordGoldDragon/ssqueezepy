@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 import logging
+from numpy.fft import fft, fftshift
 from scipy import integrate
+from numba import jit
 from .algos import _min_neglect_idx, find_maximum, find_first_occurrence
 from .wavelets import Wavelet
 
@@ -73,25 +75,28 @@ def p2up(n):
     return int(up), int(n1), int(n2)
 
 
-def padsignal(x, padtype='reflect', padlength=None):
+def padsignal(x, padtype='reflect', padlength=None, get_params=False):
     """Pads signal and returns trim indices to recover original.
 
     # Arguments:
-        x: np.ndarray. Original signal.
+        x: np.ndarray
+            Input vector, 1D.
+
         padtype: str
             Pad scheme to apply on input. One of:
-                ('zero', 'symmetric', 'replicate').
+                ('reflect', 'symmetric', 'replicate', 'wrap', 'zero').
             'zero' is most naive, while 'reflect' (default) partly mitigates
             boundary effects. See [1] & [2].
+
         padlength: int / None
-            Number of samples to pad on each side. Default is for padded signal
-            to have total length that's next power of 2.
+            Number of samples to pad input to (i.e. len(x_padded) == padlength).
+            Even: left = right, Odd: left = right + 1.
 
     # Returns:
-        xpad: np.ndarray
+        xp: np.ndarray
             Padded signal.
         n_up: int
-            Next power of 2.
+            Next power of 2, or `padlength` if provided.
         n1: int
             Left  pad length.
         n2: int
@@ -106,40 +111,48 @@ def padsignal(x, padtype='reflect', padlength=None):
         http://min.sjtu.edu.cn/files/wavelet/
         6-lifting%20wavelet%20and%20filterbank.pdf
     """
-    # TODO @padlength: change to denote *total* pad length?
-    padtypes = ('reflect', 'symmetric', 'replicate', 'zero')
+    # TODO: padlength -> padded_len ?
+    padtypes = ('reflect', 'symmetric', 'replicate', 'wrap', 'zero')
     if padtype not in padtypes:
         raise ValueError(("Unsupported `padtype` {}; must be one of: {}"
                           ).format(padtype, ", ".join(padtypes)))
-    n = len(x)
 
+    n = len(x)
     if padlength is None:
         # pad up to the nearest power of 2
         n_up, n1, n2 = p2up(n)
     else:
-        n_up = n + 2 * padlength
-        n1 = n2 = padlength
+        n_up = padlength
+        if abs(padlength - n) % 2 == 0:
+            n1 = n2 = (n_up - n) // 2
+        else:
+            n2 = (n_up - n) // 2
+            n1 = n2 + 1
     n_up, n1, n2 = int(n_up), int(n1), int(n2)
 
-    # comments use (n=4, n1=3, n2=4) as example, but this combination can't occur
+    # comments use (n=4, n1=4, n2=3) as example, but this combination can't occur
     if padtype == 'reflect':
-        # [1,2,3,4] -> [4,3,2, 1,2,3,4, 3,2,1,2]
-        xpad = np.pad(x, [n1, n2], mode='reflect')
+        # [1,2,3,4] -> [3,4,3,2, 1,2,3,4, 3,2,1]
+        xp = np.pad(x, [n1, n2], mode='reflect')
     elif padtype == 'symmetric':
-        # [1,2,3,4] -> [3,2,1, 1,2,3,4, 4,3,2,1]
-        xpad = np.hstack([x[::-1][-n1:], x, x[::-1][:n2]])
+        # [1,2,3,4] -> [4,3,2,1, 1,2,3,4, 4,3,2]
+        xp = np.hstack([x[::-1][-n1:], x, x[::-1][:n2]])
     elif padtype == 'replicate':
-        # [1,2,3,4] -> [1,1,1, 1,2,3,4, 4,4,4,4]
-        xpad = np.pad(x, [n1, n2], mode='edge')
+        # [1,2,3,4] -> [1,1,1,1, 1,2,3,4, 4,4,4]
+        xp = np.pad(x, [n1, n2], mode='edge')
+    elif padtype == 'wrap':
+        # [1,2,3,4] -> [1,2,3,4, 1,2,3,4, 1,2,3]
+        xp = np.pad(x, [n1, n2], mode='wrap')
     elif padtype == 'zero':
-        # [1,2,3,4] -> [0,0,0, 1,2,3,4, 0,0,0,0]
-        xpad = np.pad(x, [n1, n2])
+        # [1,2,3,4] -> [0,0,0,0, 1,2,3,4, 0,0,0]
+        xp = np.pad(x, [n1, n2])
 
-    _ = (len(xpad), n_up, n1, n, n2)
-    assert (len(xpad) == n_up == n1 + n + n2), "%s ?= %s ?= %s + %s + %s" % _
-    return xpad, n_up, n1, n2
+    _ = (len(xp), n_up, n1, n, n2)
+    assert (len(xp) == n_up == n1 + n + n2), "%s ?= %s ?= %s + %s + %s" % _
+    return (xp, n_up, n1, n2) if get_params else xp
 
 
+#### CWT utils ################################################################
 def adm_ssq(wavelet):
     """Calculates the synchrosqueezing admissibility constant, the term
     R_psi in Eq 15 of [1] (also see Eq 2.5 of [2]). Uses numeric intergration.
@@ -374,19 +387,6 @@ def cwt_scalebounds(wavelet, N, preset=None, min_cutoff=None, max_cutoff=None,
     return min_scale, max_scale
 
 
-def buffer(x, seg_len, n_overlap):
-    # TODO docstr
-    hop_len = seg_len - n_overlap
-    n_segs = (len(x) - seg_len) // hop_len + 1
-    out = np.zeros((seg_len, n_segs))
-
-    for i in range(n_segs):
-        start = i * hop_len
-        end   = start + seg_len
-        out[:, i] = x[start:end]
-    return out
-
-
 def _assert_positive_integer(g, name=''):
     if not (g > 0 and float(g).is_integer()):
         raise ValueError(f"'{name}' must be a positive integer (got {g})")
@@ -528,6 +528,135 @@ def make_scales(N, min_scale=None, max_scale=None, nv=32, scaletype='log'):
     return scales
 
 
+#### STFT utils ###############################################################
+def buffer(x, seg_len, n_overlap):
+    """Build 2D array where each column is a successive slice of `x` of length
+    `seg_len` and overlapping by `n_overlap` (or equivalently incrementing
+    starting index of each slice by `hop_len = seg_len - n_overlap`.
+
+    Mimics MATLAB's `buffer`, with less functionality.
+
+    Ex:
+        x = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+        xb = buffer(x, seg_len=5, n_overlap=3)
+        xb == [[0, 1, 2, 3, 4],
+               [2, 3, 4, 5, 6],
+               [4, 5, 6, 7, 8]].T
+    """
+    hop_len = seg_len - n_overlap
+    n_segs = (len(x) - seg_len) // hop_len + 1
+    out = np.zeros((seg_len, n_segs))
+
+    for i in range(n_segs):
+        start = i * hop_len
+        end   = start + seg_len
+        out[:, i] = x[start:end]
+    return out
+
+
+def unbuffer(xbuf, window, hop_len, n_fft, N, win_exp=1):
+    """Undoes `buffer`, per padding logic used in `stft`:
+        (N, n_fft) : logic
+         even, even: left = right + 1
+             (N, n_fft, len(xp), pl, pr) -> (128, 120, 247, 60, 59)
+          odd,  odd: left = right
+             (N, n_fft, len(xp), pl, pr) -> (129, 121, 249, 60, 60)
+         even,  odd: left = right
+             (N, n_fft, len(xp), pl, pr) -> (128, 121, 248, 60, 60)
+          odd, even: left = right + 1
+             (N, n_fft, len(xp), pl, pr) -> (129, 120, 248, 60, 59)
+    """
+    if N is None:
+        # assume greatest possible len(x) (unpadded)
+        N = xbuf.shape[1] * hop_len + len(window) - 1
+    if len(window) != n_fft:
+        raise ValueError("Must have `len(window) == n_fft` "
+                         "(got %s != %s)" % (len(window), n_fft))
+    if win_exp == 0:
+        window = 1
+    elif win_exp != 1:
+        window = window ** win_exp
+    x = np.zeros(N + n_fft - 1)
+
+    _overlap_add(x, xbuf, window, hop_len, n_fft)
+    x = x[n_fft//2 : -((n_fft - 1)//2)]
+    return x
+
+
+def window_norm(window, hop_len, n_fft, N, win_exp=1):
+    """Computes window modulation array for use in `stft` and `istft`."""
+    wn = np.zeros(N + n_fft - 1)
+
+    _window_norm(wn, window, hop_len, n_fft, win_exp)
+    return wn[n_fft//2 : -((n_fft - 1)//2)]
+
+
+@jit(nopython=True, cache=True)
+def _overlap_add(x, xbuf, window, hop_len, n_fft):
+    for i in range(xbuf.shape[1]):
+        n = i * hop_len
+        x[n:n + n_fft] += xbuf[:, i] * window
+
+
+@jit(nopython=True, cache=True)
+def _window_norm(wn, window, hop_len, n_fft, win_exp=1):
+    max_hops = (len(wn) - n_fft) // hop_len + 1
+    wpow = window ** (win_exp + 1)
+
+    for i in range(max_hops):
+        n = i * hop_len
+        wn[n:n + n_fft] += wpow
+
+
+def window_resolution(window):
+    """Minimal function to compute a window's time & frequency widths, assuming
+    Fourier spectrum centered about dc (else use `ssqueezepy.wavelets` methods).
+
+    Returns std_w, std_t, harea. `window` must be np.ndarray and >=0.
+    """
+    from .wavelets import _xifn
+    assert window.min() >= 0, "`window` must be >= 0 (got min=%s)" % window.min()
+    N = len(window)
+
+    t  = np.arange(-N/2, N/2, step=1)
+    ws = fftshift(_xifn(1, N))
+
+    psihs   = fftshift(fft(window))
+    apsi2   = np.abs(window)**2
+    apsih2s = np.abs(psihs)**2
+
+    var_w = integrate.trapz(ws**2 * apsih2s, ws) / integrate.trapz(apsih2s, ws)
+    var_t = integrate.trapz(t**2  * apsi2, t)    / integrate.trapz(apsi2, t)
+
+    std_w, std_t = np.sqrt(var_w), np.sqrt(var_t)
+    harea = std_w * std_t
+    return std_w, std_t, harea
+
+
+def window_area(window, time=True, frequency=False):
+    """Minimal function to compute a window's time or frequency 'area' as area
+    under curve of `abs(window)**2`. `window` must be np.ndarray.
+    """
+    from .wavelets import _xifn
+    if not time and not frequency:
+        raise ValueError("must compute something")
+
+    if time:
+        t = np.arange(-len(window)/2, len(window)/2, step=1)
+        at = integrate.trapz(np.abs(window)**2, t)
+    if frequency:
+        ws = fftshift(_xifn(1, len(window)))
+        apsih2s = np.abs(fftshift(fft(window)))**2
+        aw = integrate.trapz(apsih2s, ws)
+
+    if time and frequency:
+        return at, aw
+    elif time:
+        return at
+    return aw
+
+
+#### misc utils ###############################################################
 def _integrate_analytic(int_fn, nowarn=False):
     """Assumes function that's zero for negative inputs (e.g. analytic wavelet),
     decays toward right, and is unimodal: int_fn(t<0)=0, int_fn(t->inf)->0.

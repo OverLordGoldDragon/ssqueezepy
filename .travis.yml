@@ -29,7 +29,7 @@ before_install:
 script:
   - >
     pycodestyle --max-line-length=85 
-    --ignore=E221,E241,E225,E226,E402,E722,E741,E272,E266,E302,E731,E702,E201,E129,W503,W504 
+    --ignore=E221,E241,E225,E226,E402,E722,E741,E272,E266,E302,E731,E702,E201,E129,E203,W503,W504 
     ssqueezepy
   - pytest -s --cov=ssqueezepy tests/
 

@@ -2,7 +2,7 @@
 import numpy as np
 import logging
 from numpy.fft import ifft, fftshift, ifftshift
-from numba import njit
+from numba import jit
 from types import FunctionType
 from scipy import integrate
 
@@ -304,7 +304,7 @@ class Wavelet():
         self.config = wavopts
 
 
-@njit
+@jit(nopython=True, cache=True)
 def _xifn(scale, N):
     # N=128: [0, 1, 2, ..., 64, -63, -62, ..., -1] * (2*pi / N) * scale
     # N=129: [0, 1, 2, ..., 64, -64, -63, ..., -1] * (2*pi / N) * scale
@@ -324,7 +324,7 @@ def morlet(mu=6.):
     ks = np.exp(-.5 * mu**2)
     return lambda w: _morlet(w, mu, cs, ks)
 
-@njit
+@jit(nopython=True, cache=True)
 def _morlet(w, mu, cs, ks):
     return np.sqrt(2) * cs * pi**.25 * (np.exp(-.5 * (mu - w)**2)
                                         - ks * np.exp(-.5 * w**2))
@@ -333,7 +333,7 @@ def _morlet(w, mu, cs, ks):
 def bump(mu=5., s=1., om=0.):
     return lambda w: _bump(w, (w - mu) / s, om, s)
 
-@njit
+@jit(nopython=True, cache=True)
 def _bump(w, _w, om, s):
     return np.exp(2 * pi * 1j * om * w) / s * (
         np.abs(_w) < .999) * np.exp(-1. / (1 - (_w * (np.abs(_w) < .999))**2)
@@ -343,7 +343,7 @@ def _bump(w, _w, om, s):
 def cmhat(mu=1., s=1.):
     return lambda w: _cmhat(w - mu, s)
 
-@njit
+@jit(nopython=True, cache=True)
 def _cmhat(_w, s):
     return 2 * np.sqrt(2/3) * pi**(-1/4) * (
         s**(5/2) * _w**2 * np.exp(-s**2 * _w**2 / 2) * (_w >= 0))
@@ -352,7 +352,7 @@ def _cmhat(_w, s):
 def hhhat(mu=5.):
     return lambda w: _hhhat(w - mu)
 
-@njit
+@jit(nopython=True, cache=True)
 def _hhhat(_w):
     return 2 / np.sqrt(5) * pi**(-1/4) * (_w * (1 + _w) * np.exp(-1/2 * _w**2)
                                           ) * (1 + np.sign(_w))
@@ -616,7 +616,7 @@ def afftshift(xh):
         return _afftshift_even(xh, np.zeros(len(xh), dtype=xh.dtype))
     return fftshift(xh)
 
-@njit
+@jit(nopython=True, cache=True)
 def _afftshift_even(xh, xhs):
     N = len(xh)
     for i in range(N // 2 + 1):
@@ -632,7 +632,7 @@ def aifftshift(xh):
         return _aifftshift_even(xh, np.zeros(len(xh), dtype=xh.dtype))
     return ifftshift(xh)
 
-@njit
+@jit(nopython=True, cache=True)
 def _aifftshift_even(xh, xhs):
     N = len(xh)
     for i in range(N // 2 + 1):

@@ -7,7 +7,7 @@ from .algos import replace_at_inf_or_nan
 from .wavelets import Wavelet
 
 
-def cwt(x, wavelet, scales='log', fs=None, t=None, nv=32, l1_norm=True,
+def cwt(x, wavelet='morlet', scales='log', fs=None, t=None, nv=32, l1_norm=True,
         derivative=False, padtype='reflect', rpadded=False, vectorized=True):
     """Continuous Wavelet Transform, discretized, as described in
     Sec. 4.3.3 of [1] and Sec. IIIA of [2]. Uses a form of discretized
@@ -42,7 +42,7 @@ def cwt(x, wavelet, scales='log', fs=None, t=None, nv=32, l1_norm=True,
 
         fs: float / None
             Sampling frequency of `x`. Defaults to 1, which makes ssq
-            frequencies range from 1/dT to 0.5, i.e. as fraction of reference
+            frequencies range from 1/dT to 0.5*fs, i.e. as fraction of reference
             sampling rate up to Nyquist limit; dT = total duration (N/fs).
             Used to compute `dt`, which is only used if `derivative=True`.
             Overridden by `t`, if provided.
@@ -64,10 +64,7 @@ def cwt(x, wavelet, scales='log', fs=None, t=None, nv=32, l1_norm=True,
             Whether to compute and return `dWx`. Requires `fs` or `t`.
 
         padtype: str
-            Pad scheme to apply on input. One of:
-                ('zero', 'reflect', 'symmetric', 'replicate').
-            'zero' is most naive, while 'reflect' (default) partly mitigates
-            boundary effects. See `padsignal`.
+            Pad scheme to apply on input. See `help(utils.padsignal)`.
 
         rpadded: bool (default False)
              Whether to return padded Wx and dWx.
@@ -80,11 +77,9 @@ def cwt(x, wavelet, scales='log', fs=None, t=None, nv=32, l1_norm=True,
 
     # Returns:
         Wx: [na x n] np.ndarray (na = number of scales; n = len(x))
-            The CWT of `x`. (rows=scales, cols=timeshifts)
+            CWT of `x`. (rows=scales, cols=timeshifts)
         scales: [na] np.ndarray
             Scales at which CWT was computed.
-        x_mean: float
-            mean of `x` to use in inversion (CWT needs scale=inf to capture).
         dWx: [na x n] np.ndarray
             Returned only if `derivative=True`.
             Time-derivative of the CWT of `x`, computed via frequency-domain
@@ -150,14 +145,12 @@ def cwt(x, wavelet, scales='log', fs=None, t=None, nv=32, l1_norm=True,
 
     nv, dt = _process_args(x, scales, nv, fs, t)
 
-    x_mean = x.mean()  # store original mean
-    n = len(x)         # store original length
-    x, nup, n1, n2 = padsignal(x, padtype)
+    xp, nup, n1, _ = padsignal(x, padtype, get_params=True)
 
-    x -= x.mean()
-    xh = fft(x)
+    xp -= xp.mean()
+    xh = fft(xp)
     wavelet = Wavelet._init_if_not_isinstance(wavelet)
-    scales = process_scales(scales, n, wavelet, nv=nv)
+    scales = process_scales(scales, len(x), wavelet, nv=nv)
     pn = (-1)**np.arange(nup)
 
     N_orig = wavelet.N
@@ -168,17 +161,17 @@ def cwt(x, wavelet, scales='log', fs=None, t=None, nv=32, l1_norm=True,
 
     if not rpadded:
         # shorten to pre-padded size
-        Wx = Wx[:, n1:n1 + n]
+        Wx = Wx[:, n1:n1 + len(x)]
         if derivative:
-            dWx = dWx[:, n1:n1 + n]
+            dWx = dWx[:, n1:n1 + len(x)]
     if not l1_norm:
         # normalize energy per L2 wavelet norm, else already L1-normalized
         Wx *= np.sqrt(scales)
         if derivative:
             dWx *= np.sqrt(scales)
 
-    return ((Wx, scales, x_mean, dWx) if derivative else
-            (Wx, scales, x_mean))
+    return ((Wx, scales, dWx) if derivative else
+            (Wx, scales))
 
 
 def icwt(Wx, wavelet, scales='log', nv=None, one_int=True, x_len=None, x_mean=0,
@@ -217,10 +210,7 @@ def icwt(Wx, wavelet, scales='log', nv=None, one_int=True, x_len=None, x_mean=0,
             infinite scale component). Default 0.
 
         padtype: str
-            Pad scheme to apply on input. One of:
-                ('zero', 'symmetric', 'replicate').
-            'zero' is most naive, while 'reflect' (default) partly mitigates
-            boundary effects. See `padsignal`.
+            Pad scheme to apply on input. See `help(utils.padsignal)`.
             !!! currently uses only 'zero'
 
         rpadded: bool (default False)

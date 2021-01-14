@@ -13,14 +13,12 @@ Synchrosqueezing is a powerful _reassignment method_ that focuses time-frequency
 
 
 ## Features
-  - Forward & inverse CWT-based Synchrosqueezing
-  - Forward & inverse Continuous Wavelet Transform (CWT)
+  - Continuous Wavelet Transform (CWT), forward & inverse, and its Synchrosqueezing
+  - Short-Time Fourier Transform (STFT), forward & inverse, and its Synchrosqueezing
   - Clean code with explanations and learning references
   - Wavelet visualizations
 
 ### Coming soon
-  - Forward & inverse Short-Time Fourier Transform (STFT)
-  - STFT-based Synchrosqueezing
   - Generalized Morse Wavelets
   
 ## Installation
@@ -38,7 +36,7 @@ Synchrosqueezing is a powerful _reassignment method_ that focuses time-frequency
 
 <img src="https://user-images.githubusercontent.com/16495490/99880110-c88f1180-2c2a-11eb-8932-90bf3406a20d.png">
 
-<img src="https://user-images.githubusercontent.com/16495490/99880131-f1170b80-2c2a-11eb-9ace-807df257ad23.png">
+<img src="https://user-images.githubusercontent.com/16495490/104537035-9f8b6b80-5632-11eb-9fa4-444efec6c9be.png">
 
 ## Introspection
 
@@ -59,27 +57,37 @@ Synchrosqueezing is a powerful _reassignment method_ that focuses time-frequency
 ```python
 import numpy as np
 import matplotlib.pyplot as plt
-from ssqueezepy import ssq_cwt
+from ssqueezepy import ssq_cwt, ssq_stft
 
 def viz(x, Tx, Wx):
-    plt.plot(x);  plt.show()    
     plt.imshow(np.abs(Wx), aspect='auto', cmap='jet')
     plt.show()
     plt.imshow(np.flipud(np.abs(Tx)), aspect='auto', vmin=0, vmax=.2, cmap='jet')
     plt.show()   
-    
+
 #%%# Define signal ####################################    
 N = 2048
 t = np.linspace(0, 10, N, endpoint=False)
-xo = np.cos(2 * np.pi * np.exp(t / 3))
-x = xo + np.sqrt(4) * np.random.randn(N)
+xo = np.cos(2 * np.pi * 2 * (np.exp(t / 2.2) - 1))
+xo += xo[::-1]
+x = xo + np.sqrt(2) * np.random.randn(N)
 
-#%%# SSQ CWT + CWT ####################################
-Txo, _, Wxo, *_ = ssq_cwt(xo, 'morlet')
-viz(xo, Txo, Wxo)
+plt.plot(xo); plt.show()
+plt.plot(x); plt.show()
 
-Tx, _, Wx, *_ = ssq_cwt(x, 'morlet')
-viz(x, Tx, Wx)
+#%%# CWT + SSQ CWT ####################################
+Twxo, _, Wxo, *_ = ssq_cwt(xo, 'morlet')
+viz(xo, Twxo, Wxo)
+
+Twx, _, Wx, *_ = ssq_cwt(x, 'morlet')
+viz(x, Twx, Wx)
+
+#%%# STFT + SSQ STFT ##################################
+Tsxo, _, Sxo, *_ = ssq_stft(xo)
+viz(xo, Tsxo, np.flipud(Sxo))
+
+Tsx, _, Sx, *_ = ssq_stft(x)
+viz(x, Tsx, np.flipud(Sx))
 ```
 
 ## Learning resources
@@ -95,12 +103,13 @@ The Discrete Fourier Transform lays the foundation of signal processing with rea
 
 ## References
 
-`ssqueezepy` was originally ported from MATLAB's [Synchrosqueezing Toolbox](https://github.com/ebrevdo/synchrosqueezing), authored by E. Brevdo and G. Thakur [1]. Synchrosqueezed Wavelet Transform was introduced by I. Daubechies and S. Maes [2], which was followed-up in [3]. Many implementation details draw from [4].
+`ssqueezepy` was originally ported from MATLAB's [Synchrosqueezing Toolbox](https://github.com/ebrevdo/synchrosqueezing), authored by E. Brevdo and G. Thakur [1]. Synchrosqueezed Wavelet Transform was introduced by I. Daubechies and S. Maes [2], which was followed-up in [3], and adapted to STFT in [4]. Many implementation details draw from [5].
 
   1. G. Thakur, E. Brevdo, N.-S. Fučkar, and H.-T. Wu. ["The Synchrosqueezing algorithm for time-varying spectral analysis: robustness properties and new paleoclimate applications"](https://arxiv.org/abs/1105.0010), Signal Processing 93:1079-1094, 2013. 
-  2. I. Daubechies, S. Maes. ["A Nonlinear squeezing of the CWT Based on Auditory Nerve Models"](https://services.math.duke.edu/%7Eingrid/publications/DM96.pdf). 
+  2. I. Daubechies, S. Maes. ["A Nonlinear squeezing of the Continuous Wavelet Transform Based on Auditory Nerve Models"](https://services.math.duke.edu/%7Eingrid/publications/DM96.pdf). 
   3. I. Daubechies, J. Lu, H.T. Wu. ["Synchrosqueezed Wavelet Transforms: a Tool for Empirical Mode Decomposition"](https://arxiv.org/pdf/0912.2437.pdf), Applied and Computational Harmonic Analysis 30(2):243-261, 2011.
-  4. Mallat, S. ["Wavelet Tour of Signal Processing 3rd ed"](https://www.di.ens.fr/~mallat/papiers/WaveletTourChap1-2-3.pdf).
+  4. G. Thakur, H.T. Wu. ["Synchrosqueezing-based Recovery of Instantaneous Frequency from Nonuniform Samples"](https://arxiv.org/abs/1006.2533), SIAM Journal on Mathematical Analysis, 43(5):2078-2095, 2011.
+  5. Mallat, S. ["Wavelet Tour of Signal Processing 3rd ed"](https://www.di.ens.fr/~mallat/papiers/WaveletTourChap1-2-3.pdf).
 
 ## License
 
