@@ -68,7 +68,7 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=1.,
         but rather center the window for each slice, thus shifting DFT bases
         relative to n=0 (t=0). These create spectra that, viewed as signals, are
         of high frequency, making inversion and synchrosqueezing very unstable.
-        https://github.com/OverLordGoldDragon/ssqueezepy/pull/25
+        Details & visuals: https://dsp.stackexchange.com/a/72590/50076
 
     # Returns:
         Sx: [(n_fft//2 + 1) x n_hops] np.ndarray

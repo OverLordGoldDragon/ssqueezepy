@@ -106,7 +106,7 @@ The Discrete Fourier Transform lays the foundation of signal processing with rea
 `ssqueezepy` was originally ported from MATLAB's [Synchrosqueezing Toolbox](https://github.com/ebrevdo/synchrosqueezing), authored by E. Brevdo and G. Thakur [1]. Synchrosqueezed Wavelet Transform was introduced by I. Daubechies and S. Maes [2], which was followed-up in [3], and adapted to STFT in [4]. Many implementation details draw from [5].
 
   1. G. Thakur, E. Brevdo, N.-S. Fučkar, and H.-T. Wu. ["The Synchrosqueezing algorithm for time-varying spectral analysis: robustness properties and new paleoclimate applications"](https://arxiv.org/abs/1105.0010), Signal Processing 93:1079-1094, 2013. 
-  2. I. Daubechies, S. Maes. ["A Nonlinear squeezing of the CWT Based on Auditory Nerve Models"](https://services.math.duke.edu/%7Eingrid/publications/DM96.pdf). 
+  2. I. Daubechies, S. Maes. ["A Nonlinear squeezing of the Continuous Wavelet Transform Based on Auditory Nerve Models"](https://services.math.duke.edu/%7Eingrid/publications/DM96.pdf). 
   3. I. Daubechies, J. Lu, H.T. Wu. ["Synchrosqueezed Wavelet Transforms: a Tool for Empirical Mode Decomposition"](https://arxiv.org/pdf/0912.2437.pdf), Applied and Computational Harmonic Analysis 30(2):243-261, 2011.
   4. G. Thakur, H.T. Wu. ["Synchrosqueezing-based Recovery of Instantaneous Frequency from Nonuniform Samples"](https://arxiv.org/abs/1006.2533), SIAM Journal on Mathematical Analysis, 43(5):2078-2095, 2011.
   5. Mallat, S. ["Wavelet Tour of Signal Processing 3rd ed"](https://www.di.ens.fr/~mallat/papiers/WaveletTourChap1-2-3.pdf).

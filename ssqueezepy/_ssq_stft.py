@@ -130,6 +130,9 @@ def phase_stft(Sx, dSx, Sfs, gamma=None):
     """Phase transform of STFT:
         w[u, k] = Im( k - d/dt(Sx[u, k]) / Sx[u, k] / (j*2pi) )
 
+    Defined in Sec. 3 of [1]. Additionally explained in:
+        https://dsp.stackexchange.com/a/72589/50076
+
     # Arguments:
         Sx: np.ndarray
             STFT of `x`, where `x` is 1D.
