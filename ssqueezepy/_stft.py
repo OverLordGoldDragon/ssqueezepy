@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import numpy as np
-import numpy.matlib
 import scipy.signal as sig
 from numpy.fft import fft, ifft, rfft, irfft, fftshift, ifftshift
 from .utils import WARN, padsignal, buffer, unbuffer, window_norm

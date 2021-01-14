@@ -539,7 +539,7 @@ def imshow(data, title=None, show=1, cmap=None, norm=None, complex=None, abs=0,
         plt.imshow(data.real, **_kw)
 
     if w or h:
-        plt.gcf().set_size_inches(14 * (w or 1), 8 * (h or 1))
+        plt.gcf().set_size_inches(12 * (w or 1), 12 * (h or 1))
 
     if ridge:
         data_mx = np.where(np.abs(data) == np.abs(data).max(axis=0))
@@ -650,7 +650,7 @@ def plots(X, Y=None, nrows=None, ncols=None, tight=True, sharex=False,
     X, Y, nrows, ncols, tight, skw, pkw, kw = _process_args(
         X, Y, nrows, ncols, tight, skw, pkw, kw)
 
-    fig, axes = plt.subplots(nrows, ncols, sharex=sharex, sharey=sharey, **skw)
+    _, axes = plt.subplots(nrows, ncols, sharex=sharex, sharey=sharey, **skw)
     for ax, x, y, _pkw in zip(axes.flat, X, Y, pkw):
         if isinstance(x, list):
             for _x, _y, __pkw in zip(x, y, _pkw):

@@ -615,7 +615,6 @@ def window_resolution(window):
     Returns std_w, std_t, harea. `window` must be np.ndarray and >=0.
     """
     from .wavelets import _xifn
-    assert np.all(window >= 0), "`window` must be >= 0 (mi"
     assert window.min() >= 0, "`window` must be >= 0 (got min=%s)" % window.min()
     N = len(window)
 

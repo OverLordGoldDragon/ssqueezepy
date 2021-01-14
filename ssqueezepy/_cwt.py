@@ -145,7 +145,7 @@ def cwt(x, wavelet, scales='log', fs=None, t=None, nv=32, l1_norm=True,
 
     nv, dt = _process_args(x, scales, nv, fs, t)
 
-    xp, nup, n1, n2 = padsignal(x, padtype, get_params=True)
+    xp, nup, n1, _ = padsignal(x, padtype, get_params=True)
 
     xp -= xp.mean()
     xh = fft(xp)
