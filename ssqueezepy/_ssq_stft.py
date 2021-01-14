@@ -8,7 +8,7 @@ from .ssqueezing import ssqueeze, _check_squeezing_arg
 
 def ssq_stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=1.,
              modulated=True, ssq_freqs=None, padtype='reflect', squeezing='sum',
-             mapkind='maximal', gamma=None):
+             gamma=None):
     """Synchrosqueezed Short-Time Fourier Transform.
     Implements the algorithm described in Sec. III of [1].
 
@@ -19,7 +19,7 @@ def ssq_stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=1.,
         window, n_fft, win_len, hop_len, fs, padtype, modulated
             See `help(stft)`.
 
-        ssq_freqs, squeezing, mapkind
+        ssq_freqs, squeezing
             See `help(ssqueezing.ssqueeze)`.
 
         gamma: float / None
@@ -52,17 +52,18 @@ def ssq_stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=1.,
     n_fft = n_fft or len(x)
     _check_squeezing_arg(squeezing)
 
-    Sx, dSx = stft(x, window, n_fft=n_fft, win_len=win_len,
-                   hop_len=hop_len, fs=fs, padtype=padtype,
-                   modulated=modulated, derivative=True)
+    Sx, dSx = stft(x, window, n_fft=n_fft, win_len=win_len, hop_len=hop_len,
+                   fs=fs, padtype=padtype, modulated=modulated, derivative=True)
 
     Sfs = np.linspace(0, .5, Sx.shape[0]) * fs
     w = phase_stft(Sx, dSx, Sfs, gamma)
 
+    if ssq_freqs is None:
+        ssq_freqs = Sfs
     Tx, ssq_freqs = ssqueeze(Sx, w, transform='stft', squeezing=squeezing,
-                             ssq_freqs=Sfs)
+                             ssq_freqs=ssq_freqs)
 
-    return Tx, ssq_freqs, Sx, dSx, w
+    return Tx, ssq_freqs, Sx, Sfs, dSx, w
 
 
 def issq_stft(Tx, window=None, cc=None, cw=None, n_fft=None, win_len=None,

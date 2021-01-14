@@ -17,7 +17,7 @@ def ssq_cwt(x, wavelet='morlet', scales='log', nv=None, fs=None, t=None,
             Input vector, 1D.
 
         wavelet: str / tuple[str, dict] / `wavelets.Wavelet`
-            Wavelet sampled in Fourier frequency domain. See help(cwt).
+            Wavelet sampled in Fourier frequency domain. See `help(cwt)`.
 
         scales: str['log', 'linear', 'log:maximal', ...] / np.ndarray
             CWT scales. See `help(cwt)`.

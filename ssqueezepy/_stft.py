@@ -199,19 +199,22 @@ def get_window(window, win_len, n_fft=None, derivative=False):
 
     if window is not None:
         if isinstance(window, str):
+            # fftbins=True -> 'periodic' window -> narrower main side-lobe and
+            # closer to zero-phase in left=right padded case
+            # for windows edging at 0
             window = sig.get_window(window, win_len, fftbins=True)
+
         elif isinstance(window, np.ndarray):
             if len(window) != win_len:
                 WARN("len(window) != win_len (%s != %s)" % (len(window), win_len))
             if len(window) < (win_len + pl + pr):
                 window = np.pad(window, [pl, pr])
+
         else:
             raise ValueError("`window` must be string or np.ndarray "
                              "(got %s)" % window)
     else:
-        # fftbins=True -> 'periodic' window -> narrower main side-lobe and
-        # closer to zero-phase in left=right padded case
-        # for windows edging at 0
+        # sym=False <-> fftbins=True (see above)
         window = sig.windows.dpss(win_len, 4, sym=False)
         window = np.pad(window, [pl, pr])
 
@@ -221,6 +224,7 @@ def get_window(window, win_len, n_fft=None, derivative=False):
         xi = _xifn(1, Nw)
         if Nw % 2 == 0:
             xi[Nw // 2] = 0
+        # frequency-domain differentiation; see `dWx` return docs in `help(cwt)`
         diff_window = ifft(wf * 1j * xi).real
 
     return (window, diff_window) if derivative else window
