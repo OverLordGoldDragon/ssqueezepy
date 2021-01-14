@@ -92,6 +92,10 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=1.,
         1. Synchrosqueezing-based Recovery of Instantaneous Frequency from
         Nonuniform Samples. G. Thakur and H.-T. Wu.
         https://arxiv.org/abs/1006.2533
+
+        2. Synchrosqueezing Toolbox, (C) 2014--present. E. Brevdo, G. Thakur.
+        https://github.com/ebrevdo/synchrosqueezing/blob/master/synchrosqueezing/
+        stft_fw.m
     """
     def _stft(xp, window, n_fft, hop_len, fs, modulated, derivative):
         Sx  = buffer(xp, n_fft, n_fft - hop_len)
