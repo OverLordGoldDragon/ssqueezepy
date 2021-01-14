@@ -13,14 +13,12 @@ Synchrosqueezing is a powerful _reassignment method_ that focuses time-frequency
 
 
 ## Features
-  - Forward & inverse CWT-based Synchrosqueezing
-  - Forward & inverse Continuous Wavelet Transform (CWT)
+  - Continuous Wavelet Transform (CWT), forward & inverse, and its Synchrosqueezing
+  - Short-Time Fourier Transform (STFT), forward & inverse, and its Synchrosqueezing
   - Clean code with explanations and learning references
   - Wavelet visualizations
 
 ### Coming soon
-  - Forward & inverse Short-Time Fourier Transform (STFT)
-  - STFT-based Synchrosqueezing
   - Generalized Morse Wavelets
   
 ## Installation
@@ -59,27 +57,37 @@ Synchrosqueezing is a powerful _reassignment method_ that focuses time-frequency
 ```python
 import numpy as np
 import matplotlib.pyplot as plt
-from ssqueezepy import ssq_cwt
+from ssqueezepy import ssq_cwt, ssq_stft
 
 def viz(x, Tx, Wx):
-    plt.plot(x);  plt.show()    
     plt.imshow(np.abs(Wx), aspect='auto', cmap='jet')
     plt.show()
     plt.imshow(np.flipud(np.abs(Tx)), aspect='auto', vmin=0, vmax=.2, cmap='jet')
     plt.show()   
-    
+
 #%%# Define signal ####################################    
 N = 2048
 t = np.linspace(0, 10, N, endpoint=False)
-xo = np.cos(2 * np.pi * np.exp(t / 3))
-x = xo + np.sqrt(4) * np.random.randn(N)
+xo = np.cos(2 * np.pi * 2 * (np.exp(t / 2.2) - 1))
+xo += xo[::-1]
+x = xo + np.sqrt(2) * np.random.randn(N)
 
-#%%# SSQ CWT + CWT ####################################
-Txo, _, Wxo, *_ = ssq_cwt(xo, 'morlet')
-viz(xo, Txo, Wxo)
+plt.plot(xo); plt.show()
+plt.plot(x); plt.show()
 
-Tx, _, Wx, *_ = ssq_cwt(x, 'morlet')
-viz(x, Tx, Wx)
+#%%# CWT + SSQ CWT ####################################
+Twxo, _, Wxo, *_ = ssq_cwt(xo, 'morlet')
+viz(xo, Twxo, Wxo)
+
+Twx, _, Wx, *_ = ssq_cwt(x, 'morlet')
+viz(x, Twx, Wx)
+
+#%%# STFT + SSQ STFT ##################################
+Tsxo, _, Sxo, *_ = ssq_stft(xo)
+viz(xo, Tsxo, np.flipud(Sxo))
+
+Tsx, _, Sx, *_ = ssq_stft(x)
+viz(x, Tsx, np.flipud(Sx))
 ```
 
 ## Learning resources

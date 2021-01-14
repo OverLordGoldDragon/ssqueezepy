@@ -12,6 +12,8 @@ def ssq_stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=1.,
     """Synchrosqueezed Short-Time Fourier Transform.
     Implements the algorithm described in Sec. III of [1].
 
+    Good MATLAB docs: https://www.mathworks.com/help/signal/ref/fsst.html
+
     # Arguments:
         x: np.ndarray
             Input vector, 1D.
