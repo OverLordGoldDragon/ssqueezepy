@@ -38,7 +38,7 @@ Synchrosqueezing is a powerful _reassignment method_ that focuses time-frequency
 
 <img src="https://user-images.githubusercontent.com/16495490/99880110-c88f1180-2c2a-11eb-8932-90bf3406a20d.png">
 
-<img src="https://user-images.githubusercontent.com/16495490/104536142-ee380600-5630-11eb-8420-527ee9a122f4.png">
+<img src="https://user-images.githubusercontent.com/16495490/104537035-9f8b6b80-5632-11eb-9fa4-444efec6c9be.png">
 
 ## Introspection
 
