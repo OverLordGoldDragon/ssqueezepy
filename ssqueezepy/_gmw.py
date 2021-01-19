@@ -162,9 +162,9 @@ def _morsewave_first_family(fact, N, K, gamma, beta, w, psizero, norm):
     index = slice(0, N // 2 + 1)
 
     for k in range(K):
-        #Log of gamma function much better ... trick from Maltab's ``beta'`
+        # Log of gamma function much better ... trick from Maltab's ``beta'`
         if norm == 'energy':
-            A = morseafun(k + 1, gamma, beta, norm);
+            A = morseafun(k + 1, gamma, beta, norm)
             coeff = np.sqrt(1. / fact) * A
         elif norm == 'bandpass':
             if beta != 0:
