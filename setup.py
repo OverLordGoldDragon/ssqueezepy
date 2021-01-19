@@ -37,8 +37,8 @@ setup(
     long_description=read_file('README.md'),
     long_description_content_type="text/markdown",
     keywords=(
-        "signal-processing python synchrosqueezing wavelet-transform cwt "
-        "time-frequency time-frequency-analysis"
+        "signal-processing python synchrosqueezing wavelet-transform cwt stft"
+        "morse-wavelet time-frequency time-frequency-analysis"
     ),
     install_requires=get_requirements('requirements.txt'),
     tests_require=["pytest>=4.0", "pytest-cov"],

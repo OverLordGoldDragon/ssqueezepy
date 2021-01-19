@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 from numba import njit
+from functools import reduce
 
 
 def find_closest(a, v):
@@ -18,6 +19,15 @@ def find_closest(a, v):
     idx[m] -= 1
     out = sidx[idx]
     return out
+
+
+def nCk(n, k):
+    """n-Choose-k"""
+    mul = lambda a, b: a * b
+    r = min(k, n - k)
+    numer = reduce(mul, range(n, n - r, -1), 1)
+    denom = reduce(mul, range(1, r + 1), 1)
+    return numer / denom
 
 
 @njit

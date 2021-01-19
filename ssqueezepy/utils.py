@@ -532,7 +532,7 @@ def make_scales(N, min_scale=None, max_scale=None, nv=32, scaletype='log'):
 def buffer(x, seg_len, n_overlap):
     """Build 2D array where each column is a successive slice of `x` of length
     `seg_len` and overlapping by `n_overlap` (or equivalently incrementing
-    starting index of each slice by `hop_len = seg_len - n_overlap`.
+    starting index of each slice by `hop_len = seg_len - n_overlap`).
 
     Mimics MATLAB's `buffer`, with less functionality.
 
