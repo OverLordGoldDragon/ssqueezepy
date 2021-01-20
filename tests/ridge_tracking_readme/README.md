@@ -44,7 +44,7 @@ viz(signal, Txo, ridge_idx,flip_plot=True)
 ```
 
 
-![signal_1](tests/ridge_tracking_readme/imgs/signal_1.png)
+![signal_1](/tests/ridge_tracking_readme/imgs/signal_1.png)
 ![cwt_ridge_signal_1](/imgs/cwt_signal_1_ridge.png)
 ![ssq_ridge_signal_1](/imgs/ssq_signal_1_ridge.png)
 
