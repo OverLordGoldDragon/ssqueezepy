@@ -56,7 +56,7 @@ plt.figure()
 viz(signal, Wxo, ridge_idx)
 
 # syncrosqueezed example
-max_Energy,ridge_idx,_ = rt.extract_fridges(Txo,scales_xo,penalty,num_ridges=2,BW=25)
+max_Energy,ridge_idx,_ = rt.extract_fridges(Txo,scales_xo,penalty,num_ridges=2,BW=2)
 plt.figure()
 viz(signal, Txo, ridge_idx,flip_plot=True)
 
@@ -108,9 +108,9 @@ plt.figure()
 viz(sweep_sig, Wxo, ridge_idx)
 
 # syncrosqueezed example
-max_Energy,ridge_idx,_ = rt.extract_fridges(cwtmatr,scales_xo,penalty,num_ridges=2,BW=25)
+max_Energy,ridge_idx,_ = rt.extract_fridges(Txo,scales_xo,penalty,num_ridges=2,BW=2)
 plt.figure()
-viz(sweep_sig, cwtmatr, ridge_idx,flip_plot=True)
+viz(sweep_sig, Txo, ridge_idx,flip_plot=True)
 
 
 
