@@ -3,8 +3,7 @@ Ridge tracking extracts the N (user selected integer) most prominent frequency r
 
 The method is based on a forward-backward greedy algorithm that penalises frequency jumps similar to the MATLAB function 'tfridge' (https://de.mathworks.com/help/signal/ref/tfridge.html). 
 
-Further information about algorithm as well as limitations and comparisson to other ridge extraction schemes can be found in the following publication:
- 'On the extraction of instantaneous frequencies from ridges in time-frequency representations of signals", D. Iatsenko, P. V. E. McClintock, A. Stefanovska, https://arxiv.org/pdf/1310.7276.pdf
+Further information about algorithm as well as limitations and comparisson to other ridge extraction schemes can be found in publication [2] (below):
 
 
 
