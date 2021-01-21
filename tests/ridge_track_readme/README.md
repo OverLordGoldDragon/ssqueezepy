@@ -4,7 +4,7 @@ Ridge tracking extracts the N (user selected integer) most prominent frequency r
 The method is based on a forward-backward greedy algorithm that penalises frequency jumps similar to the MATLAB function 'tfridge' (https://de.mathworks.com/help/signal/ref/tfridge.html). 
 
 Further information about algorithm as well as limitations and comparisson to other ridge extraction schemes can be found in the following publication:
- 'On the extraction of instantaneous frequencies fromridges in time-frequency representations of signals",D. Iatsenko, P. V. E. McClintock, A. Stefanovska, https://arxiv.org/pdf/1310.7276.pdf
+ 'On the extraction of instantaneous frequencies from ridges in time-frequency representations of signals", D. Iatsenko, P. V. E. McClintock, A. Stefanovska, https://arxiv.org/pdf/1310.7276.pdf
 
 
 
@@ -133,5 +133,5 @@ Different padding schems suited to your time signals may be nessecary to handle 
 
 The idea of a syncrosqueezed time-frequency representation is to improve upon the localization process and more accurately recover the frequency components compared to inverting the CWT over the entire time-scale plan [1]. However, whether ridge extraction is improved on a syncrosqueezed transform is still uncertain and may require further considerations [2] and expertise from the users on appropriate parameter tuning for stable and improved results.  
 
-[1] The Synchrosqueezing algorithm for time-varying spectral analysis: robustness properties and new paleoclimate applications. Gaurav Thakur, Eugene Brevdo, Neven S. Fuˇckar, and Hau-Tieng Wu. https://arxiv.org/pdf/1105.0010.pdf
+[1] The Synchrosqueezing algorithm for time-varying spectral analysis: robustness properties and new paleoclimate applications. Gaurav Thakur, Eugene Brevdo, Neven S. Fuˇckar, and Hau-Tieng Wu. https://arxiv.org/pdf/1105.0010.pdf <br>
 [2] On the extraction of instantaneous frequencies fromridges in time-frequency representations of signals. D. Iatsenko, P. V. E. McClintock, A. Stefanovska. https://arxiv.org/pdf/1310.7276.pdf
