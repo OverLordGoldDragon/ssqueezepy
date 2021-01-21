@@ -1,5 +1,5 @@
-# Frequency_ridge_tracking
-Ridge tracking extracts the N (user selected integer) most prominent frequency ridges from a Time-frequency representation. 
+# Frequency_ridge_extraction
+Extracts the N (user selected integer) most prominent frequency ridges from a time-frequency representation. 
 
 The method is based on a forward-backward greedy path optimization algorithm that penalises frequency jumps similar to the MATLAB function 'tfridge' (https://de.mathworks.com/help/signal/ref/tfridge.html). 
 
