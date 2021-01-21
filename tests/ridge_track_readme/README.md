@@ -8,7 +8,9 @@ Further information about algorithm as well as limitations and comparisson to ot
 
 
 
-### Example 1: Two constant frequency signals
+### Examples 
+
+## 1: Two constant frequency signals
 
 ```python
 
@@ -48,7 +50,7 @@ viz(signal, Txo, ridge_idx,flip_plot=True)
 ![cwt_ridge_signal_1](/tests/ridge_track_readme/imgs/cwt_signal_1_ridge.png)
 ![ssq_ridge_signal_1](/tests/ridge_track_readme/imgs/ssq_signal_1_ridge.png)
 
-### Example 2: Two chirp signals with linear and quadratic frequency variation
+## 2: Two chirp signals with linear and quadratic frequency variation
 
 ```python
 
@@ -82,7 +84,7 @@ viz(sign_chirp, Txo, ridge_idx,flip_plot=True)
 ![cwt_ridge_signal_2](/tests/ridge_track_readme/imgs/cwt_signal_2_ridge.png)
 ![ssq_ridge_signal_2](/tests/ridge_track_readme/imgs/ssq_signal_2_ridge.png)
 
-### Example 3: One sweep signal and one constant frequency signal
+## 3: One sweep signal and one constant frequency signal
 
 ```python
 
@@ -119,3 +121,17 @@ viz(sweep_sig, Txo, ridge_idx,flip_plot=True)
 ![signal_3](/tests/ridge_track_readme/imgs/signal_3.png)
 ![cwt_ridge_signal_3](/tests/ridge_track_readme/imgs/cwt_signal_3_ridge.png)
 ![ssq_ridge_signal_3](/tests/ridge_track_readme/imgs/ssq_signal_3_ridge.png)
+
+### Q&A
+
+## 1. signal padding
+
+Particular consideration to choice of wavelet type, signal padding and other input parameters are advised before using the time-frequency ridge extraction. 
+Different padding schems suited to your time signals may be nessecary to handle edge effects in your time frequency maps (see example 1 and 3).  
+
+## 2. ridge extraction on ssq_cwt
+
+The idea of a syncrosqueezed time-frequency representation is to improve upon the localization process and more accurately recover the frequency components compared to inverting the CWT over the entire time-scale plan [1]. However, whether ridge extraction is improved on a syncrosqueezed transform is still uncertain and may require further considerations [2] and expertise from the users on appropriate parameter tuning for stable and improved results.  
+
+[1] The Synchrosqueezing algorithm for time-varying spectral analysis: robustness properties and new paleoclimate applications. Gaurav Thakur, Eugene Brevdo, Neven S. Fuˇckar, and Hau-Tieng Wu. https://arxiv.org/pdf/1105.0010.pdf
+[2] On the extraction of instantaneous frequencies fromridges in time-frequency representations of signals. D. Iatsenko, P. V. E. McClintock, A. Stefanovska. https://arxiv.org/pdf/1310.7276.pdf

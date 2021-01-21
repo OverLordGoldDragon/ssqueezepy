@@ -17,7 +17,7 @@ def extract_fridges(tf_transf,frequency_scales,penalty=2.0,num_ridges=1,BW=25):
 #               penalty - integer value to penalise frequency jumps
 #               num_ridges - number of ridges to be calculated
 #               BW - decides how many bins will be subtracted around max 
-#                    energy frequency bins when extracting multiple ridges (25 is standard valuesfor syncrosqueezed transform)
+#                    energy frequency bins when extracting multiple ridges (2 is standard value for syncrosqueezed transform)
 #   outputs:    max_Energy (vector) along time axis
 #               ridge_idx - indexes for maximum frequency ridge(s)
 #               fridge - frequencies traccking maximum frequency ridge(s)

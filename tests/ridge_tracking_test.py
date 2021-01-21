@@ -9,7 +9,7 @@ import numpy as np
 from scipy.signal import chirp,sweep_poly
 import matplotlib.pyplot as plt
 from ssqueezepy import ssq_cwt
-from ssqueezepy import ridge_tracking as rt
+from ssqueezepy import ridge_extraction as rt
 
 def viz(signal, tf_transf,ridge,flip_plot=False):
     plt.plot(signal)
