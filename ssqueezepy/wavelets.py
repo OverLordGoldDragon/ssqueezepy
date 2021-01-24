@@ -22,7 +22,7 @@ class Wavelet():
         wavelet = Wavelet(('morlet', {'mu': 7}), N=1024)
         plt.plot(wavelet(scale=8))
     """
-    SUPPORTED = {'morlet', 'bump', 'cmhat', 'hhhat'}
+    SUPPORTED = {'gmw', 'morlet', 'bump', 'cmhat', 'hhhat'}
     VISUALS = {'time-frequency', 'heatmap', 'waveforms',
                'harea', 'std_t', 'std_w', 'anim:time-frequency'}
 
@@ -82,17 +82,19 @@ class Wavelet():
         psi = ifft(psih * pn, axis=-1)
         return psi
 
-    def xifn(self, scale=1, N=None):
+    def xifn(self, scale=None, N=None):
         if isinstance(scale, np.ndarray) and scale.size > 1:
             if scale.squeeze().ndim > 1:
                 raise ValueError("2D `scale` unsupported")
             elif scale.ndim == 1:
                 scale = scale.reshape(-1, 1)  # add dim for proper broadcast
+        elif scale is None:
+            scale = 1.
 
         if N is None:
             xi = scale * self.xi
         else:
-            xi = scale * _xifn(scale=1, N=N)
+            xi = scale * _xifn(scale=1., N=N)
         return xi
 
     @property
@@ -289,11 +291,9 @@ class Wavelet():
         elif isinstance(wavelet, str):
             wavopts = {}
 
-        if wavelet not in Wavelet.SUPPORTED:
-            raise ValueError(f"wavelet '{wavelet}' is not supported; pass "
-                             "in fn=custom_fn, or use one of:", ', '.join(
-                                 Wavelet.SUPPORTED))
-        if wavelet == 'morlet':
+        if wavelet == 'gmw':
+            self.fn = gmw(**wavopts)
+        elif wavelet == 'morlet':
             self.fn = morlet(**wavopts)
         elif wavelet == 'bump':
             self.fn = bump(**wavopts)
@@ -301,6 +301,10 @@ class Wavelet():
             self.fn = cmhat(**wavopts)
         elif wavelet == 'hhhat':
             self.fn = hhhat(**wavopts)
+        else:
+            raise ValueError(f"wavelet '{wavelet}' is not supported; pass "
+                             "in fn=custom_fn, or use one of:", ', '.join(
+                                 Wavelet.SUPPORTED))
         self.config = wavopts
 
 
@@ -657,4 +661,6 @@ def isinstance_by_name(obj, ref):
 
 
 ##############################################################################
+from ._gmw import gmw
 from .visuals import plot
+

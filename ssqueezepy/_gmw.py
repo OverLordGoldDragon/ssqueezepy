@@ -1,5 +1,10 @@
 # -*- coding: utf-8 -*-
-"""Generalized Morse Wavelets"""
+"""Generalized Morse Wavelets.
+
+For complete functionality, utility functions have been ported from jLab, and
+largely validated to match jLab's behavior. These can be used to compute
+higher-order wavelets, or pertinent properties thereof. jLab tests not ported.
+"""
 import numpy as np
 from numpy.fft import ifft
 from numba import jit
@@ -12,38 +17,118 @@ pi = np.pi
 
 
 #### Base wavelets (`k=0`) ###################################################
-def gmw(N, f, gamma=3, beta=60, time=False, norm='bandpass'):
-    """Generalized Morse Wavelets.
+def gmw(gamma=3, beta=60, norm='bandpass', centered_scale=False):
+    """Generalized Morse Wavelets. Returns function which computes GMW in the
+    frequency domain.
 
-    Assumes `k=0` and `beta != 0`; for full functionality use `morsewave`.
+    Assumes `K == 1` and `beta != 0`; for full functionality use `_gmw.morsewave`.
+    Unlike `morsewave`, works with scales rather than frequencies.
 
-    See: https://overlordgolddragon.github.io/generalized-morse-wavelets/
+    Note that function for `norm='energy'` does *not* rescale freq-domain wavelet
+    per `sqrt(scale)`, for consistency with `ssqueezepy.wavelets`.
+    See `_gmw.compute_gmw` for code computing freq- and time-domain wavelets
+    as arrays with proper scaling in.
 
-    # References:
-        1. Generalized Morse Wavelets. S. C. Olhede and A. T. Walden. 2002.
+    An overview: https://overlordgolddragon.github.io/generalized-morse-wavelets/
+    Interactive: https://www.desmos.com/calculator/4gcaeqidxd (bandpass)
+                 https://www.desmos.com/calculator/zfxnblqh8p (energy)
+
+    # Arguments
+        gamma, beta: float > 0, float > 0
+            GMW parameters. See `help(_gmw.morsewave)`.
+
+        norm: str['energy', 'bandpass']
+            Normalization to use:
+                'energy': L2 norm, keeps time-domain wavelet's energy at unity
+                for all `freqs`, i.e. `sum(abs(psi)**2) == 1`.
+                'bandpass': L1 norm, keeps freq-domain wavelet's peak value at 2
+                for all `freqs`, i.e. `max(psih) == 2`, `w[argmax(psih)] == wc`.
+
+            Additionally see `help(_gmw.morsewave)`.
+
+        centered_scale: bool (default False)
+            Unlike other `ssqueezepy.wavelets`, by default `scale=1` in
+            `morsewave` (i.e. `freqs=1`) computes the wavelet at (peak) center
+            frequency. This ensures exact equality between `scale` and
+            `1 / center_frequency`, by multiplying input radians `w` by peak
+            center freq.
+
+            False by default for consistency with other `ssqueezepy` wavelets.
+
+    # Returns
+        psihfn: function
+            Function that computes GMWs, taking `w` (radian frequency)
+            as argument.
+
+    # Usage
+        wavelet = gmw(3, 60)
+        wavelet = Wavelet('gmw')
+        wavelet = Wavelet(('gmw', {'gamma': 3, 'beta': 60}))
+        Wx, *_  = cwt(x, 'gmw')
+
+    # References
+        [1] Generalized Morse Wavelets. S. C. Olhede, A. T. Walden. 2002.
         https://spiral.imperial.ac.uk/bitstream/10044/1/1150/1/
         OlhedeWaldenGenMorse.pdf
 
-        2. Higher-Order Properties of Analytic Wavelets. J. M. Lilly and
-        S. C. Olhede. 2009. https://sci-hub.st/10.1109/TSP.2008.2007607
+        [2] Generalized Morse Wavelets as a Superfamily of Analytic Wavelets.
+        J. M. Lilly, S. C. Olhede. 2012.
+        https://sci-hub.st/10.1109/TSP.2012.2210890
+
+        [3] Higher-Order Properties of Analytic Wavelets.
+        J. M. Lilly, S. C. Olhede. 2009.
+        https://sci-hub.st/10.1109/TSP.2008.2007607
+
+        [4] (c) Lilly, J. M. (2021), jLab: A data analysis package for Matlab,
+        v1.6.9, http://www.jmlilly.net/jmlsoft.html
+        https://github.com/jonathanlilly/jLab/blob/master/jWavelet/morsewave.m
     """
-    if f <= 0:
-        raise ValueError(f"`f` must be positive (got {f})")
-    if beta < 0:
-        raise ValueError(f"`beta` must be positive (got {beta})")
-    elif beta == 0:
-        raise ValueError(f"`beta` cannot be zero (got {beta}); "
-                         "use `morsewave`, which supports it")
-    if norm not in ('bandpass', 'energy'):
-        raise ValueError(f"`norm` must be 'energy' or 'bandpass' (got {norm})")
+    _check_args(gamma=gamma, beta=beta, norm=norm)
+    return (gmw_l1(gamma, beta, centered_scale) if norm == 'bandpass' else
+            gmw_l2(gamma, beta, centered_scale))
 
-    f0 = np.exp((np.log(beta) - np.log(gamma)) / gamma)
-    w = _xifn(1, N) * (f0 / f)
 
-    gmw_fn = (gmw_l1(gamma, beta) if norm == 'bandpass' else
-              gmw_l2(gamma, beta, f))
+def compute_gmw(N, scale, gamma=3, beta=60, time=False, norm='bandpass',
+                centered_scale=False, norm_scale=True):
+    """Evaluates GMWs, returning as arrays. See `help(_gmw.gmw)` for full docs.
+
+    # Arguments
+        N: int > 0
+            Number of samples to compute.
+
+        scale: float > 0
+            Scale at which to sample the freq-domain wavelet: `psih(s * w)`.
+
+        gamma, beta, norm:
+            See `help(_gmw.gmw)`.
+
+        time: bool (default False)
+            Whether to compute the time-domain wavelet, `psi`.
+
+        centered_scale: bool (default True)
+            See `help(_gmw.gmw)`.
+
+        norm_scale: bool (default True)
+            Whether to rescale as `sqrt(s) * psih(s * w)` for the `norm='energy'`
+            case (no effect with `norm='bandpass'`).
+
+    # Returns
+        psih: np.ndarray [N]
+            Frequency-domain wavelet.
+        psi: np.ndarray [N]
+            Time-domain wavelet, returned if `time=True`.
+    """
+    _check_args(gamma=gamma, beta=beta, norm=norm, scale=scale)
+    gmw_fn = gmw(gamma, beta, norm, centered_scale)
+
+    w = _xifn(scale, N)
     X = np.zeros(N)
     X[:N//2 + 1] = gmw_fn(w[:N//2 + 1])
+
+    if norm == 'energy' and norm_scale:
+        wc = morsefreq(gamma, beta)
+        X *= (np.sqrt(wc * scale) if centered_scale else
+              np.sqrt(scale))
     X[np.isinf(X) | np.isnan(X)] = 0.
 
     if time:
@@ -54,57 +139,131 @@ def gmw(N, f, gamma=3, beta=60, time=False, norm='bandpass'):
 
     return (X, x) if time else X
 
-# TODO divide `w` by `fo`? note compute_gmw already does it, so undo
-def gmw_l1(gamma=3., beta=60.):
-    wc = np.exp((np.log(beta) - np.log(gamma)) / gamma)
-    return lambda w: _gmw_l1(w, gamma, beta, wc)
+
+def gmw_l1(gamma=3., beta=60., centered_scale=False):
+    """Generalized Morse Wavelets, L1(bandpass)-normalized. See `help(_gmw.gmw)`.
+    """
+    _check_args(gamma=gamma, beta=beta, allow_zerobeta=False)
+    wc = morsefreq(gamma, beta)
+    if centered_scale:
+        return lambda w: _gmw_l1(np.atleast_1d(w * wc), gamma, beta, wc, w < 0)
+    else:
+        return lambda w: _gmw_l1(np.atleast_1d(w), gamma, beta, wc, w < 0)
 
 @jit(nopython=True, cache=True)
-def _gmw_l1(w, gamma, beta, wc):
+def _gmw_l1(w, gamma, beta, wc, w_negs):
+    w *= ~w_negs  # zero negative `w` to avoid nans
     return 2 * np.exp(- beta * np.log(wc) + wc**gamma
-                      + beta * np.log(w)  - w**gamma)
+                      + beta * np.log(w)  - w**gamma) * (~w_negs)
 
 
-def gmw_l2(gamma=3., beta=60., f=1):
-    wc = np.exp((np.log(beta) - np.log(gamma)) / gamma)
+def gmw_l2(gamma=3., beta=60., centered_scale=False):
+    """Generalized Morse Wavelets, L2(energy)-normalized. See `help(_gmw.gmw)`.
+    """
+    _check_args(gamma=gamma, beta=beta, allow_zerobeta=False)
+    wc = morsefreq(gamma, beta)
     r = (2*beta + 1) / gamma
     rgamma = gamma_fn(r)
-    return lambda w: _gmw_l2(w, gamma, beta, f, wc, r, rgamma)
+
+    if centered_scale:
+        return lambda w: _gmw_l2(np.atleast_1d(w * wc), gamma, beta, wc,
+                                 r, rgamma, w < 0)
+    else:
+        return lambda w: _gmw_l2(np.atleast_1d(w), gamma, beta, wc,
+                                 r, rgamma, w < 0)
 
 @jit(nopython=True, cache=True)
-def _gmw_l2(w, gamma, beta, f, wc, r, rgamma):
-    return np.sqrt(2.*pi * (wc / f) * gamma * 2.**r / rgamma
-                   ) * w**beta * np.exp(-w**gamma)
+def _gmw_l2(w, gamma, beta, wc, r, rgamma, w_negs):
+    w *= ~w_negs  # zero negative `w` to avoid nans
+    return np.sqrt(2.*pi * gamma * 2.**r / rgamma
+                   ) * w**beta * np.exp(-w**gamma) * (~w_negs)
 
 
 #### General order wavelets (any `k`) ########################################
 def morsewave(N, freqs, gamma=3, beta=60, K=1, norm='bandpass'):
+    """Generalized Morse wavelets of Olhede and Walden (2002).
+
+    # Arguments:
+        N: int > 0
+            Number of samples / wavelet length
+
+        freqs: float / list / np.ndarray
+            (peak) center frequencies at which to generate wavelets,
+            in *radians* (i.e. `w` in `w = 2*pi*f`).
+
+        gamma, beta: float, float
+            GMW parameters; `(gamma, beta) = (3, 60)` yields optimal
+            time-frequency localization. See refs [2], [3].
+
+        K: int > 0
+            Will compute first `K` orthogonal GMWs, characterized by
+            orders 1 through `K`.
+
+        norm: str['energy', 'bandpass']
+            Normalization to use. See `help(_gmw.gmw)`, and below.
+
+    # Returns:
+        psih: np.ndarray [N x len(freqs) x (K + 1)]
+            Frequency-domain GMW, generated by sampling continuous-time function.
+        psi: np.ndarray [N x len(freqs) x (K + 1)]
+            Time-domain GMW, centered, generated via inverse DFT of `psih`.
+
+    # References
+        See `help(_gmw.gmw)`.
+    __________________________________________________________________________
+
+    **`beta==0` case**
+
+    For BETA equal to zero, the generalized Morse wavelets describe
+    a non-zero-mean function which is not in fact a wavelet. Only 'bandpass'
+    normalization is supported for this case.
+
+    In this case the frequency speficies the half-power point of the
+    analytic lowpass filter.
+
+    The frequency-domain definition of MORSEWAVE is not necessarily
+    a good way to compute the zero-beta functions, however.  You will
+    probably need to take a very small DT.
+
+    **Multiple orthogonal wavelets**
+
+    MORSEWAVE can compute multiple orthogonal versions of the generalized
+    Morse wavelets, characterized by the order K.
+
+    PSI=MORSEWAVE(N,K,GAMMA,BETA,FS) with a fifth numerical argument K
+    returns an N x LENGTH(FS) x K array PSI which contains time-domain
+    versions of the first K orthogonal generalized Morse wavelets. # TODO
+
+    These K different orthogonal wavelets have been employed in
+    multiwavelet polarization analysis, see Olhede and Walden (2003a,b).
+
+    Again either bandpass or energy normalization can be applied.  With
+    bandpass normalization, all wavelets are divided by a constant, setting
+    the peak value of the first frequency-domain wavelet equal to 2.
+    """
+    _check_args(gamma=gamma, beta=beta, norm=norm)
     if not isinstance(freqs, (list, tuple, np.ndarray)):
         freqs = [freqs]
     psi  = np.zeros((N, len(freqs), K), dtype='complex128')
     psif = np.zeros((N, len(freqs), K))
 
     for n, f in enumerate(freqs):
-        psif[:, n:n+1, :], psi[:, n:n+1, :] = morsewave1(N, abs(f), gamma, beta,
-                                                         K, norm)
+        psif[:, n:n+1, :], psi[:, n:n+1, :] = _morsewave1(N, abs(f), gamma, beta,
+                                                          K, norm)
         if f < 0:
             psi[:,   n:n+1, :] = psi[:, n, :].conj()
             psif[1:, n:n+1, :] = np.flip(psif[1:, n, :], axis=0)
 
-    if sum(psi.shape[1:]) == 2:
+    if psi.shape[1:] == (1, 1):
         psi = psi.squeeze()
-    if sum(psif.shape[1:]) == 2:
+    if psif.shape[1:] == (1, 1):
         psif = psif.squeeze()
     return psif, psi
 
 
-def morsewave1(N, f, gamma, beta, K, norm):
-    """
-    ______________________________________________________________________
-    JLAB (C) 2004--2016 J.M. Lilly
-    https://github.com/jonathanlilly/jLab/blob/master/jWavelet/morsewave.m
-    """
-    fo = morsefreq(gamma, beta, n_out=1)
+def _morsewave1(N, f, gamma, beta, K, norm):
+    """See `help(_gmw.morsewave)`."""
+    fo = morsefreq(gamma, beta)
     fact = f / fo
     w = 2*pi * np.linspace(0, 1, N, endpoint=False) / fact
     w = w.reshape(-1, 1)
@@ -124,19 +283,18 @@ def morsewave1(N, f, gamma, beta, K, norm):
                 psizero = 2 * np.exp(- beta * np.log(fo) + fo**gamma
                                      + beta * np.log(w)  - w**gamma)
 
-    psizero[0] /= 2  # Due to unit-step function
-    # Ensure nice lowpass filters for beta=0;
-    # Otherwise, doesn't matter since wavelets vanishes at zero frequency
-
-    psizero[np.isnan(psizero)] = 0.
+    if beta == 0:
+        # Ensure nice lowpass filters for beta=0;
+        # Otherwise, doesn't matter since wavelets vanishes at zero frequency
+        psizero[0] /= 2  # Due to unit-step function
+    psizero[np.isnan(psizero) | np.isinf(psizero)] = 0.
 
     X = _morsewave_first_family(fact, N, K, gamma, beta, w, psizero, norm)
     X[np.isinf(X)] = 0.
 
-    # ensures wavelets are centered; exp for complex-valued rotation
-    # ommat = np.broadcast_to(om[:, None], (N, 1, K))
-    # Xr = X.astype('complex128') * np.exp(1j * ommat * (N + 1) / 2 * fact)
+
     Xr = X.copy()
+    # center time-domain wavelet
     Xr *= (-1)**np.arange(len(Xr)).reshape(-1, 1, 1)
     if len(Xr) % 2 == 0:
         Xr[len(Xr) // 2] /= 2
@@ -145,84 +303,79 @@ def morsewave1(N, f, gamma, beta, K, norm):
 
 
 def _morsewave_first_family(fact, N, K, gamma, beta, w, psizero, norm):
-    """See Olhede and Walden, "Noise reduction in directional signals using
+    """See `help(_gmw.morsewave)`.
+
+    See Olhede and Walden, "Noise reduction in directional signals using
     multiple Morse wavelets", IEEE Trans. Bio. Eng., v50, 51--57.
     The equation at the top right of page 56 is equivalent to the
     used expressions. Morse wavelets are defined in the frequency
     domain, and so not interpolated in the time domain in the same way
     as other continuous wavelets.
-    ______________________________________________________________________
-    JLAB (C) 2004--2016 J.M. Lilly
-    https://github.com/jonathanlilly/jLab/blob/master/jWavelet/morsewave.m
     """
     r = (2 * beta + 1) / gamma
     c = r - 1
     L = np.zeros(w.shape)
     psif = np.zeros((len(psizero), 1, K))
-    index = slice(0, N // 2 + 1)
 
     for k in range(K):
         # Log of gamma function much better ... trick from Maltab's ``beta'`
         if norm == 'energy':
-            A = morseafun(k + 1, gamma, beta, norm)
+            A = morseafun(gamma, beta, k + 1, norm)
             coeff = np.sqrt(1. / fact) * A
         elif norm == 'bandpass':
-            if beta != 0:
+            if beta == 0:
+                coeff = 1.
+            else:
                 coeff = np.sqrt(np.exp(gammaln_fn(r) + gammaln_fn(k + 1) -
                                        gammaln_fn(k + r)))
-            else:
-                coeff = 1.
-        L[index] = laguerre(2 * w[index]**gamma, k, c).reshape(-1, 1)
+        L[:N//2 + 1] = laguerre(2 * w[:N//2 + 1]**gamma, k, c).reshape(-1, 1)
         psif[:, :, k] = coeff * psizero * L
     return psif
 
 
-def morseafun(k, gamma, beta, norm='bandpass'):
-    """Returns the generalized Morse wavelet amplitude or a-function.
+def morseafun(gamma, beta, k=1, norm='bandpass'):
+    """GMW amplitude or a-function (evaluated). Used internally by other funcs.
 
-    MORSEAFUN is a low-level function called by many a number of the Morse
-    wavelet functions.
+    # Arguments
+        k: int >= 1
+            Order of the wavelet; see `help(_gmw.morsewave)`.
 
-    A=MORSEAFUN(GAMMA,BETA) returns the generalized Morse wavelet
-    amplitude, called "A_{BETA,GAMMA}" by Lilly and Olhede (2009).
+        gamma, beta: float, float
+            Wavelet parameters. See `help(_gmw.morsewave)`.
 
-    By default, A is chosen such that the maximum of the frequency-
-    domain wavelet is equal to 2, the ``bandpass normalization.''
+        norm: str['energy', 'bandpass']
+            Wavelet normalization. See `help(_gmw.morsewave)`.
 
-    A=MORSEAFUN(GAMMA,BETA,'energy') instead returns the coefficient
-    giving the wavelet unit energy.
-
-    A=MORSEAFUN(K,GAMMA,BETA,'energy') returns the unit energy coefficient
-    appropriate for the Kth-order wavelet.  The default choice is K=1.
+    # Returns
+        A: float
+            GMW amplitude (freq-domain peak value).
     ______________________________________________________________________
-    JLAB (C) 2006--2016 J.M. Lilly
+    Lilly, J. M. (2021), jLab: A data analysis package for Matlab, v1.6.9,
+    http://www.jmlilly.net/jmlsoft.html
     https://github.com/jonathanlilly/jLab/blob/master/jWavelet/morseafun.m
     """
     if norm == 'energy':
         r = (2*beta + 1) / gamma
-        a = np.sqrt(2*pi * gamma * (2**r) *
+        A = np.sqrt(2*pi * gamma * (2**r) *
                     np.exp(gammaln_fn(k) - gammaln_fn(k + r - 1)))
     elif norm == 'bandpass':
-        w = morsefreq(gamma, beta, n_out=1)
-        a = 2. / np.exp(beta * np.log(w) - w**gamma)
+        if beta == 0:
+            A = 2.
+        else:
+            wc = morsefreq(gamma, beta)
+            A = 2. / np.exp(beta * np.log(wc) - wc**gamma)
     else:
-        raise ValueError("unsupported norm: %s;" % norm
+        raise ValueError("unsupported `norm`: %s;" % norm
                          + "must be one of: 'bandpass', 'energy'.")
-    return a
+    return A
 
 
 def laguerre(x, k, c):
-    """Generalized Laguerre polynomials
-
-    Y=LAGUERRE(X,K,C) where X is a column vector returns the generalized Laguerre
-    polynomials specified by parameters K and C.
+    """Generalized Laguerre polynomials. See `help(_gmw.morsewave)`.
 
     LAGUERRE is used in the computation of the generalized Morse
     wavelets and uses the expression given by Olhede and Walden (2002),
     "Generalized Morse Wavelets", Section III D.
-    ______________________________________________________________________
-    JLAB (C) 2004--2016 J.M. Lilly
-    https://github.com/jonathanlilly/jLab/blob/master/jWavelet/morsewave.m
     """
     x = np.atleast_1d(np.asarray(x).squeeze())
     assert x.ndim == 1
@@ -236,161 +389,159 @@ def laguerre(x, k, c):
     return y
 
 
-# TODO this is RADIAN frequencies ffs
-def morsefreq(gamma, beta, n_out=4):
-    """Frequency measures for generalized Morse wavelets. [with F. Rekibi]
+def morsefreq(gamma, beta, n_out=1):
+    """Frequency measures for GMWs (with F. Rekibi).
 
-    [FM,FE,FI]=MORSEFREQ(GAMMA,BETA) calculates three different measures of
-    the frequency of the lowest-order generalized Morse wavelet specified
-    by parameters GAMMA and BETA.
+    `n_out` controls how many parameters are computed and returned, in the
+    following order: `wm, we, wi, cwi`, where:
 
-    FM is the modal or peak, FE is the "energy" frequency, and FI is the
-    instantaneous frequency at the wavelet center.
+        wm: modal / peak frequency
+        we: energy frequency
+        wi: instantaneous frequency at time-domain wavelet's center
+        cwi: curvature of instantaneous frequency at time-domain wavelet's center
 
-    [FM,FE,FI,CF]=MORSEFREQ(GAMMA,BETA) also computes the curvature CF of
-    the instantaneous frequency at the wavelet center.
+    All frequency quantities are *radian*, opposed to linear cyclic (i.e. `w`
+    in `w = 2*pi*f`).
 
-    Note that all frequency quantities here are *radian* as in cos(omegamma t)
-    and not cyclic as in cos(2 pi f t).
-
-    The input parameters must either be matrices of the same size,
-    or some may be matrices and the others scalars.
-
-    For BETA=0, the "wavelet" becomes an analytic lowpass filter, and FM
-    is not defined in the usual way. Instead, FM is defined as the point
+    For BETA=0, the "wavelet" becomes an analytic lowpass filter, and `wm`
+    is not defined in the usual way. Instead, `wm` is defined as the point
     at which the filter has decayed to one-half of its peak power.
 
-    For details see
-        Lilly and Olhede (2009).  Higher-order properties of analytic
-            wavelets.  IEEE Trans. Sig. Proc., 57 (1), 146--160.
+    # References
+        [1] Higher-Order Properties of Analytic Wavelets.
+        J. M. Lilly, S. C. Olhede. 2009.
+        https://sci-hub.st/10.1109/TSP.2008.2007607
 
-    See also MORSEBOX, MORSEPROPS, MORSEWAVE.
-
-    Usage: fm = morsefreq(gamma,beta);
-           [fm,fe,fi] = morsefreq(gamma,beta);
-           [fm,fe,fi,cf] = morsefreq(gamma,beta);
-    ______________________________________________________________________
-    JLAB (C) 2004--2016 J.M. Lilly
-    https://github.com/jonathanlilly/jLab/blob/master/jWavelet/morsefreq.m
+        [2] (c) Lilly, J. M. (2021), jLab: A data analysis package for Matlab,
+        v1.6.9, http://www.jmlilly.net/jmlsoft.html
+        https://github.com/jonathanlilly/jLab/blob/master/jWavelet/morsefreq.m
     """
-    fm = np.exp((np.log(beta) - np.log(gamma)) / gamma)
+    wm = (beta / gamma)**(1 / gamma)
 
     if n_out > 1:
-        fe = (1 / 2**(1 / gamma)) * (gamma_fn((2*beta + 2) / gamma) /
+        we = (1 / 2**(1 / gamma)) * (gamma_fn((2*beta + 2) / gamma) /
                                      gamma_fn((2*beta + 1) / gamma))
     if n_out > 2:
-        fi = (gamma_fn((beta + 2) / gamma) /
+        wi = (gamma_fn((beta + 2) / gamma) /
               gamma_fn((beta + 1) / gamma))
     if n_out > 3:
-        m2, n2, k2 = morsemom(2, gamma, beta, n_out=3)
-        m3, n3, k3 = morsemom(3, gamma, beta, n_out=3)
-        cf = -(k3 / k2**1.5)
+        m2, n2, k2 = _morsemom(2, gamma, beta, n_out=3)
+        m3, n3, k3 = _morsemom(3, gamma, beta, n_out=3)
+        cwi = -(k3 / k2**1.5)
 
     if n_out == 1:
-        return fm
+        return wm
     elif n_out == 2:
-        return fm, fe
+        return wm, we
     elif n_out == 3:
-        return fm, fe, fi
-    return fm, fe, fi, cf
+        return wm, we, wi
+    return wm, we, wi, cwi
 
 
-def morsemom(p, gamma, beta, n_out=4):
-    """Frequency-domain moments of generalized Morse wavelets.
+def _morsemom(p, gamma, beta, n_out=4):
+    """Frequency-domain `p`-th order moments of the first order GMW.
+    Used internally by other funcs.
 
-    MORSEMOM is a low-level function called by several other Morse wavelet
-    functions.
+    `n_out` controls how many parameters are computed and returned, in the
+    following order: `mp, np, kp, lp`, where:
 
-    [MP,NP]=MORSEMOM(P,GAMMA,BETA) computes the Pth order frequency-
-    domain moment M and energy moment N of the lower-order generalized
-    Morse wavelet specified by parameters GAMMA and BETA.
+        mp: p-th order moment
+        np: p-th order energy moment
+        kp: p-th order cumulant
+        lp: p-th order energy cumulant
 
-    The Pth moment and energy moment are defined as
+    The p-th order moment and energy moment are defined as
+        mp = 1/(2 pi) int omegamma^p  psi(omegamma)     d omegamma
+        np = 1/(2 pi) int omegamma^p |psi(omegamma)|.^2 d omegamma
+    respectively, where omegamma is the radian frequency. These are evaluated
+    using the 'bandpass' normalization, which has `max(abs(psih(omegamma)))=2`.
 
-            mp = 1/(2 pi) int omegamma^p  psi(omegamma)     d omegamma
-            np = 1/(2 pi) int omegamma^p |psi(omegamma)|.^2 d omegamma
+    # References
+        [1] Higher-Order Properties of Analytic Wavelets.
+        J. M. Lilly, S. C. Olhede. 2009.
+        https://sci-hub.st/10.1109/TSP.2008.2007607
 
-    respectively, where omegamma is the radian frequency.  These are evaluated
-    using the 'bandpass' normalization, which has max(abs(psi(omegamma)))=2.
-
-    The input parameters must either be matrices of the same size, or
-    some may be matrices and the others scalars.
-
-    [MP,NP,KP,LP]=MORSEMOM(...) also returns the Pth order cumulant KP and
-    the Pth order energy cumulant LP.
-
-    For details see
-        Lilly and Olhede (2009).  Higher-order properties of analytic
-            wavelets.  IEEE Trans. Sig. Proc., 57 (1), 146--160.
-
-    Usage:  mp=morsemom(p,gamma,beta);
-            [mp,np]=morsemom(p,gamma,beta);
-            [mp,np,kp,lp]=morsemom(p,gamma,beta);
-    _____________________________________________________________________
-    JLAB (C) 2007--2016 J.M. Lilly
-    https://github.com/jonathanlilly/jLab/blob/master/jWavelet/morsemom.m
+        [2] (c) Lilly, J. M. (2021), jLab: A data analysis package for Matlab,
+        v1.6.9, http://www.jmlilly.net/jmlsoft.html
+        https://github.com/jonathanlilly/jLab/blob/master/jWavelet/morsemom.m
     """
-    def _morsemom1(p, gamma, beta):
-        return morseafun(1, gamma, beta) * _morsef(gamma, beta + p)
+    def morsemom1(p, gamma, beta):
+        return morseafun(gamma, beta, k=1) * morsef(gamma, beta + p)
 
-    def _morsef(gamma, beta):
-        """Returns the generalized Morse wavelet first moment "f".
-
-        F=MORSEF(GAMMA,BETA) returns the normalized first frequency-
-        domain moment "F_{BETA,GAMMA}" of the lower-order generalized
-        Morse wavelet specified by parameters GAMMA and BETA.
-        """
+    def morsef(gamma, beta):
+        # normalized first frequency-domain moment "f_{beta, gamma}" of the
+        # first-order GMW
         return (1 / (2*pi * gamma)) * gamma_fn((beta + 1) / gamma)
 
-    m = _morsemom1(p, gamma, beta)
+    mp = morsemom1(p, gamma, beta)
 
     if n_out > 1:
-        n = (2 / 2**((1 + p) / gamma)) * _morsemom1(p, gamma, 2*beta)
+        np = (2 / 2**((1 + p) / gamma)) * morsemom1(p, gamma, 2*beta)
 
     if n_out > 2:
         prange = np.arange(p + 1)
-        moments = _morsemom1(prange, gamma, beta)
+        moments = morsemom1(prange, gamma, beta)
         cumulants = _moments_to_cumulants(moments)
-        k = cumulants[p]
+        kp = cumulants[p]
 
     if n_out > 3:
         moments = (2 / 2**((1 + prange) / gamma)
-                   ) * _morsemom1(prange, gamma, 2 * beta)
-
+                   ) * morsemom1(prange, gamma, 2 * beta)
         cumulants = _moments_to_cumulants(moments)
-        l = cumulants[p]
+        lp = cumulants[p]
 
     if n_out == 1:
-        return m
+        return mp
     elif n_out == 2:
-        return m, n
+        return mp, np
     elif n_out == 3:
-        return m, n, k
-    return m, n, k, l
+        return mp, np, kp
+    return mp, np, kp, lp
 
 
-def _moments_to_cumulants(moms):
-    """Convert moments to cumulants.
+def _moments_to_cumulants(moments):
+    """Convert moments to cumulants. Used internally by other funcs.
 
-    [K0,K1,...KN]=MOM2CUM(M0,M1,...MN) converts the first N moments
-    M0,M1,...MN into the first N cumulants K0,K1,...KN.
+    Converts the first N moments   `moments  =[M0,M1,...M{N-1}]`
+        into the first N cumulants `cumulants=[K0,K1,...K{N-1}]`.
 
-    The MN and KN are all scalars or arrays of the same size.
     Note for a probability density function, M0=1 and K0=0.
-    ___________________________________________________________________
-    JLAB (C) 2008--2016 J.M. Lilly
-    https://github.com/jonathanlilly/jLab/blob/master/jCommon/mom2cum.m
+    ______________________________________________________________________
+    Lilly, J. M. (2021), jLab: A data analysis package for Matlab, v1.6.9,
+    http://www.jmlilly.net/jmlsoft.html
+    https://github.com/jonathanlilly/jLab/blob/master/jWavelet/moms
     """
-    moms = np.atleast_1d(np.asarray(moms).squeeze())
+    moments = np.atleast_1d(np.asarray(moments).squeeze())
+    assert moments.ndim == 1
 
-    assert moms.ndim == 1
+    cumulants = np.zeros(len(moments))
+    cumulants[0] = np.log(moments[0])
 
-    cums = np.zeros(len(moms))
-    cums[0] = np.log(moms[0])
-
-    for n in range(1, len(moms)):
+    for n in range(1, len(moments)):
         coeff = 0
         for k in range(1, n - 1):
-            coeff += nCk(n - 1, k - 1) * cums[k] * (moms[n - k] / moms[0])
-        cums[n] = (moms[n] / moms[0]) - coeff
-    return cums
+            coeff += nCk(n - 1, k - 1
+                         ) * cumulants[k] * (moments[n - k] / moments[0])
+        cumulants[n] = (moments[n] / moments[0]) - coeff
+    return cumulants
+
+
+def _check_args(gamma=None, beta=None, norm=None, scale=None,
+                allow_zerobeta=True):
+    """Only checks those that are passed in."""
+    if gamma is not None and gamma <= 0:
+        raise ValueError(f"`gamma` must be positive (got {gamma})")
+
+    if beta is not None:
+        if beta < 0:
+            kind = "non-negative" if allow_zerobeta else "positive"
+            raise ValueError(f"`beta` must be {kind} (got {beta})")
+        elif beta == 0 and not allow_zerobeta:
+            raise ValueError(f"`beta` cannot be zero (got {beta}); "
+                             "use `_gmw.morsewave`, which supports it")
+
+    if norm is not None and norm not in ('bandpass', 'energy'):
+        raise ValueError(f"`norm` must be 'energy' or 'bandpass' (got {norm})")
+
+    if scale is not None and scale <= 0:
+        raise ValueError(f"`scale` must be positive (got {scale})")
