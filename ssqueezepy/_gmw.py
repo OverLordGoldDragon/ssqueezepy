@@ -292,7 +292,6 @@ def _morsewave1(N, f, gamma, beta, K, norm):
     X = _morsewave_first_family(fact, N, K, gamma, beta, w, psizero, norm)
     X[np.isinf(X)] = 0.
 
-
     Xr = X.copy()
     # center time-domain wavelet
     Xr *= (-1)**np.arange(len(Xr)).reshape(-1, 1, 1)

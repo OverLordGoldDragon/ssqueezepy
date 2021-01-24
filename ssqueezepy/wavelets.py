@@ -663,4 +663,3 @@ def isinstance_by_name(obj, ref):
 ##############################################################################
 from ._gmw import gmw
 from .visuals import plot
-
