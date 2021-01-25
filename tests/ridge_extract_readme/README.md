@@ -45,9 +45,9 @@ viz(signal, Txo, ridge_idx,flip_plot=True)
 
 ```
 
-![signal_1](/tests/ridge_track_readme/imgs/signal_1.png)
-![cwt_ridge_signal_1](/tests/ridge_track_readme/imgs/cwt_signal_1_ridge.png)
-![ssq_ridge_signal_1](/tests/ridge_track_readme/imgs/ssq_signal_1_ridge.png)
+![signal_1](/tests/ridge_extract_readme/imgs/signal_1.png)
+![cwt_ridge_signal_1](/tests/ridge_extract_readme/imgs/cwt_signal_1_ridge.png)
+![ssq_ridge_signal_1](/tests/ridge_extract_readme/imgs/ssq_signal_1_ridge.png)
 
 ## 2: Two chirp signals with linear and quadratic frequency variation
 
@@ -79,9 +79,9 @@ viz(sign_chirp, Txo, ridge_idx,flip_plot=True)
 
 ```
 
-![signal_2](/tests/ridge_track_readme/imgs/signal_2.png)
-![cwt_ridge_signal_2](/tests/ridge_track_readme/imgs/cwt_signal_2_ridge.png)
-![ssq_ridge_signal_2](/tests/ridge_track_readme/imgs/ssq_signal_2_ridge.png)
+![signal_2](/tests/ridge_extract_readme/imgs/signal_2.png)
+![cwt_ridge_signal_2](/tests/ridge_extract_readme/imgs/cwt_signal_2_ridge.png)
+![ssq_ridge_signal_2](/tests/ridge_extract_readme/imgs/ssq_signal_2_ridge.png)
 
 ## 3: One sweep signal and one constant frequency signal
 
@@ -117,9 +117,9 @@ viz(sweep_sig, Txo, ridge_idx,flip_plot=True)
 
 ```
 
-![signal_3](/tests/ridge_track_readme/imgs/signal_3.png)
-![cwt_ridge_signal_3](/tests/ridge_track_readme/imgs/cwt_signal_3_ridge.png)
-![ssq_ridge_signal_3](/tests/ridge_track_readme/imgs/ssq_signal_3_ridge.png)
+![signal_3](/tests/ridge_extract_readme/imgs/signal_3.png)
+![cwt_ridge_signal_3](/tests/ridge_extract_readme/imgs/cwt_signal_3_ridge.png)
+![ssq_ridge_signal_3](/tests/ridge_extract_readme/imgs/ssq_signal_3_ridge.png)
 
 ### Q&A
 
