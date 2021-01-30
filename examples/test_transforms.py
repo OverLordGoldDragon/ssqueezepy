@@ -18,10 +18,14 @@ signals = [
 ]
 tsigs.demo(signals, N=512)
 
+#%%# With `dft` ##################
+tsigs.demo(signals, dft='rows')
+tsigs.demo(signals, dft='cols')
+
 #%%# Viz CWT & SSQ_CWT with different wavelets ###############################
+tsigs = TestSignals(N=256)
 wavelets = [Wavelet(('gmw', {'beta': 5})),
-            Wavelet(('gmw', {'beta': 22})),
-            ]
+            Wavelet(('gmw', {'beta': 22}))]
 tsigs.wavcomp(wavelets)
 
 #%%#

@@ -8,7 +8,7 @@ from ._cwt import cwt
 
 def ssq_cwt(x, wavelet='morlet', scales='log', nv=None, fs=None, t=None,
             ssq_freqs=None, padtype='reflect', squeezing='sum', mapkind='maximal',
-            difftype='direct', difforder=None, gamma=None):
+            difftype='direct', difforder=None, gamma=None, preserve_cwt=True):
     """Synchrosqueezed Continuous Wavelet Transform.
     Implements the algorithm described in Sec. III of [1].
 
@@ -98,6 +98,11 @@ def ssq_cwt(x, wavelet='morlet', scales='log', nv=None, fs=None, t=None,
             contributions from points with indeterminate phase.
             Default = sqrt(machine epsilon) = np.sqrt(np.finfo(np.float64).eps)
 
+        preserve_cwt: bool (default True)
+            Whether to return `Wx` as directly output from `cwt` (it might be
+            altered by `ssqueeze` or `phase_transform`). Uses more memory
+            per storing extra copy of `Wx`.
+
     # Returns:
         Tx: np.ndarray [nf x n]
             Synchrosqueezed CWT of `x`. (rows=~frequencies, cols=timeshifts)
@@ -106,7 +111,7 @@ def ssq_cwt(x, wavelet='morlet', scales='log', nv=None, fs=None, t=None,
         ssq_freqs: np.ndarray [nf]
             Frequencies associated with rows of `Tx`.
         Wx: np.ndarray [na x n]
-            Continuous Wavelet Transform of `x` L1-normed (see `cwt`).
+            Continuous Wavelet Transform of `x`, L1-normed (see `cwt`).
         scales: np.ndarray [na]
             Scales associated with rows of `Wx`.
         w: np.ndarray [na x n]
@@ -185,15 +190,16 @@ def ssq_cwt(x, wavelet='morlet', scales='log', nv=None, fs=None, t=None,
     rpadded = (difftype == 'numeric')
     Wx, scales, dWx = cwt(x, wavelet, scales=scales, fs=fs, nv=nv, l1_norm=True,
                           derivative=True, padtype=padtype, rpadded=rpadded)
+    _Wx = Wx.copy() if preserve_cwt else Wx
 
     gamma = gamma or np.sqrt(EPS)
-    Wx, w = _phase_transform(Wx, dWx, N, dt, gamma, difftype, difforder)
+    _Wx, w = _phase_transform(_Wx, dWx, N, dt, gamma, difftype, difforder)
 
     if ssq_freqs is None:
         # default to same scheme used by `scales`
         ssq_freqs = cwt_scaletype
 
-    Tx, ssq_freqs = ssqueeze(Wx, w, scales=scales, fs=fs, ssq_freqs=ssq_freqs,
+    Tx, ssq_freqs = ssqueeze(_Wx, w, scales=scales, fs=fs, ssq_freqs=ssq_freqs,
                              transform='cwt', squeezing=squeezing,
                              mapkind=mapkind, wavelet=wavelet)
 
