@@ -6,7 +6,7 @@ import scipy.signal as sig
 from ssqueezepy import Wavelet, TestSignals
 from ssqueezepy.utils import window_resolution
 
-VIZ = 1
+VIZ = 0
 
 
 def test_demo():
