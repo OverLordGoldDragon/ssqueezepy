@@ -40,6 +40,7 @@ from . import _stft
 from . import _ssq_cwt
 from . import _ssq_stft
 from . import wavelets
+from . import ridge_extraction
 from . import utils
 from . import toolkit
 from . import visuals
@@ -52,6 +53,7 @@ from ._ssq_stft import *
 from ._cwt import *
 from ._stft import *
 from .wavelets import *
+from .ridge_extraction import *
 
 
 def wavs():
