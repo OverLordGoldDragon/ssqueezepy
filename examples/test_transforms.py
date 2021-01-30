@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-from ssqueezepy import Wavelet, TestSignals
-from ssqueezepy.utils import window_resolution
 import numpy as np
 import scipy.signal as sig
+from ssqueezepy import Wavelet, TestSignals
+from ssqueezepy.utils import window_resolution
 
 tsigs = TestSignals(N=256)
 #%%# Viz signals #############################################################
