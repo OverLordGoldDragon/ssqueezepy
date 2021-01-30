@@ -441,7 +441,6 @@ class TestSignals():
             name, fparams, aparams = params
             title1, title2 = self._title_cwt(wavelet, name, x, fparams, aparams)
 
-
             pkw = dict(abs=1, cmap='jet', ticks=0, fig=fig)
             imshow(Wx, **pkw, ax=axes[i, 0], show=0, title=title1)
             imshow(Tx, **pkw, ax=axes[i, 1], show=0, title=title2)
@@ -463,8 +462,8 @@ class TestSignals():
         self.test_transforms(fn, signals=signals, N=N)
 
     def _cwt_vs_stft_fn(self, x, t, params, wavelet, window, win_len=None,
-                    n_fft=None, window_name=None, config_str='', w=1.2, h=.9,
-                    tight_kw=None):
+                        n_fft=None, window_name=None, config_str='', w=1.2, h=.9,
+                        tight_kw=None):
         fs = 1 / (t[1] - t[0])
         Tsx, _, Sx, *_ = ssq_stft(x, window, n_fft=n_fft, win_len=win_len, fs=fs)
         Twx, _, Wx, *_ = ssq_cwt(x, wavelet, t=t)
@@ -524,4 +523,4 @@ def _wrap(txt, wrap_len=50):
     """Preserves line breaks and includes `'\n'.join()` step."""
     return '\n'.join(['\n'.join(
         wrap(line, 90, break_long_words=False, replace_whitespace=False))
-            for line in txt.splitlines() if line.strip() != ''])
+        for line in txt.splitlines() if line.strip() != ''])
