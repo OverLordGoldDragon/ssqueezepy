@@ -1,9 +1,12 @@
 # -*- coding: utf-8 -*-
 from ssqueezepy import Wavelet, TestSignals
+from ssqueezepy.utils import window_resolution
+import numpy as np
+import scipy.signal as sig
 
+tsigs = TestSignals(N=256)
 #%%# Viz signals #############################################################
 # set `dft` to 'rows' or 'cols' to also plot signals' DFT, along rows or columns
-tsigs = TestSignals(N=256)
 dft = (None, 'rows', 'cols')[0]
 tsigs.demo(dft=dft)
 
@@ -16,10 +19,30 @@ signals = [
 tsigs.demo(signals, N=512)
 
 #%%# Viz CWT & SSQ_CWT with different wavelets ###############################
-wavelets = [Wavelet(('GMW', {'beta': 5})),
-            Wavelet(('GMW', {'beta': 22})),
+wavelets = [Wavelet(('gmw', {'beta': 5})),
+            Wavelet(('gmw', {'beta': 22})),
             ]
 tsigs.wavcomp(wavelets)
 
 #%%#
 tsigs.wavcomp(wavelets, signals=[('#echirp', dict(fmin=.1))], N=512)
+
+#%%# Viz CWT vs STFT (& SSQ'd) ###############################################
+N  = 256
+n_fft = N
+win_len = n_fft
+wavelet = Wavelet(('GMW', {'beta': 21.5}))
+
+NW = win_len//2 - 1
+window = np.abs(sig.windows.dpss(win_len, NW))
+window_name = 'DPSS'
+config_str = '\nNW=%s' % NW
+
+# ensure `wavelet` and `window` have ~same time & frequency resolutions
+print("std_w, std_t, harea\nwavelet: {:.4f}, {:.4f}, {:.8f}"
+      "\nwindow:  {:.4f}, {:.4f}, {:.8f}".format(
+          wavelet.std_w, wavelet.std_t, wavelet.harea,
+          *window_resolution(window)))
+#%%
+tsigs.cwt_vs_stft(wavelet, window, signals='all', N=N, win_len=win_len,
+                  n_fft=n_fft, window_name=window_name, config_str=config_str)

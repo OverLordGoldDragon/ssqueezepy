@@ -29,9 +29,13 @@ https://dsp.stackexchange.com/q/72329/50076
 import numpy as np
 import matplotlib.pyplot as plt
 from numpy.fft import rfft
+from textwrap import wrap
+
 from ._ssq_cwt import ssq_cwt
+from ._ssq_stft import ssq_stft
 from .wavelets import Wavelet
 from .visuals import plot, plots, imshow
+
 
 pi = np.pi
 DEFAULT_N = 256
@@ -272,7 +276,7 @@ class TestSignals():
         return data
 
     @classmethod
-    def _title(self, signal, N, fparams, aparams):
+    def _title(self, signal, N, fparams, aparams, wrap_len=50):
         fparams = self._process_alias(signal, N, fparams)
         fparams = dict(N=N, **fparams)
 
@@ -280,7 +284,8 @@ class TestSignals():
         title = "{} | {}".format(signal, ptxt)
         if aparams:
             atxt = ', '.join(f"{k}={v}" for k, v in aparams.items())
-            title += "\n%s" % atxt
+            title += ', %s' % atxt
+        title = _wrap(title, wrap_len)
         return title
 
     @staticmethod
@@ -426,17 +431,7 @@ class TestSignals():
         fn = lambda x, t, params: self._wavcomp_fn(x, t, params, wavelets)
         self.test_transforms(fn, signals=signals, N=N)
 
-    @staticmethod
-    def _wavcomp_fn(x, t, params, wavelets, w=1.2, h=None, tight_kw=None):
-        def _title(name, x, fparams, aparams):
-            title = TestSignals._title(name, len(x), fparams, aparams)
-            wname = wavelet.name.replace(' L1', '').replace(' L2', '')
-            twav = '%s wavelet | %s' % (wname, wavelet.config_str)
-
-            title1 = title + '\nabs(CWT) | ' + twav
-            title2 = 'abs(SSQ_CWT)'
-            return title1, title2
-
+    def _wavcomp_fn(self, x, t, params, wavelets, w=1.2, h=None, tight_kw=None):
         h = h or .45 * len(wavelets)
         fig, axes = plt.subplots(len(wavelets), 2, figsize=(w * 12, h * 12))
         for i, wavelet in enumerate(wavelets):
@@ -444,7 +439,7 @@ class TestSignals():
             Tx = np.flipud(Tx)
 
             name, fparams, aparams = params
-            title1, title2 = _title(name, x, fparams, aparams)
+            title1, title2 = self._title_cwt(wavelet, name, x, fparams, aparams)
 
 
             pkw = dict(abs=1, cmap='jet', ticks=0, fig=fig)
@@ -453,8 +448,80 @@ class TestSignals():
 
         tight_kw = tight_kw or {}
         defaults = dict(left=0, right=1, bottom=0, top=1, wspace=.01,
+                        hspace=.13)
+        for k, v in defaults.items():
+            tight_kw[k] = v
+        plt.subplots_adjust(**tight_kw)
+        plt.show()
+
+    def cwt_vs_stft(self, wavelet, window, signals='all', N=None,
+                    win_len=None, n_fft=None, window_name=None, config_str='',
+                    w=1.2, h=.9, tight_kw=None):
+        fn = lambda x, t, params: self._cwt_vs_stft_fn(
+            x, t, params, wavelet, window, win_len, n_fft, window_name,
+            config_str, w, h, tight_kw)
+        self.test_transforms(fn, signals=signals, N=N)
+
+    def _cwt_vs_stft_fn(self, x, t, params, wavelet, window, win_len=None,
+                    n_fft=None, window_name=None, config_str='', w=1.2, h=.9,
+                    tight_kw=None):
+        fs = 1 / (t[1] - t[0])
+        Tsx, _, Sx, *_ = ssq_stft(x, window, n_fft=n_fft, win_len=win_len, fs=fs)
+        Twx, _, Wx, *_ = ssq_cwt(x, wavelet, t=t)
+        Twx, Tsx, Sx = np.flipud(Twx), np.flipud(Tsx), np.flipud(Sx)
+
+        fig, axes = plt.subplots(2, 2, figsize=(w * 12, h * 12))
+
+        name, fparams, aparams = params
+        ctitle1, ctitle2 = self._title_cwt( wavelet, name, x, fparams, aparams)
+        stitle1, stitle2 = self._title_stft(window,  name, x, fparams, aparams,
+                                            win_len, n_fft, window_name,
+                                            config_str)
+
+        pkw = dict(abs=1, cmap='jet', ticks=0, fig=fig)
+        imshow(Wx,  **pkw, ax=axes[0, 0], show=0, title=ctitle1)
+        imshow(Twx, **pkw, ax=axes[0, 1], show=0, title=ctitle2)
+        imshow(Sx,  **pkw, ax=axes[1, 0], show=0, title=stitle1)
+        imshow(Tsx, **pkw, ax=axes[1, 1], show=0, title=stitle2)
+
+        tight_kw = tight_kw or {}
+        defaults = dict(left=0, right=1, bottom=0, top=1, wspace=.01,
                         hspace=.2)
         for k, v in defaults.items():
             tight_kw[k] = v
         plt.subplots_adjust(**tight_kw)
         plt.show()
+
+    @staticmethod
+    def _title_cwt(wavelet, name, x, fparams, aparams, wrap_len=50):
+        title = TestSignals._title(name, len(x), fparams, aparams)
+
+        # special case: GMW
+        wname = wavelet.name.replace(' L1', '').replace(' L2', '')
+
+        twav = '%s wavelet | %s' % (wname, wavelet.config_str)
+        ctitle1 = title + '\nabs(CWT) | ' + twav
+        ctitle2 = 'abs(SSQ_CWT)'
+
+        ctitle1 = _wrap(ctitle1, wrap_len)
+        return ctitle1, ctitle2
+
+    @staticmethod
+    def _title_stft(window, name, x, fparams, aparams, win_len=None, n_fft=None,
+                    window_name='', config_str='', wrap_len=50):
+        title = TestSignals._title(name, len(x), fparams, aparams)
+
+        twin = "{} window | win_len={}, n_fft={}, {}".format(
+            window_name, win_len, n_fft, config_str)
+        stitle1 = title + '\nabs(STFT) | ' + twin
+        stitle2 = 'abs(SSQ_STFT)'
+
+        stitle1 = _wrap(stitle1, wrap_len)
+        return stitle1, stitle2
+
+
+def _wrap(txt, wrap_len=50):
+    """Preserves line breaks and includes `'\n'.join()` step."""
+    return '\n'.join(['\n'.join(
+        wrap(line, 90, break_long_words=False, replace_whitespace=False))
+            for line in txt.splitlines() if line.strip() != ''])
