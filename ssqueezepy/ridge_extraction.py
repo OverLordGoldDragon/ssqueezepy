@@ -73,7 +73,7 @@ def extract_ridges(Tf, scales, penalty=2., n_ridges=1, BW=25):
                                               penalty_matrix[idx_freq, :])
 
         ridge_idxs = np.unravel_index(np.argmin(penalized_energy, axis=0),
-                                     penalized_energy.shape)[1]
+                                      penalized_energy.shape)[1]
 
         return penalized_energy, ridge_idxs
 
@@ -137,7 +137,7 @@ def extract_ridges(Tf, scales, penalty=2., n_ridges=1, BW=25):
         energy_neg_log_norm = -np.log(energy / energy_max + EPS)
 
         ridge_idxs[:, current_ridge_idxs
-                  ] = fw_bw_ridge_tracking(energy_neg_log_norm, penalty_matrix)
+                   ] = fw_bw_ridge_tracking(energy_neg_log_norm, penalty_matrix)
         max_energy[:, current_ridge_idxs
                    ] = energy[ridge_idxs[:, current_ridge_idxs],
                               np.arange(len(ridge_idxs[:, current_ridge_idxs]))]
