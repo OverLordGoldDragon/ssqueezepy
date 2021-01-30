@@ -269,10 +269,12 @@ def test_test_signals():
     pass_on_error(tsigs._process_input, ['a', 1])
     pass_on_error(tsigs._process_input, ['a', (1, 2)])
 
+    backup = tsigs.default_args.copy()
     tsigs.default_args['am-cosine'] = dict(amin=.1)
     pass_on_error(tsigs._process_input, 'am-cosine')
     tsigs.default_args['am-cosine'] = 2
     pass_on_error(tsigs._process_input, 'am-cosine')
+    tsigs.default_args.update(backup)
 
 
 def pass_on_error(fn, *args, **kw):
