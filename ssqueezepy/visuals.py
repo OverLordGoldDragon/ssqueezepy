@@ -514,9 +514,15 @@ def _viz_cwt_scalebounds(wavelet, N, min_scale=None, max_scale=None,
 
 #### Visual tools ## messy code ##############################################
 def imshow(data, title=None, show=1, cmap=None, norm=None, complex=None, abs=0,
-           w=None, h=None, ridge=0, ticks=1, aspect='auto',
+           w=None, h=None, ridge=0, ticks=1, aspect='auto', ax=None, fig=None,
            yticks=None, xticks=None, xlabel=None, ylabel=None, **kw):
+    if (ax or fig) and complex:
+        from .utils import NOTE
+        NOTE("`ax` and `fig` ignored if `complex`")
+    ax  = ax  or plt.gca()
+    fig = fig or plt.gcf()
     kw['interpolation'] = kw.get('interpolation', 'none')
+
     if norm is None:
         mx = np.max(np.abs(data))
         vmin, vmax = ((-mx, mx) if not abs else
@@ -528,7 +534,7 @@ def imshow(data, title=None, show=1, cmap=None, norm=None, complex=None, abs=0,
     _kw = dict(vmin=vmin, vmax=vmax, cmap=cmap, aspect=aspect, **kw)
 
     if abs:
-        plt.imshow(np.abs(data), **_kw)
+        ax.imshow(np.abs(data), **_kw)
     elif complex:
         fig, axes = plt.subplots(1, 2)
         axes[0].imshow(data.real, **_kw)
@@ -536,26 +542,26 @@ def imshow(data, title=None, show=1, cmap=None, norm=None, complex=None, abs=0,
         plt.subplots_adjust(left=0, right=1, bottom=0, top=1,
                             wspace=0, hspace=0)
     else:
-        plt.imshow(data.real, **_kw)
+        ax.imshow(data.real, **_kw)
 
     if w or h:
-        plt.gcf().set_size_inches(12 * (w or 1), 12 * (h or 1))
+        fig.set_size_inches(12 * (w or 1), 12 * (h or 1))
 
     if ridge:
         data_mx = np.where(np.abs(data) == np.abs(data).max(axis=0))
-        plt.scatter(data_mx[1], data_mx[0], color='r', s=4)
+        ax.scatter(data_mx[1], data_mx[0], color='r', s=4)
 
     if not ticks:
-        plt.xticks([])
-        plt.yticks([])
+        ax.set_xticks([])
+        ax.set_yticks([])
     if xticks is not None or yticks is not None:
         _ticks(xticks, yticks)
     if xlabel is not None:
-        plt.xlabel(xlabel, weight='bold', fontsize=15)
+        ax.set_xlabel(xlabel, weight='bold', fontsize=15)
     if ylabel is not None:
-        plt.ylabel(ylabel, weight='bold', fontsize=15)
+        ax.set_ylabel(ylabel, weight='bold', fontsize=15)
 
-    _maybe_title(title)
+    _maybe_title(title, ax=ax)
     if show:
         plt.show()
 
@@ -601,7 +607,7 @@ def plot(x, y=None, title=None, show=0, ax_equal=False, complex=0, abs=0,
     if xticks is not None or yticks is not None:
         _ticks(xticks, yticks)
 
-    _maybe_title(title)
+    _maybe_title(title, ax=ax)
     _scale_plot(fig, ax, show=show, ax_equal=ax_equal, w=w, h=h,
                 xlims=xlims, ylims=ylims, dx1=(len(x) if dx1 else 0),
                 xlabel=xlabel, ylabel=ylabel)
@@ -691,7 +697,7 @@ def scat(x, y=None, title=None, show=0, ax_equal=False, s=18, w=None, h=None,
         ax.set_xticks([])
         ax.set_yticks([])
 
-    _maybe_title(title)
+    _maybe_title(title, ax=ax)
     if vlines:
         vhlines(vlines, kind='v')
     if hlines:
@@ -757,13 +763,19 @@ def _ticks(xticks, yticks):
         xt = [fmt(xticks) % h for h in np.asarray(xticks)[idxs]]
         plt.xticks(idxs, xt)
 
-def _maybe_title(title):
-    if title is not None:
-        title, kw = (title if isinstance(title, tuple) else
-                     (title, {}))
-        defaults = dict(loc='left', weight='bold', fontsize=16)
-        for name in defaults:
-            kw[name] = kw.get(name, defaults[name])
+def _maybe_title(title, ax=None):
+    if title is None:
+        return
+
+    title, kw = (title if isinstance(title, tuple) else
+                 (title, {}))
+    defaults = dict(loc='left', weight='bold', fontsize=16)
+    for name in defaults:
+        kw[name] = kw.get(name, defaults[name])
+
+    if ax:
+        ax.set_title(str(title), **kw)
+    else:
         plt.title(str(title), **kw)
 
 

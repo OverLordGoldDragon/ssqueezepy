@@ -7,6 +7,7 @@ from .utils import NOTE, pi
 from .wavelets import center_frequency
 
 
+# TODO return original `Wx` instead of one transformed here
 def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt',
              squeezing='sum', mapkind='maximal', wavelet=None):
     """Synchrosqueezes the CWT or STFT of `x`.

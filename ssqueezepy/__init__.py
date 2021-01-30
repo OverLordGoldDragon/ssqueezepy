@@ -40,6 +40,7 @@ from . import _stft
 from . import _ssq_cwt
 from . import _ssq_stft
 from . import _gmw
+from . import _test_signals
 from . import wavelets
 from . import utils
 from . import toolkit
@@ -53,6 +54,7 @@ from ._stft import *
 from ._ssq_cwt import *
 from ._ssq_stft import *
 from ._gmw import *
+from ._test_signals import *
 from .wavelets import *
 
 

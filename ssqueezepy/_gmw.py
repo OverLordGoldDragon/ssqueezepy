@@ -16,7 +16,7 @@ from ssqueezepy.wavelets import _xifn
 pi = np.pi
 
 
-#### Base wavelets (`k=0`) ###################################################
+#### Base wavelets (`K=1`) ###################################################
 def gmw(gamma=3, beta=60, norm='bandpass', centered_scale=False):
     """Generalized Morse Wavelets. Returns function which computes GMW in the
     frequency domain.
@@ -179,7 +179,7 @@ def _gmw_l2(w, gamma, beta, wc, r, rgamma, w_negs):
                    ) * w**beta * np.exp(-w**gamma) * (~w_negs)
 
 
-#### General order wavelets (any `k`) ########################################
+#### General order wavelets (any `K`) ########################################
 def morsewave(N, freqs, gamma=3, beta=60, K=1, norm='bandpass'):
     """Generalized Morse wavelets of Olhede and Walden (2002).
 

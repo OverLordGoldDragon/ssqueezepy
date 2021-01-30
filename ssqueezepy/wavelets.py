@@ -291,6 +291,7 @@ class Wavelet():
         elif isinstance(wavelet, str):
             wavopts = {}
 
+        wavelet = wavelet.lower()
         if wavelet == 'gmw':
             self.fn = gmw(**wavopts)
         elif wavelet == 'morlet':
@@ -647,8 +648,13 @@ def _aifftshift_even(xh, xhs):
 
 
 def _fn_to_name(fn):
-    return fn.__qualname__.replace('_', ' ').replace('<locals>', '').replace(
+    SPECIALS = {'Gmw ': 'GMW '}
+    name = fn.__qualname__.replace('_', ' ').replace('<locals>', '').replace(
         '<lambda>', '').replace('.', '').title()
+
+    for k, v in SPECIALS.items():
+        name = name.replace(k, v)
+    return name
 
 
 def isinstance_by_name(obj, ref):
