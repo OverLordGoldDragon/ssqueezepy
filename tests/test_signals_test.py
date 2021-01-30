@@ -20,6 +20,8 @@ def test_demo():
         ('sine:am-cosine', (dict(f=32, phi=1), dict(amin=.3))),
     ]
     tsigs.demo(signals, N=512)
+    tsigs.demo(signals, dft='rows')
+    tsigs.demo(signals, dft='cols')
 
 
 def test_wavcomp():

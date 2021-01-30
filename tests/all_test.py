@@ -36,7 +36,9 @@ from ssqueezepy._cwt import _icwt_norm
 from ssqueezepy._stft import get_window
 from ssqueezepy.visuals import hist, plot, plots, scat, plotscat, imshow
 from ssqueezepy.toolkit import lin_band, cos_f, sin_f, mad_rms, amax
+from ssqueezepy._test_signals import TestSignals
 from ssqueezepy import ssq_cwt, issq_cwt, cwt, icwt, ssqueeze
+from ssqueezepy import _gmw
 
 #### Ensure cached imports reloaded ##########################################
 from types import ModuleType
@@ -168,7 +170,7 @@ def test_visuals():
     imshow(g * (1 + 2j), complex=1)
     imshow(g, ridge=1, ticks=0)
 
-    _pass_on_error(plot, None, None)
+    pass_on_error(plot, None, None)
 
 
 def test_utils():
@@ -192,24 +194,24 @@ def test_utils():
     unbuffer(g, xh, 1, n_fft=len(xh), N=g.shape[1], win_exp=2)
 
     #### errors / warnings ###################################################
-    _pass_on_error(find_max_scale, 1, 1, -1, -1)
+    pass_on_error(find_max_scale, 1, 1, -1, -1)
 
-    _pass_on_error(cwt_scalebounds, 1, 1, preset='etc', min_cutoff=0)
-    _pass_on_error(cwt_scalebounds, 1, 1, min_cutoff=-1)
-    _pass_on_error(cwt_scalebounds, 1, 1, min_cutoff=.2, max_cutoff=.1)
-    _pass_on_error(cwt_scalebounds, 1, 1, cutoff=0)
+    pass_on_error(cwt_scalebounds, 1, 1, preset='etc', min_cutoff=0)
+    pass_on_error(cwt_scalebounds, 1, 1, min_cutoff=-1)
+    pass_on_error(cwt_scalebounds, 1, 1, min_cutoff=.2, max_cutoff=.1)
+    pass_on_error(cwt_scalebounds, 1, 1, cutoff=0)
 
-    _pass_on_error(_assert_positive_integer, -1, 'w')
+    pass_on_error(_assert_positive_integer, -1, 'w')
 
-    _pass_on_error(_infer_scaletype, 1)
-    _pass_on_error(_infer_scaletype, np.array([1]))
-    _pass_on_error(_infer_scaletype, np.array([1., 2., 5.]))
+    pass_on_error(_infer_scaletype, 1)
+    pass_on_error(_infer_scaletype, np.array([1]))
+    pass_on_error(_infer_scaletype, np.array([1., 2., 5.]))
 
-    _pass_on_error(_process_fs_and_t, 1, np.array([1]), 2)
-    _pass_on_error(_process_fs_and_t, 1, np.array([1., 2, 4]), 3)
-    _pass_on_error(_process_fs_and_t, -1, None, 1)
+    pass_on_error(_process_fs_and_t, 1, np.array([1]), 2)
+    pass_on_error(_process_fs_and_t, 1, np.array([1., 2, 4]), 3)
+    pass_on_error(_process_fs_and_t, -1, None, 1)
 
-    _pass_on_error(make_scales, 128, scaletype='banana')
+    pass_on_error(make_scales, 128, scaletype='banana')
 
 
 def test_anim():
@@ -222,14 +224,14 @@ def test_ssqueezing():
     Wx = np.random.randn(4, 4)
     w = np.abs(Wx)
 
-    _pass_on_error(ssqueeze, Wx, w, transform='greenland')
-    _pass_on_error(ssqueeze, Wx, w, transform='cwt', scales=None)
-    _pass_on_error(ssqueeze, Wx, w, transform='cwt', wavelet=None,
+    pass_on_error(ssqueeze, Wx, w, transform='greenland')
+    pass_on_error(ssqueeze, Wx, w, transform='cwt', scales=None)
+    pass_on_error(ssqueeze, Wx, w, transform='cwt', wavelet=None,
                    mapkind='maximal')
-    _pass_on_error(ssqueeze, Wx, w, transform='stft', mapkind='minimal')
-    _pass_on_error(ssqueeze, Wx, w, transform='abs')
-    _pass_on_error(ssqueeze, Wx, w, squeezing='big_bird')
-    _pass_on_error(ssqueeze, Wx, w, squeezing=lambda x: x**2)
+    pass_on_error(ssqueeze, Wx, w, transform='stft', mapkind='minimal')
+    pass_on_error(ssqueeze, Wx, w, transform='abs')
+    pass_on_error(ssqueeze, Wx, w, squeezing='big_bird')
+    pass_on_error(ssqueeze, Wx, w, squeezing=lambda x: x**2)
 
 
 def test_windows():
@@ -241,7 +243,39 @@ def test_windows():
     window_resolution(window)
 
 
-def _pass_on_error(fn, *args, **kw):
+def test_morse_utils():
+    """Test miscellaneous utility funcs."""
+    _gmw.morseafun(3, 60, 1, 'bandpass')
+    _gmw.morseafun(3, 60, 1, 'energy')
+
+    _gmw.morsefreq(3, 60, n_out=4)
+    _gmw._morsemom(1, 3, 60, n_out=4)
+    _gmw._moments_to_cumulants(np.random.uniform(0, 1, 5))
+
+    pass_on_error(_gmw._check_args, gamma=-1)
+    pass_on_error(_gmw._check_args, beta=-1)
+    pass_on_error(_gmw._check_args, norm='cactus')
+    pass_on_error(_gmw._check_args, scale=-1)
+
+
+def test_test_signals():
+    tsigs = TestSignals()
+    pass_on_error(tsigs, dft='doot')
+
+    fn = lambda *args, **kw: (np.random.randn(100, 100), {})
+    tsigs.test_transforms(fn)
+
+    pass_on_error(tsigs._process_input, 'etc:t')
+    pass_on_error(tsigs._process_input, ['a', 1])
+    pass_on_error(tsigs._process_input, ['a', (1, 2)])
+
+    tsigs.default_args['am-cosine'] = dict(amin=.1)
+    pass_on_error(tsigs._process_input, 'am-cosine')
+    tsigs.default_args['am-cosine'] = 2
+    pass_on_error(tsigs._process_input, 'am-cosine')
+
+
+def pass_on_error(fn, *args, **kw):
     try: fn(*args, **kw)
     except: pass
 
@@ -257,6 +291,7 @@ if __name__ == '__main__':
         test_anim()
         test_ssqueezing()
         test_windows()
+        test_morse_utils()
     else:
         pytest.main([__file__, "-s"])
 

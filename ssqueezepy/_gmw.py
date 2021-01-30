@@ -441,17 +441,17 @@ def _morsemom(p, gamma, beta, n_out=4):
     """Frequency-domain `p`-th order moments of the first order GMW.
     Used internally by other funcs.
 
-    `n_out` controls how many parameters are computed and returned, in the
-    following order: `mp, np, kp, lp`, where:
+    `n_out` controls how many parameters are coMputed and returned, in the
+    following order: `Mp, Np, Kp, Lp`, where:
 
-        mp: p-th order moment
-        np: p-th order energy moment
-        kp: p-th order cumulant
-        lp: p-th order energy cumulant
+        Mp: p-th order moment
+        Np: p-th order energy moment
+        Kp: p-th order cumulant
+        Lp: p-th order energy cumulant
 
     The p-th order moment and energy moment are defined as
-        mp = 1/(2 pi) int omegamma^p  psi(omegamma)     d omegamma
-        np = 1/(2 pi) int omegamma^p |psi(omegamma)|.^2 d omegamma
+        Mp = 1/(2 pi) int omegamma^p  psi(omegamma)     d omegamma
+        Np = 1/(2 pi) int omegamma^p |psi(omegamma)|.^2 d omegamma
     respectively, where omegamma is the radian frequency. These are evaluated
     using the 'bandpass' normalization, which has `max(abs(psih(omegamma)))=2`.
 
@@ -472,30 +472,30 @@ def _morsemom(p, gamma, beta, n_out=4):
         # first-order GMW
         return (1 / (2*pi * gamma)) * gamma_fn((beta + 1) / gamma)
 
-    mp = morsemom1(p, gamma, beta)
+    Mp = morsemom1(p, gamma, beta)
 
     if n_out > 1:
-        np = (2 / 2**((1 + p) / gamma)) * morsemom1(p, gamma, 2*beta)
+        Np = (2 / 2**((1 + p) / gamma)) * morsemom1(p, gamma, 2*beta)
 
     if n_out > 2:
         prange = np.arange(p + 1)
         moments = morsemom1(prange, gamma, beta)
         cumulants = _moments_to_cumulants(moments)
-        kp = cumulants[p]
+        Kp = cumulants[p]
 
     if n_out > 3:
         moments = (2 / 2**((1 + prange) / gamma)
                    ) * morsemom1(prange, gamma, 2 * beta)
         cumulants = _moments_to_cumulants(moments)
-        lp = cumulants[p]
+        Lp = cumulants[p]
 
     if n_out == 1:
-        return mp
+        return Mp
     elif n_out == 2:
-        return mp, np
+        return Mp, Np
     elif n_out == 3:
-        return mp, np, kp
-    return mp, np, kp, lp
+        return Mp, Np, Kp
+    return Mp, Np, Kp, Lp
 
 
 def _moments_to_cumulants(moments):
