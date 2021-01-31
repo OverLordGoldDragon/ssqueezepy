@@ -66,6 +66,19 @@ def gmw(gamma=3, beta=60, norm='bandpass', centered_scale=False):
         wavelet = Wavelet(('gmw', {'gamma': 3, 'beta': 60}))
         Wx, *_  = cwt(x, 'gmw')
 
+    # Correspondence with Morlet
+        Following pairs yield ~same frequency resolution, which is ~same
+        time-frequency resolution for `mu > 5`, assuming `gamma=3` for all:
+            `mu`, `beta`
+           (1.70, 1.00),
+           (3.00, 3.00),
+           (4.00, 5.15),
+           (6.00, 11.5),
+           (8.00, 21.5),
+           (10.0, 33.5),
+           (12.0, 48.5),
+           (13.4, 60.0),
+
     # References
         [1] Generalized Morse Wavelets. S. C. Olhede, A. T. Walden. 2002.
         https://spiral.imperial.ac.uk/bitstream/10044/1/1150/1/

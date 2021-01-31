@@ -248,8 +248,9 @@ def test_morse_utils():
     _gmw.morseafun(3, 60, 1, 'bandpass')
     _gmw.morseafun(3, 60, 1, 'energy')
 
-    _gmw.morsefreq(3, 60, n_out=4)
-    _gmw._morsemom(1, 3, 60, n_out=4)
+    for n_out in range(1, 5):
+        _gmw.morsefreq(3, 60, n_out=n_out)
+        _gmw._morsemom(1, 3, 60, n_out=n_out)
     _gmw._moments_to_cumulants(np.random.uniform(0, 1, 5))
 
     pass_on_error(_gmw._check_args, gamma=-1)

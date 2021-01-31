@@ -74,7 +74,8 @@ class TestSignals():
 
     # TODO complete docstrings
     """
-    SUPPORTED = ['sine', 'cosine', 'lchirp', 'echirp', 'hchirp', 'jumps',
+    SUPPORTED = ['sine', 'cosine', 'lchirp', 'echirp', 'hchirp',
+                 'par-lchirp', 'par-echirp', 'par-hchirp', 'jumps',
                  'am-sine', 'am-cosine', 'am-exp', 'am-gauss']
     # extra for when signals='all' is passed in
     EXTRAS_ALL = ['#lchirp', '#echirp', '#hchirp']
@@ -132,29 +133,6 @@ class TestSignals():
         phi = A*(np.exp(t) - np.exp(tmin)) + B*(t - tmin)
         return np.cos(2*pi * phi), t
 
-    def am_sine(self, N, f=1, amin=0, amax=1, phi=0, **tkw):
-        _A, t = self.sine(N, f, phi, **tkw)
-        _A = (_A + 1) / 2
-        return amin + (amax - amin) * _A, t
-
-    def am_cosine(self, N, f=1, amin=0, amax=1, phi=0, **tkw):
-        _A, t = self.cosine(N, f, phi, **tkw)
-        _A = (_A + 1) / 2
-        return amin + (amax - amin) * _A, t
-
-    def am_exp(self, N, amin=.1, amax=1, **tkw):
-        """Use `echirp`'s expression for `f(t)`"""
-        t, tmin, tmax = self._process_tkw(N, tkw)
-        a, b, c, d = amin, amax, tmin, tmax
-        A = (b - a) / (np.exp(d) - np.exp(c))
-        B = (a*np.exp(d) - b*np.exp(c)) / (np.exp(d) - np.exp(c))
-        return A*np.exp(t) + B, t
-
-    def am_gauss(self, N, amin=.1, amax=1, **tkw):
-        t = _t(-1, 1, N)
-        _A = np.exp( -((t - t.mean())**2 * 5) )
-        return amin + (amax - amin)*_A, t
-
     def hchirp(self, N, fmin=1, fmax=None, **tkw):
         """
         >>> f(t)   = A / (B - t)^2
@@ -180,6 +158,86 @@ class TestSignals():
 
         phi = A * (1/(B - t) + 1/(tmin - B))
         return np.cos(2*np.pi * phi), t
+
+    def par_lchirp(self, N, fmin1=0, fmax1=None, fmin2=None, fmax2=None, **tkw):
+        """Linear frequency modulation in parallel. Should have
+        `fmax2 > fmax1`, `fmin2 > fmin1`, and shared `tmin`, `tmax`.
+        """
+        fdiff_default = N/10
+        if fmin2 is None:
+            fmin2 = fmin1 + fdiff_default
+        if fmax2 is None or fmax1 is None:
+            if fmax1 is None:
+                fmax2 = N/2
+                fmax1 = fmax2 - fdiff_default
+            else:
+                fmax2 = min(N/2, fmax1 + fdiff_default)
+
+        x1, t = self.lchirp(N, fmin1, fmax1, **tkw)
+        x2, _ = self.lchirp(N, fmin2, fmax2, **tkw)
+        x = x1 + x2
+        return x, t
+
+    def par_echirp(self, N, fmin1=0, fmax1=None, fmin2=None, fmax2=None, **tkw):
+        """Exponential frequency modulation in parallel. Should have
+        `fmax2 > fmax1`, `fmin2 > fmin1`, and shared `tmin`, `tmax`.
+        """
+        fratio_default = 1.5
+        if fmin2 is None:
+            fmin2 = fmin1 * fratio_default
+        if fmax2 is None or fmax1 is None:
+            if fmax1 is None:
+                fmax2 = N/2
+                fmax1 = fmax2 / fratio_default
+            else:
+                fmax2 = min(N/2, fmax1 * fratio_default)
+
+        x1, t = self.echirp(N, fmin1, fmax1, **tkw)
+        x2, _ = self.echirp(N, fmin2, fmax2, **tkw)
+        x = x1 + x2
+        return x, t
+
+    def par_hchirp(self, N, fmin1=1, fmax1=None, fmin2=None, fmax2=None, **tkw):
+        """Hyperbolic frequency modulation in parallel. Should have
+        `fmax2 > fmax1`, `fmin2 > fmin1`, and shared `tmin`, `tmax`.
+        """
+        fratio_default = 3
+        if fmin2 is None:
+            fmin2 = fmin1 * fratio_default
+        if fmax2 is None or fmax1 is None:
+            if fmax1 is None:
+                fmax2 = N/2
+                fmax1 = fmax2 / fratio_default
+            else:
+                fmax2 = min(N/2, fmax1 * fratio_default)
+
+        x1, t = self.hchirp(N, fmin1, fmax1, **tkw)
+        x2, _ = self.hchirp(N, fmin2, fmax2, **tkw)
+        x = x1 + x2
+        return x, t
+
+    def am_sine(self, N, f=1, amin=0, amax=1, phi=0, **tkw):
+        _A, t = self.sine(N, f, phi, **tkw)
+        _A = (_A + 1) / 2
+        return amin + (amax - amin) * _A, t
+
+    def am_cosine(self, N, f=1, amin=0, amax=1, phi=0, **tkw):
+        _A, t = self.cosine(N, f, phi, **tkw)
+        _A = (_A + 1) / 2
+        return amin + (amax - amin) * _A, t
+
+    def am_exp(self, N, amin=.1, amax=1, **tkw):
+        """Use `echirp`'s expression for `f(t)`"""
+        t, tmin, tmax = self._process_tkw(N, tkw)
+        a, b, c, d = amin, amax, tmin, tmax
+        A = (b - a) / (np.exp(d) - np.exp(c))
+        B = (a*np.exp(d) - b*np.exp(c)) / (np.exp(d) - np.exp(c))
+        return A*np.exp(t) + B, t
+
+    def am_gauss(self, N, amin=.1, amax=1, **tkw):
+        t = _t(-1, 1, N)
+        _A = np.exp( -((t - t.mean())**2 * 5) )
+        return amin + (amax - amin)*_A, t
 
     def jumps(self, N, freqs=None, **tkw):
         t, tmin, tmax = self._process_tkw(N, tkw)
