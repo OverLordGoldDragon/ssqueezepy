@@ -497,7 +497,8 @@ class TestSignals():
         for wavelet in wavelets:
             wavs.append(Wavelet._init_if_not_isinstance(wavelet))
 
-        fn = lambda x, t, params: self._wavcomp_fn(x, t, params, wavelets)
+        fn = lambda x, t, params: self._wavcomp_fn(
+            x, t, params, wavelets, w=w, h=h, tight_kw=tight_kw)
         self.test_transforms(fn, signals=signals, N=N)
 
     def _wavcomp_fn(self, x, t, params, wavelets, w=1.2, h=None, tight_kw=None):
