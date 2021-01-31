@@ -38,6 +38,14 @@ Synchrosqueezing is a powerful _reassignment method_ that focuses time-frequency
 
 <img src="https://user-images.githubusercontent.com/16495490/104537035-9f8b6b80-5632-11eb-9fa4-444efec6c9be.png">
 
+### 3. Testing suite: CWT vs STFT, reflect-superimposed linear chirp
+
+<img src="https://user-images.githubusercontent.com/16495490/106391883-f05bdc00-6408-11eb-9e69-2897b130e2d4.png">
+
+### 4. Testing suite: GMW high time vs frequency localization, parallel hyperbolic chirp
+
+<img src="https://user-images.githubusercontent.com/16495490/106391871-d9b58500-6408-11eb-8e3b-facc6884a648.png">
+
 ## Introspection
 
 `ssqueezepy` is equipped with a visualization toolkit, useful for exploring wavelet behavior across scales and configurations. (Also see [explanations and code](https://dsp.stackexchange.com/a/72044/50076))
