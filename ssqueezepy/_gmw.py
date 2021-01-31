@@ -78,7 +78,14 @@ def gmw(gamma=3, beta=12, norm='bandpass', centered_scale=False):
            (10.0, 33.5),
            (12.0, 48.5),
            (13.4, 60.0),
-    The default `beta=12` is hence to closely match Morlet's default `mu=6.0`.
+        The default `beta=12` is hence to closely match Morlet's default `mu=6.`.
+
+    # vs Morlet
+        Differences grow significant when seeking excellent time localization
+        (low `mu`, <4), where Morlet's approximate analyticity breaks down and
+        negative frequencies are leaked, whereas GMW remains exactly analytic,
+        with vanishing moments toward dc bin. Else, the two don't behave
+        noticeably different for `gamma=3`.
 
     # References
         [1] Generalized Morse Wavelets. S. C. Olhede, A. T. Walden. 2002.

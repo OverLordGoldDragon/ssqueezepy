@@ -15,12 +15,12 @@ Synchrosqueezing is a powerful _reassignment method_ that focuses time-frequency
 ## Features
   - Continuous Wavelet Transform (CWT), forward & inverse, and its Synchrosqueezing
   - Short-Time Fourier Transform (STFT), forward & inverse, and its Synchrosqueezing
-  - Clean code with explanations and learning references
-  - Wavelet visualizations
+  - Wavelet visualizations and testing suite
+  - Generalized Morse Wavelets
 
 ### Coming soon
-  - Generalized Morse Wavelets
-  
+  - Ridge extraction
+
 ## Installation
 `pip install ssqueezepy`. Or, for latest version (most likely stable): 
 
@@ -69,24 +69,24 @@ def viz(x, Tx, Wx):
 N = 2048
 t = np.linspace(0, 10, N, endpoint=False)
 xo = np.cos(2 * np.pi * 2 * (np.exp(t / 2.2) - 1))
-xo += xo[::-1]
-x = xo + np.sqrt(2) * np.random.randn(N)
+xo += xo[::-1]  # superimpose reflected
+x = xo + np.sqrt(2) * np.random.randn(N)  # add noise
 
 plt.plot(xo); plt.show()
-plt.plot(x); plt.show()
+plt.plot(x);  plt.show()
 
 #%%# CWT + SSQ CWT ####################################
-Twxo, _, Wxo, *_ = ssq_cwt(xo, 'morlet')
+Twxo, Wxo, *_ = ssq_cwt(xo)
 viz(xo, Twxo, Wxo)
 
-Twx, _, Wx, *_ = ssq_cwt(x, 'morlet')
+Twx, Wx, *_ = ssq_cwt(x)
 viz(x, Twx, Wx)
 
 #%%# STFT + SSQ STFT ##################################
-Tsxo, _, Sxo, *_ = ssq_stft(xo)
+Tsxo, Sxo, *_ = ssq_stft(xo)
 viz(xo, Tsxo, np.flipud(Sxo))
 
-Tsx, _, Sx, *_ = ssq_stft(x)
+Tsx, Sx, *_ = ssq_stft(x)
 viz(x, Tsx, np.flipud(Sx))
 ```
 
