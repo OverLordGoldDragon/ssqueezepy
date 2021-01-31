@@ -7,7 +7,7 @@ from .algos import replace_at_inf_or_nan
 from .wavelets import Wavelet
 
 
-def cwt(x, wavelet='morlet', scales='log', fs=None, t=None, nv=32, l1_norm=True,
+def cwt(x, wavelet='gmw', scales='log', fs=None, t=None, nv=32, l1_norm=True,
         derivative=False, padtype='reflect', rpadded=False, vectorized=True):
     """Continuous Wavelet Transform, discretized, as described in
     Sec. 4.3.3 of [1] and Sec. IIIA of [2]. Uses a form of discretized
@@ -174,8 +174,8 @@ def cwt(x, wavelet='morlet', scales='log', fs=None, t=None, nv=32, l1_norm=True,
             (Wx, scales))
 
 
-def icwt(Wx, wavelet, scales='log', nv=None, one_int=True, x_len=None, x_mean=0,
-         padtype='zero', rpadded=False, l1_norm=True):
+def icwt(Wx, wavelet='gmw', scales='log', nv=None, one_int=True, x_len=None,
+         x_mean=0, padtype='zero', rpadded=False, l1_norm=True):
     """The inverse continuous wavelet transform of Wx, via double or
     single integral.
 

@@ -17,7 +17,7 @@ pi = np.pi
 
 
 #### Base wavelets (`K=1`) ###################################################
-def gmw(gamma=3, beta=60, norm='bandpass', centered_scale=False):
+def gmw(gamma=3, beta=12, norm='bandpass', centered_scale=False):
     """Generalized Morse Wavelets. Returns function which computes GMW in the
     frequency domain.
 
@@ -78,6 +78,7 @@ def gmw(gamma=3, beta=60, norm='bandpass', centered_scale=False):
            (10.0, 33.5),
            (12.0, 48.5),
            (13.4, 60.0),
+    The default `beta=12` is hence to closely match Morlet's default `mu=6.0`.
 
     # References
         [1] Generalized Morse Wavelets. S. C. Olhede, A. T. Walden. 2002.
@@ -153,7 +154,7 @@ def compute_gmw(N, scale, gamma=3, beta=60, time=False, norm='bandpass',
     return (X, x) if time else X
 
 
-def gmw_l1(gamma=3., beta=60., centered_scale=False):
+def gmw_l1(gamma=3., beta=12., centered_scale=False):
     """Generalized Morse Wavelets, L1(bandpass)-normalized. See `help(_gmw.gmw)`.
     """
     _check_args(gamma=gamma, beta=beta, allow_zerobeta=False)
@@ -170,7 +171,7 @@ def _gmw_l1(w, gamma, beta, wc, w_negs):
                       + beta * np.log(w)  - w**gamma) * (~w_negs)
 
 
-def gmw_l2(gamma=3., beta=60., centered_scale=False):
+def gmw_l2(gamma=3., beta=12., centered_scale=False):
     """Generalized Morse Wavelets, L2(energy)-normalized. See `help(_gmw.gmw)`.
     """
     _check_args(gamma=gamma, beta=beta, allow_zerobeta=False)
@@ -206,7 +207,9 @@ def morsewave(N, freqs, gamma=3, beta=60, K=1, norm='bandpass'):
 
         gamma, beta: float, float
             GMW parameters; `(gamma, beta) = (3, 60)` yields optimal
-            time-frequency localization. See refs [2], [3].
+            time-frequency localization (but in practice `beta=60` might give
+            poor time loc. for excellent freq loc. Smaller `beta` still enjoy
+            near-optimal joint loc.). See refs [2], [3].
 
         K: int > 0
             Will compute first `K` orthogonal GMWs, characterized by

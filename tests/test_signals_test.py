@@ -34,10 +34,10 @@ def test_wavcomp():
 
 
 def test_cwt_vs_stft():
-    tsigs = TestSignals(N=256)
-    N  = 256
+    N = 256
     n_fft = N
     win_len = n_fft
+    tsigs = TestSignals(N=N)
     wavelet = Wavelet(('GMW', {'beta': 21.5}))
 
     NW = win_len//2 - 1

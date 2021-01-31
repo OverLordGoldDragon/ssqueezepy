@@ -6,9 +6,10 @@ from .wavelets import Wavelet
 from ._cwt import cwt
 
 
-def ssq_cwt(x, wavelet='morlet', scales='log', nv=None, fs=None, t=None,
-            ssq_freqs=None, padtype='reflect', squeezing='sum', mapkind='maximal',
-            difftype='direct', difforder=None, gamma=None, preserve_cwt=True):
+def ssq_cwt(x, wavelet='gmw', scales='log', nv=None, fs=None, t=None,
+            ssq_freqs=None, padtype='reflect', squeezing='sum',
+            mapkind='maximal', difftype='direct', difforder=None, gamma=None,
+            preserve_transform=True):
     """Synchrosqueezed Continuous Wavelet Transform.
     Implements the algorithm described in Sec. III of [1].
 
@@ -98,7 +99,7 @@ def ssq_cwt(x, wavelet='morlet', scales='log', nv=None, fs=None, t=None,
             contributions from points with indeterminate phase.
             Default = sqrt(machine epsilon) = np.sqrt(np.finfo(np.float64).eps)
 
-        preserve_cwt: bool (default True)
+        preserve_transform: bool (default True)
             Whether to return `Wx` as directly output from `cwt` (it might be
             altered by `ssqueeze` or `phase_transform`). Uses more memory
             per storing extra copy of `Wx`.
@@ -108,14 +109,16 @@ def ssq_cwt(x, wavelet='morlet', scales='log', nv=None, fs=None, t=None,
             Synchrosqueezed CWT of `x`. (rows=~frequencies, cols=timeshifts)
             (nf = len(ssq_freqs); n = len(x))
             `nf = na` by default, where `na = len(scales)`.
-        ssq_freqs: np.ndarray [nf]
-            Frequencies associated with rows of `Tx`.
         Wx: np.ndarray [na x n]
             Continuous Wavelet Transform of `x`, L1-normed (see `cwt`).
+        ssq_freqs: np.ndarray [nf]
+            Frequencies associated with rows of `Tx`.
         scales: np.ndarray [na]
             Scales associated with rows of `Wx`.
         w: np.ndarray [na x n]
             Phase transform for each element of `Wx`.
+        dWx: [na x n] np.ndarray
+            See `help(_cwt.cwt)`.
 
     # References:
         1. The Synchrosqueezing algorithm for time-varying spectral analysis:
@@ -190,7 +193,7 @@ def ssq_cwt(x, wavelet='morlet', scales='log', nv=None, fs=None, t=None,
     rpadded = (difftype == 'numeric')
     Wx, scales, dWx = cwt(x, wavelet, scales=scales, fs=fs, nv=nv, l1_norm=True,
                           derivative=True, padtype=padtype, rpadded=rpadded)
-    _Wx = Wx.copy() if preserve_cwt else Wx
+    _Wx = Wx.copy() if preserve_transform else Wx
 
     gamma = gamma or np.sqrt(EPS)
     _Wx, w = _phase_transform(_Wx, dWx, N, dt, gamma, difftype, difforder)
@@ -207,10 +210,10 @@ def ssq_cwt(x, wavelet='morlet', scales='log', nv=None, fs=None, t=None,
         Wx = Wx[:, 4:-4]
         w  = w[:,  4:-4]
         Tx = Tx[:, 4:-4]
-    return Tx, ssq_freqs, Wx, scales, w  # TODO change return order
+    return Tx, Wx, ssq_freqs, scales, w, dWx
 
 
-def issq_cwt(Tx, wavelet, cc=None, cw=None):
+def issq_cwt(Tx, wavelet='gmw', cc=None, cw=None):
     """Inverse synchrosqueezing transform of `Tx` with associated frequencies
     in `fs` and curve bands in time-frequency plane specified by `Cs` and
     `freqband`. This implements Eq. 15 of [1].

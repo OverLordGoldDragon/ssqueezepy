@@ -53,9 +53,9 @@ row_anim(Wxz, idxs, scales)
 #%%## Superimpose ####
 row_anim(Wxz, idxs, scales, superimposed=True)
 #%%## Synchrosqueeze
-Tx, fs, *_ = ssq_cwt(x, wavelet, t=_t(0, 1, N))
+Tx, _, ssq_freqs, *_ = ssq_cwt(x, wavelet, t=_t(0, 1, N))
 #%%
-imshow(Tx, abs=1, title="abs(SSWT)", yticks=fs, show=1)
+imshow(Tx, abs=1, title="abs(SSWT)", yticks=ssq_freqs, show=1)
 
 #%%# Damped pendulum example ################################################
 N, w0 = 4096, 25
@@ -71,7 +71,7 @@ plot(w, np.abs(S), title="abs(FT(s(t)))", show=1)
 
 #%%# Now SSWT ##
 wavelet = ('morlet', {'mu': 5})
-Tx, fs, *_ = ssq_cwt(s, wavelet, t=t)
+Tx, *_ = ssq_cwt(s, wavelet, t=t)
 #%%# 'cheat' a little; could use boundary wavelets instead (not implemented)
 aTxz = np.abs(Tx)[:, len(t) // 8:]
 imshow(aTxz, abs=1, title="abs(SSWT(s(t)))", show=1)

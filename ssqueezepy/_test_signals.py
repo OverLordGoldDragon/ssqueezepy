@@ -15,13 +15,24 @@ variety of localization characteristics.
     c. exp
     d. gauss
 
-3. **lchirp**: linear chirp, `cos(2pi t**2/2)`, spanning `fmin` to `fmax`
+3. **#<name>**: superimpose reflected <name> onto itself, i.e. `x += x[::-1]`
 
-4. **echirp**: exponential chirp, `cos(2pi exp(t))`, spanning `fmin` to `fmax`
+4. **lchirp**: linear chirp, `cos(2pi t**2/2)`, spanning `fmin` to `fmax`
 
-5. **hchirp**: hyperbolic chirp, `cos(2pi a/(b - t))`, spanning `fmin` to `fmax`
+5. **echirp**: exponential chirp, `cos(2pi exp(t))`, spanning `fmin` to `fmax`
 
-6. **jumps**: large instant frequency transitions, `cos(2pi f*t), f=2 -> f=100`
+6. **hchirp**: hyperbolic chirp, `cos(2pi a/(b - t))`, spanning `fmin` to `fmax`
+
+7. **par_lchirp**: linear chirps, superimposed, with frequency modulation
+                   in parallel, spanning `fmin1` to `fmax1` & `fmin2` to `fmax2`
+
+8. **par_echirp**: exponential chirps, superimposed, with frequency modulation
+                   in parallel, spanning `fmin1` to `fmax1` & `fmin2` to `fmax2`
+
+9. **par_hchirp**: hyperbolic chirps, superimposed, with frequency modulation
+                   in parallel, spanning `fmin1` to `fmax1` & `fmin2` to `fmax2`
+
+10. **jumps**: large instant frequency transitions, `cos(2pi f*t), f=2 -> f=100`
 
 Note that for signals involving `fmax`, aliasing may occur even if `fmax < N/2`:
 https://dsp.stackexchange.com/q/72329/50076
@@ -493,7 +504,7 @@ class TestSignals():
         h = h or .45 * len(wavelets)
         fig, axes = plt.subplots(len(wavelets), 2, figsize=(w * 12, h * 12))
         for i, wavelet in enumerate(wavelets):
-            Tx, _, Wx, *_ = ssq_cwt(x, wavelet, t=t)
+            Tx, Wx, *_ = ssq_cwt(x, wavelet, t=t)
             Tx = np.flipud(Tx)
 
             name, fparams, aparams = params
@@ -523,8 +534,8 @@ class TestSignals():
                         n_fft=None, window_name=None, config_str='', w=1.2, h=.9,
                         tight_kw=None):
         fs = 1 / (t[1] - t[0])
-        Tsx, _, Sx, *_ = ssq_stft(x, window, n_fft=n_fft, win_len=win_len, fs=fs)
-        Twx, _, Wx, *_ = ssq_cwt(x, wavelet, t=t)
+        Tsx, Sx, *_ = ssq_stft(x, window, n_fft=n_fft, win_len=win_len, fs=fs)
+        Twx, Wx, *_ = ssq_cwt(x, wavelet, t=t)
         Twx, Tsx, Sx = np.flipud(Twx), np.flipud(Tsx), np.flipud(Sx)
 
         fig, axes = plt.subplots(2, 2, figsize=(w * 12, h * 12))

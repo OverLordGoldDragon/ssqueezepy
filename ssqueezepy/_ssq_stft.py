@@ -8,7 +8,7 @@ from .ssqueezing import ssqueeze, _check_squeezing_arg
 
 def ssq_stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=1.,
              modulated=True, ssq_freqs=None, padtype='reflect', squeezing='sum',
-             gamma=None):
+             gamma=None, preserve_transform=True):
     """Synchrosqueezed Short-Time Fourier Transform.
     Implements the algorithm described in Sec. III of [1].
 
@@ -32,19 +32,24 @@ def ssq_stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=1.,
             contributions from points with indeterminate phase.
             Default = sqrt(machine epsilon) = np.sqrt(np.finfo(np.float64).eps)
 
+        preserve_transform: bool (default True)
+            Whether to return `Sx` as directly output from `stft` (it might be
+            altered by `ssqueeze` or `phase_transform`). Uses more memory
+            per storing extra copy of `Sx`.
+
     # Returns:
         Tx: np.ndarray
             Synchrosqueezed STFT of `x`, of same shape as `Sx`.
-        ssq_freqs: np.ndarray
-            Frequencies associated with rows of `Tx`.
         Sx: np.ndarray
             STFT of `x`. See `help(stft)`.
+        ssq_freqs: np.ndarray
+            Frequencies associated with rows of `Tx`.
         Sfs: np.ndarray
             Frequencies associated with rows of `Sx` (by default == `ssq_freqs`).
-        dSx: np.ndarray
-            Time-derivative of STFT of `x`. See `help(stft)`.
         w: np.ndarray
             Phase transform of STFT of `x`. See `help(phase_stft)`.
+        dSx: np.ndarray
+            Time-derivative of STFT of `x`. See `help(stft)`.
 
     # References:
         1. Synchrosqueezing-based Recovery of Instantaneous Frequency from
@@ -56,16 +61,17 @@ def ssq_stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=1.,
 
     Sx, dSx = stft(x, window, n_fft=n_fft, win_len=win_len, hop_len=hop_len,
                    fs=fs, padtype=padtype, modulated=modulated, derivative=True)
+    _Sx = Sx.copy() if preserve_transform else Sx
 
     Sfs = np.linspace(0, .5, Sx.shape[0]) * fs
-    w = phase_stft(Sx, dSx, Sfs, gamma)
+    w = phase_stft(_Sx, dSx, Sfs, gamma)
 
     if ssq_freqs is None:
         ssq_freqs = Sfs
-    Tx, ssq_freqs = ssqueeze(Sx, w, transform='stft', squeezing=squeezing,
+    Tx, ssq_freqs = ssqueeze(_Sx, w, transform='stft', squeezing=squeezing,
                              ssq_freqs=ssq_freqs)
 
-    return Tx, ssq_freqs, Sx, Sfs, dSx, w
+    return Tx, Sx, ssq_freqs, Sfs, w, dSx
 
 
 def issq_stft(Tx, window=None, cc=None, cw=None, n_fft=None, win_len=None,
