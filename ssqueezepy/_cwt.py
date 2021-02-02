@@ -33,9 +33,9 @@ def cwt(x, wavelet='gmw', scales='log', fs=None, t=None, nv=32, l1_norm=True,
                   !!! EXPERIMENTAL; default scheme for len(x)>2048 performs
                   poorly (and there may not be a good non-piecewise scheme).
 
-            str assumes default `preset='maximal'`, which can be changed via
-            e.g. 'log:maximal', 'linear:minimal'. See `preset` in
-            help(utils.cwt_scalebounds).
+            str assumes default `preset='minimal-low'`, which can be changed via
+            e.g. 'log:maximal', 'linear:minimal'.
+            See `preset` in `help(utils.cwt_scalebounds)`.
 
         nv: int
             Number of voices. Suggested >= 32.

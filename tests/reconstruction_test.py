@@ -59,9 +59,11 @@ def test_ssq_cwt():
     for fn in test_fns:
         x, ts = fn(2048)
         for scales in ('log', 'linear'):
-            # 'linear' default can't handle low frequencies for large N
-            if scales == 'linear' and fn.__name__ == 'fast_transitions':
-                continue
+            if fn.__name__ == 'low_freqs':
+                if scales == 'linear':
+                    # 'linear' default can't handle low frequencies for large N
+                    continue
+                scales = f'{scales}:maximal'
 
             Tx, *_ = ssq_cwt(x, wavelet, scales=scales, nv=32, t=ts)
             xrec = issq_cwt(Tx, wavelet)
@@ -79,16 +81,18 @@ def test_cwt():
     for fn in test_fns:
         x, ts = fn(2048)
         for l1_norm in (True, False):
+            scales = ('log:maximal' if fn.__name__ == 'low_freqs' else
+                      'log')
             # 'linear' default can't handle low frequencies for large N
-            kw = dict(wavelet=wavelet, scales='log', l1_norm=l1_norm, nv=32)
+            kw = dict(wavelet=wavelet, scales=scales, l1_norm=l1_norm, nv=32)
 
             Wx, *_ = cwt(x, t=ts, **kw)
             xrec = icwt(Wx, one_int=True, **kw)
 
             errs.append(round(mad_rms(x, xrec), 5))
             title = f"abs(CWT) | l1_norm={l1_norm}"
-            title = "abs(SSQ_CWT) | {}, l1_norm={}".format(fn.__qualname__,
-                                                           l1_norm)
+            title = "abs(CWT) | {}, l1_norm={}".format(fn.__qualname__,
+                                                       l1_norm)
             _maybe_viz(Wx, x, xrec, title, errs[-1])
             assert errs[-1] < th, (errs[-1], fn.__name__, f"l1_norm: {l1_norm}")
     print("\ncwt PASSED\nerrs:", ', '.join(map(str, errs)))

@@ -99,7 +99,7 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
         # do squeezing by finding which frequency bin each phase transform point
         # w[a, b] lands in (i.e. to which f in ssq_freqs each w[a, b] is closest)
         # equivalent to argmin(abs(w[a, b] - ssq_freqs)) for every a, b
-        with np.errstate(divide='ignore'):
+        with np.errstate(divide='ignore', invalid='ignore'):
             k = (find_closest(w, ssq_freqs) if ssq_scaletype != 'log' else
                  find_closest(np.log2(w), np.log2(ssq_freqs)))
 
@@ -128,7 +128,9 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
             # maximum measurable (Nyquist) frequency of data
             fM = 1 / (2 * dt)
         elif mapkind in ('peak', 'energy'):
-            kw = dict(wavelet=wavelet, N=N, kind=mapkind, force_int=True)
+            kw = dict(wavelet=wavelet, N=N, kind=mapkind)
+            if mapkind == 'energy':
+                kw['force_int'] = True
             wm = center_frequency(scale=scales[-1], **kw)
             wM = center_frequency(scale=scales[0],  **kw)
             fm = wm / (2*pi) / dt
@@ -157,15 +159,10 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
         if transform not in ('cwt', 'stft'):
             raise ValueError("`transform` must be one of: cwt, stft "
                              "(got %s)" % squeezing)
-        _check_squeezing_arg(squeezing)
+        _check_ssqueezing_args(squeezing, mapkind, transform)
 
         if scales is None and transform == 'cwt':
             raise ValueError("`scales` can't be None if `transform == 'cwt'`")
-
-        if mapkind != 'naive' and transform == 'cwt' and wavelet is None:
-            raise ValueError(f"must pass `wavelet` with mapkind='{mapkind}'")
-        if mapkind != 'maximal' and transform != 'cwt':
-            NOTE("`mapkind` currently only functional with `transform='cwt'`")
 
         dt, *_ = _process_fs_and_t(fs, t, N)
         return dt
@@ -201,7 +198,8 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
     return Tx, ssq_freqs
 
 
-def _check_squeezing_arg(squeezing):
+def _check_ssqueezing_args(squeezing, mapkind=None, wavelet=None,
+                           transform='cwt'):
     supported = ('sum', 'lebesgue', 'abs')
     if not isinstance(squeezing, (str, FunctionType)):
         raise TypeError("`squeezing` must be string or function "
@@ -209,3 +207,16 @@ def _check_squeezing_arg(squeezing):
     elif isinstance(squeezing, str) and squeezing not in supported:
         raise ValueError("`squeezing` must be one of: {} (got {})".format(
             ', '.join(supported), squeezing))
+
+    if mapkind is None:
+        return
+    supported = ('maximal', 'peak', 'energy')
+    if mapkind not in supported:
+        raise ValueError("`mapkind` must be one of {} (got {})".format(
+            ', '.join(supported), mapkind))
+
+    if mapkind != 'maximal':
+        if transform != 'cwt':
+            NOTE("`mapkind` currently only functional with `transform='cwt'`")
+        elif wavelet is None:
+            raise ValueError(f"must pass `wavelet` with mapkind='{mapkind}'")

@@ -3,7 +3,7 @@ import numpy as np
 from ._stft import stft, get_window, _check_NOLA
 from ._ssq_cwt import _invert_components, _process_component_inversion_args
 from .utils import WARN, EPS, pi
-from .ssqueezing import ssqueeze, _check_squeezing_arg
+from .ssqueezing import ssqueeze, _check_ssqueezing_args
 
 
 def ssq_stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=1.,
@@ -57,7 +57,7 @@ def ssq_stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=1.,
         https://arxiv.org/abs/1006.2533
     """
     n_fft = n_fft or len(x)
-    _check_squeezing_arg(squeezing)
+    _check_ssqueezing_args(squeezing)
 
     Sx, dSx = stft(x, window, n_fft=n_fft, win_len=win_len, hop_len=hop_len,
                    fs=fs, padtype=padtype, modulated=modulated, derivative=True)
@@ -172,7 +172,8 @@ def phase_stft(Sx, dSx, Sfs, gamma=None):
         G. Thakur, E. Brevdo, N.-S. Fučkar, and H.-T. Wu.
         https://arxiv.org/abs/1105.0010
     """
-    w = Sfs.reshape(-1, 1) - np.imag(dSx / Sx) / (2*pi)
+    with np.errstate(divide='ignore', invalid='ignore'):
+        w = Sfs.reshape(-1, 1) - np.imag(dSx / Sx) / (2*pi)
 
     # treat negative phases as positive; these are in small minority, and
     # slightly aid invertibility (as less of `Wx` is zeroed in ssqueezing)

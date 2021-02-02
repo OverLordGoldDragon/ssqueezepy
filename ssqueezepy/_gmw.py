@@ -291,7 +291,7 @@ def _morsewave1(N, f, gamma, beta, K, norm):
     w = 2*pi * np.linspace(0, 1, N, endpoint=False) / fact
     w = w.reshape(-1, 1)
 
-    with np.errstate(divide='ignore'):
+    with np.errstate(divide='ignore', invalid='ignore'):
         if norm == 'energy':
             if beta == 0:
                 psizero = np.exp(-w**gamma)

@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 from .utils import WARN, EPS, pi, p2up, adm_ssq, process_scales, _process_fs_and_t
-from .ssqueezing import ssqueeze, _check_squeezing_arg
+from .ssqueezing import ssqueeze, _check_ssqueezing_args
 from .wavelets import Wavelet
 from ._cwt import cwt
 
 
 def ssq_cwt(x, wavelet='gmw', scales='log', nv=None, fs=None, t=None,
             ssq_freqs=None, padtype='reflect', squeezing='sum',
-            mapkind='maximal', difftype='direct', difforder=None, gamma=None,
+            mapkind='peak', difftype='direct', difforder=None, gamma=None,
             preserve_transform=True):
     """Synchrosqueezed Continuous Wavelet Transform.
     Implements the algorithm described in Sec. III of [1].
@@ -65,7 +65,7 @@ def ssq_cwt(x, wavelet='gmw', scales='log', nv=None, fs=None, t=None,
                 Other mappings can never span outside this range.
                 - ('peak', 'energy'): sets fm and fM based on center frequency
                 associated with `wavelet` at maximum and minimum scale,
-                respectively. See help(wavelets.center_frequency)
+                respectively. See `help(wavelets.center_frequency)`.
                 - 'peak': the frequency-domain trimmed bell will have its peak
                 at Nyquist, meaning all other frequencies are beneath, so each
                 scale is still correctly resolved but with downscaled energies.
@@ -142,7 +142,8 @@ def ssq_cwt(x, wavelet='gmw', scales='log', nv=None, fs=None, t=None,
         https://github.com/ebrevdo/synchrosqueezing/blob/master/synchrosqueezing/
         synsq_cwt_fw.m
     """
-    def _process_args(N, scales, fs, t, nv, difftype, difforder, squeezing):
+    def _process_args(N, scales, fs, t, nv, difftype, difforder, squeezing,
+                      mapkind, wavelet):
         if difftype not in ('direct', 'phase', 'numeric'):
             raise ValueError("`difftype` must be one of: direct, phase, numeric"
                              " (got %s)" % difftype)
@@ -155,7 +156,7 @@ def ssq_cwt(x, wavelet='gmw', scales='log', nv=None, fs=None, t=None,
         elif difftype == 'numeric':
             difforder = 4
 
-        _check_squeezing_arg(squeezing)
+        _check_ssqueezing_args(squeezing, mapkind, wavelet)
 
         if nv is None and not isinstance(scales, np.ndarray):
             nv = 32
@@ -182,7 +183,7 @@ def ssq_cwt(x, wavelet='gmw', scales='log', nv=None, fs=None, t=None,
 
     N = len(x)
     dt, fs, difforder, nv = _process_args(N, scales, fs, t, nv, difftype,
-                                          difforder, squeezing)
+                                          difforder, squeezing, mapkind, wavelet)
 
     wavelet = Wavelet._init_if_not_isinstance(wavelet, N=N)
     scales, cwt_scaletype, *_ = process_scales(scales, N, wavelet, nv=nv,
@@ -381,7 +382,7 @@ def phase_cwt(Wx, dWx, difftype='direct', gamma=None):
         u = np.unwrap(np.angle(Wx)).T
         w = np.vstack([np.diff(u, axis=0), u[-1] - u[0]]).T / (2*pi)
     else:
-        with np.errstate(divide='ignore'):
+        with np.errstate(divide='ignore', invalid='ignore'):
             w = np.imag(dWx / Wx) / (2*pi)
     # treat negative phases as positive; these are in small minority, and
     # slightly aid invertibility (as less of `Wx` is zeroed in ssqueezing)

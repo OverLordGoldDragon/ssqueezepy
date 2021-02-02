@@ -23,20 +23,17 @@ variety of localization characteristics.
 
 6. **hchirp**: hyperbolic chirp, `cos(2pi a/(b - t))`, spanning `fmin` to `fmax`
 
-7. **par_lchirp**: linear chirps, superimposed, with frequency modulation
-                   in parallel, spanning `fmin1` to `fmax1` & `fmin2` to `fmax2`
-
-8. **par_echirp**: exponential chirps, superimposed, with frequency modulation
-                   in parallel, spanning `fmin1` to `fmax1` & `fmin2` to `fmax2`
-
-9. **par_hchirp**: hyperbolic chirps, superimposed, with frequency modulation
-                   in parallel, spanning `fmin1` to `fmax1` & `fmin2` to `fmax2`
+7, 8, 9: **par_lchirp, par_echirp, par_hchirp**: linear, exponential, hyperbolic
+         chirps, superimposed, with frequency modulation in parallel,
+         spanning `fmin1` to `fmax1` and `fmin2` to `fmax2`.
 
 10. **jumps**: large instant frequency transitions, `cos(2pi f*t), f=2 -> f=100`
 
-Note that for signals involving `fmax`, aliasing may occur even if `fmax < N/2`:
-https://dsp.stackexchange.com/q/72329/50076
+11. **packed**: closely-spaced bands of sinusoids with majority overlap, e.g.
+                `cos(w*t[No:]) + cos((w+1)*t[-No:]) + cos((w+3)*t[No:]) + ...`,
+                `No = .8*len(t)`.
 """
+import inspect
 import numpy as np
 import matplotlib.pyplot as plt
 from numpy.fft import rfft
@@ -44,6 +41,7 @@ from textwrap import wrap
 
 from ._ssq_cwt import ssq_cwt
 from ._ssq_stft import ssq_stft
+from .utils import WARN
 from .wavelets import Wavelet
 from .visuals import plot, plots, imshow
 
@@ -51,11 +49,11 @@ from .visuals import plot, plots, imshow
 pi = np.pi
 DEFAULT_N = 256
 DEFAULT_ARGS = {
-    'sine':   dict(f=8, phi=0),
-    'cosine': dict(f=8, phi=0),
-    'lchirp': dict(tmin=0, tmax=1, fmin=0, fmax=None),
-    'echirp': dict(tmin=0, tmax=1, fmin=0, fmax=None),
-    'hchirp': dict(tmin=0, tmax=1, fmin=1, fmax=None),
+    'cosine': dict(f=8, phi0=0),
+    'sine':   dict(f=8, phi0=0),
+    'lchirp': dict(tmin=0, tmax=1, fmin=0,  fmax=None),
+    'echirp': dict(tmin=0, tmax=1, fmin=1, fmax=None),
+    'hchirp': dict(tmin=0, tmax=1, fmin=.5,  fmax=None),
     'jumps':  dict(),
     'low':    dict(),
     'am-cosine': dict(amin=.1),
@@ -68,10 +66,6 @@ DEFAULT_TKW = dict(tmin=0, tmax=1, endpoint=True)
 
 
 #### Test signals ############################################################
-def _t(tmin, tmax, N, endpoint=False):
-    return np.linspace(tmin, tmax, N, endpoint=endpoint)
-
-
 class TestSignals():
     """Signals of varying time-frequency characteristics. Convenience methods
     to plot multiple signals and their transforms under varying wavelet / window
@@ -83,18 +77,50 @@ class TestSignals():
     See `examples/` on Github, and
     https://overlordgolddragon.github.io/test-signals/
 
+    **Sweep functions**
+        For `lchirp`, `echirp`, & `hchirp`, `N` will be determined automatically
+        if `tmin`, `tmax`, `fmin`, and `fmax` are provided, minimally such that
+        no aliasing occurs.
+
+    **Demo signals**
+        `TestSignals.DEMO` holds list of `signals` names invoked when passing
+        `signals='all'`, which can be changed.
+
+    # Arguments
+        N: int
+            Will use this as default `N` anytime `N` is left unspecified.
+
+        default_args: dict
+            `{<signal_name>: {'param_name': value}}` pairs, where `signal_name`
+            is one of `SUPPORTED`. See `_test_signals.DEFAULT_ARGS`.
+
+        default_tkw: dict
+            Example with all key-value pairs: `dict(tmin=0, tmax=1)`.
+
+        warn_alias: bool (default True)
+            Whether to print warning if generated signal aliases (f > fs/2);
+            to disable, pass `warn_alias=False` to `__init__()`, or set directly
+            on instance (`TestSignals().warn_alias=False`).
+
     # TODO complete docstrings
     """
-    SUPPORTED = ['sine', 'cosine', 'lchirp', 'echirp', 'hchirp',
-                 'par-lchirp', 'par-echirp', 'par-hchirp', 'jumps',
+    SUPPORTED = ['cosine', 'sine', 'lchirp', 'echirp', 'echirp_pc', 'hchirp',
+                 'par-lchirp', 'par-echirp', 'par-hchirp', 'jumps', 'packed',
                  'am-sine', 'am-cosine', 'am-exp', 'am-gauss']
-    # extra for when signals='all' is passed in
-    EXTRAS_ALL = ['#lchirp', '#echirp', '#hchirp']
+    # what to show with `signal='all'`, and in what order
+    DEMO = ['cosine', 'sine',
+            'lchirp', 'echirp', 'hchirp',
+            '#lchirp', '#echirp', '#hchirp',
+            'par-lchirp', 'par-echirp', 'par-hchirp', '#par-lchirp',
+            'jumps', 'packed',
+            'am-sine', 'am-cosine', 'am-exp', 'am-gauss']
 
-    def __init__(self, N=None, default_args=None, default_tkw=None):
+    def __init__(self, N=None, default_args=None, default_tkw=None,
+                 warn_alias=True):
         self.default_N    = N    or DEFAULT_N
         self.default_args = default_args or DEFAULT_ARGS
         self.default_tkw  = default_tkw  or DEFAULT_TKW
+        self.warn_alias   = warn_alias
 
         # set defaults on unspecified
         for k, v in DEFAULT_ARGS.items():
@@ -103,48 +129,103 @@ class TestSignals():
             self.default_tkw[k] = self.default_tkw.get(k, v)
 
     #### test signals ########################################################
-    def sine(self, N, f=1, phi=0, **tkw):
+    def _maybe_warn_alias(self, phi, tol=.02):
+        # allow non-trivial overshoot as it may occur but not worth warning
+        if self.warn_alias:
+            fmax = np.diff(phi).max()
+            if (fmax - np.pi) > tol:
+                WARN("`%s` has aliased w/ max(diff(phi))=%.6f>%.6f" % (
+                    inspect.stack()[2][3], fmax, pi))
+
+    def sine(self, N=None, f=1, phi0=0, **tkw):
         """sin(2pi*f*t + phi)"""
         tkw['endpoint'] = tkw.get('endpoint', False)
-        t, *_ = self._process_tkw(N, tkw)
-        return np.sin(2*pi * f * t + phi), t
+        t, *_ = self._process_params(N, tkw)
 
-    def cosine(self, N, f=1, phi=0, **tkw):
+        phi = 2*pi * f * t + phi0
+        self._maybe_warn_alias(phi)
+        return np.sin(phi), t
+
+    def cosine(self, N=None, f=1, phi0=0, **tkw):
         """cos(2pi*f*t + phi)"""
-        return self.sine(N, f, phi=pi/2 + phi, **tkw)
+        tkw['endpoint'] = tkw.get('endpoint', False)
+        t, *_ = self._process_params(N, tkw)
 
-    def lchirp(self, N, fmin=0, fmax=None, **tkw):
+        phi = 2*pi * f * t + phi0
+        self._maybe_warn_alias(phi)
+        return np.cos(phi), t
+
+    def _generate(self, fn, N, fmin, fmax, **tkw):
+        """Used by chirps."""
+        t, tmin, tmax, fmax = self._process_params(N, tkw, fn, fmin, fmax)
+        phi = fn(t, tmin, tmax, fmin, fmax)
+        self._maybe_warn_alias(phi)
+        return np.cos(phi), t
+
+    def lchirp(self, N=None, fmin=0, fmax=None, **tkw):
         """
         >>>   f(t) = a*t + b
         >>> phi(t) = (a/2)*(t^2 - tmin^2) + b*(t - tmin)
         >>> a = (fmin - fmax) / (tmin - tmax)
             b = (fmin*tmax - fmax*tmin) / (tmax - tmin)
         """
-        t, tmin, tmax = self._process_tkw(N, tkw)
-        fmax = fmax or N / 2
+        return self._generate(self._lchirp_fn, N, fmin, fmax, **tkw)
+
+    def _lchirp_fn(self, t, tmin, tmax, fmin, fmax, get_w=False):
         a = (fmin - fmax) / (tmin - tmax)
         b = (fmin*tmax - fmax*tmin) / (tmax - tmin)
 
         phi = (a/2)*(t**2 - tmin**2) + b*(t - tmin)
-        return np.cos(2*pi * phi), t
+        phi *= (2*pi)
+        if get_w:
+            w = a*t + b
+            w *= (2*pi)
+        return (phi, w) if get_w else phi
 
-    def echirp(self, N, fmin=0, fmax=None, **tkw):
+    def echirp(self, N=None, fmin=.1, fmax=None, **tkw):
         """
+        >>> f(t)   = a*b^t
+        >>> phi(t) = (a/ln(b)) * (b^t - b^tmin)
+        >>> a = (fmin^tmax / fmax^tmin) ^ 1/(tmax - tmin)
+            b = fmax^(1/tmax) * (1/a)^(1/tmax)
+        """
+        return self._generate(self._echirp_fn, N, fmin, fmax, **tkw)
+
+    def _echirp_fn(self, t, tmin, tmax, fmin, fmax, get_w=False):
+        a = (fmin**tmax / fmax**tmin) ** (1/(tmax - tmin))
+        b = fmax**(1/tmax) * (1/a)**(1/tmax)
+
+        phi = (a/np.log(b)) * (b**t - b**tmin)
+        phi *= (2*pi)
+        if get_w:
+            w = a*b**t
+            w *= (2*pi)
+        return (phi, w) if get_w else phi
+
+    def echirp_pc(self, N=None, fmin=0, fmax=None, **tkw):
+        """Alternate design that keeps f'(t) fixed at `e`, but is no longer
+        geometric in the sense `f(t2) / f(t1) = const.`. "echirp plus constant".
+
         >>> f(t)   = a*exp(t) + b
         >>> phi(t) = a*(exp(t) - exp(tmin)) + b*(t - tmin)
         >>> a = (fmax - fmin)/(exp(tmax) - exp(tmin))
             b = (fmin*exp(tmax) - fmax*exp(tmin)) / (exp(tmax) - exp(tmin))
         """
-        t, tmin, tmax = self._process_tkw(N, tkw)
-        fmax = fmax or N / 2
+        return self._generate(self._echirp_pc_fn, N, fmin, fmax, **tkw)
+
+    def _echirp_pc_fn(self, t, tmin, tmax, fmin, fmax, get_w=False):
         a, b, c, d = fmin, fmax, tmin, tmax
         A = (b - a) / (np.exp(d) - np.exp(c))
         B = (a*np.exp(d) - b*np.exp(c)) / (np.exp(d) - np.exp(c))
 
         phi = A*(np.exp(t) - np.exp(tmin)) + B*(t - tmin)
-        return np.cos(2*pi * phi), t
+        phi *= (2*pi)
+        if get_w:
+            w = A*np.exp(t) + B
+            w *= (2*pi)
+        return (phi, w) if get_w else phi
 
-    def hchirp(self, N, fmin=1, fmax=None, **tkw):
+    def hchirp(self, N=None, fmin=.1, fmax=None, **tkw):
         """
         >>> f(t)   = A / (B - t)^2
         >>> phi(t) = A * (1/(B - t) + 1/(tmin - B))
@@ -155,8 +236,9 @@ class TestSignals():
             BN = sqrt(a^3*b^3*(c-d)^4) + a^2*b*c*(c-d) + a*b^2*d*(d - c)
             BD = a*b*(a - b)*(c - d)
         """
-        t, tmin, tmax = self._process_tkw(N, tkw)
-        fmax = fmax or N / 2
+        return self._generate(self._hchirp_fn, N, fmin, fmax, **tkw)
+
+    def _hchirp_fn(self, t, tmin, tmax, fmin, fmax, get_w=False):
         a, b, c, d = fmin, fmax, tmin, tmax
 
         AN = (2*np.sqrt(a**3*b**3*(c - d)**4) + a**2*b*(c - d)**2
@@ -168,13 +250,22 @@ class TestSignals():
         B = BN / BD
 
         phi = A * (1/(B - t) + 1/(tmin - B))
-        return np.cos(2*np.pi * phi), t
+        phi *= (2*pi)
+        if get_w:
+            w = A / (B - t)**2
+            w *= (2*pi)
+        return (phi, w) if get_w else phi
 
-    def par_lchirp(self, N, fmin1=0, fmax1=None, fmin2=None, fmax2=None, **tkw):
+    def par_lchirp(self, N=None, fmin1=None, fmax1=None, fmin2=None, fmax2=None,
+                   **tkw):
         """Linear frequency modulation in parallel. Should have
         `fmax2 > fmax1`, `fmin2 > fmin1`, and shared `tmin`, `tmax`.
         """
+        N = N or self.default_N
         fdiff_default = N/10
+
+        if fmin1 is None:
+            fmin1 = self.default_args['lchirp'].get('fmin', 0)
         if fmin2 is None:
             fmin2 = fmin1 + fdiff_default
         if fmax2 is None or fmax1 is None:
@@ -189,11 +280,16 @@ class TestSignals():
         x = x1 + x2
         return x, t
 
-    def par_echirp(self, N, fmin1=0, fmax1=None, fmin2=None, fmax2=None, **tkw):
+    def par_echirp(self, N=None, fmin1=None, fmax1=None, fmin2=None, fmax2=None,
+                   **tkw):
         """Exponential frequency modulation in parallel. Should have
         `fmax2 > fmax1`, `fmin2 > fmin1`, and shared `tmin`, `tmax`.
         """
+        N = N or self.default_N
         fratio_default = 1.5
+
+        if fmin1 is None:
+            fmin1 = self.default_args['echirp'].get('fmin', 1)
         if fmin2 is None:
             fmin2 = fmin1 * fratio_default
         if fmax2 is None or fmax1 is None:
@@ -208,11 +304,16 @@ class TestSignals():
         x = x1 + x2
         return x, t
 
-    def par_hchirp(self, N, fmin1=1, fmax1=None, fmin2=None, fmax2=None, **tkw):
+    def par_hchirp(self, N=None, fmin1=None, fmax1=None, fmin2=None, fmax2=None,
+                   **tkw):
         """Hyperbolic frequency modulation in parallel. Should have
         `fmax2 > fmax1`, `fmin2 > fmin1`, and shared `tmin`, `tmax`.
         """
+        N = N or self.default_N
         fratio_default = 3
+
+        if fmin1 is None:
+            fmin1 = self.default_args['hchirp'].get('fmin', 1)
         if fmin2 is None:
             fmin2 = fmin1 * fratio_default
         if fmax2 is None or fmax1 is None:
@@ -227,37 +328,41 @@ class TestSignals():
         x = x1 + x2
         return x, t
 
-    def am_sine(self, N, f=1, amin=0, amax=1, phi=0, **tkw):
+    def am_sine(self, N=None, f=1, amin=0, amax=1, phi=0, **tkw):
+        N = N or self.default_N
         _A, t = self.sine(N, f, phi, **tkw)
         _A = (_A + 1) / 2
         return amin + (amax - amin) * _A, t
 
-    def am_cosine(self, N, f=1, amin=0, amax=1, phi=0, **tkw):
+    def am_cosine(self, N=None, f=1, amin=0, amax=1, phi=0, **tkw):
+        N = N or self.default_N
         _A, t = self.cosine(N, f, phi, **tkw)
         _A = (_A + 1) / 2
         return amin + (amax - amin) * _A, t
 
-    def am_exp(self, N, amin=.1, amax=1, **tkw):
+    def am_exp(self, N=None, amin=.1, amax=1, **tkw):
         """Use `echirp`'s expression for `f(t)`"""
-        t, tmin, tmax = self._process_tkw(N, tkw)
-        a, b, c, d = amin, amax, tmin, tmax
-        A = (b - a) / (np.exp(d) - np.exp(c))
-        B = (a*np.exp(d) - b*np.exp(c)) / (np.exp(d) - np.exp(c))
-        return A*np.exp(t) + B, t
+        N = N or self.default_N
+        t, tmin, tmax = self._process_params(N, tkw)
+        _A = self._echirp_fn(t, tmin, tmax, amin, amax, get_w=True)[1]
+        _A /= (2*pi)
+        return _A, t
 
-    def am_gauss(self, N, amin=.1, amax=1, **tkw):
+    def am_gauss(self, N=None, amin=.1, amax=1, **tkw):
+        N = N or self.default_N
         t = _t(-1, 1, N)
         _A = np.exp( -((t - t.mean())**2 * 5) )
         return amin + (amax - amin)*_A, t
 
-    def jumps(self, N, freqs=None, **tkw):
-        t, tmin, tmax = self._process_tkw(N, tkw)
+    def jumps(self, N=None, freqs=None, **tkw):
+        N = N or self.default_N
+        t, tmin, tmax = self._process_params(N, tkw)
         if freqs is None:
             freqs = [1, N/4, N/2, N/16]
         tdiff = tmax - tmin
 
         x_freqs = []
-        endpoint = tkw.get('endpoint', DEFAULT_TKW.get('endpoint', False))
+        endpoint = tkw.get('endpoint', self.default_tkw.get('endpoint', False))
         t_all = _t(tmin, tdiff * len(freqs), N * len(freqs), endpoint)
 
         for i, f in enumerate(freqs):
@@ -267,9 +372,23 @@ class TestSignals():
 
         return x, t
 
+    def packed(self, N=None, freqs=None, overlap=.8, **tkw):
+        N = N or self.default_N
+        t, tmin, tmax = self._process_params(N, tkw)
+        if freqs is None:
+            freqs = [.5, 1, 2, N/10, N/10 + N/50, N/10 + N/25,
+                     N/5, N/4, N/3, N/3 + N/10]
+        N_overlap = int(overlap*len(t))
+
+        x = np.zeros(len(t))
+        for i, f in enumerate(freqs):
+            idxs = (slice(0, N_overlap) if (i % 2 == 0) else
+                    slice(-N_overlap, None))
+            x[idxs] += np.cos(2*pi * f * t[idxs])
+        return x, t
+
     #### Test functions ######################################################
     def demo(self, signals='all', sweep=False, N=None, dft=None):
-        N = N or self.default_N
         data = self.make_signals(signals, N)
         if dft not in (None, 'rows', 'cols'):
             raise ValueError(f"`dft` must be 'rows', 'cols', or None (got {dft})")
@@ -279,7 +398,7 @@ class TestSignals():
             dft_kw = dict(nrows=2)
 
         for name, (x, t, (fparams, aparams)) in data.items():
-            title = self._title(name, N, fparams, aparams)
+            title = self._title(name, len(x), fparams, aparams)
             if dft:
                 axrf = np.abs(rfft(x))
                 pkw = [{'title': title}, {'title': f"rDFT({name})"}]
@@ -289,10 +408,14 @@ class TestSignals():
 
     def test_transforms(self, fn, signals='all', N=None):
         """Make `fn` return `None` to skip visuals (e.g. if already done by `fn`).
-        """
-        N = N or self.default_N
-        data = self.make_signals(signals, N)
 
+        Input signature is `fn(x, t, params)`, where
+        `params = (name, fparams, aparams)`. Output, if not None, must be
+        `(Tf, pkw)`, where `Tf` is a 2D np.ndarray time-frequency transform,
+        and `pkw` is keyword arguments to `ssqueezepy.visuals.imshow`
+        (can be empty dict).
+        """
+        data = self.make_signals(signals, N)
         default_pkw = dict(abs=1, cmap='jet', show=1)
 
         for name, (x, t, (fparams, aparams)) in data.items():
@@ -331,7 +454,6 @@ class TestSignals():
             return fn, afn, fname, aname, tkw
 
         names, params_all = self._process_input(signals)
-        N = N or self.default_N
 
         data = {}
         for name, (fparams, aparams) in zip(names, params_all):
@@ -346,7 +468,7 @@ class TestSignals():
 
     @classmethod
     def _title(self, signal, N, fparams, aparams, wrap_len=50):
-        fparams = self._process_alias(signal, N, fparams)
+        fparams = self._process_varname_alias(signal, N, fparams)
         fparams = dict(N=N, **fparams)
 
         ptxt = ', '.join(f"{k}={v}" for k, v in fparams.items())
@@ -358,7 +480,7 @@ class TestSignals():
         return title
 
     @staticmethod
-    def _process_alias(signal, N, fparams):
+    def _process_varname_alias(signal, N, fparams):
         fparams = fparams.copy()
         for k, v in fparams.items():
             if (k == 'fmax' and v is None and
@@ -366,12 +488,45 @@ class TestSignals():
                 fparams['fmax'] = N / 2
         return fparams
 
-    def _process_tkw(self, N, tkw):
+    def _process_params(self, N, tkw, fn=None, fmin=None, fmax=None):
         tkw = tkw.copy()
-        for k in DEFAULT_TKW:
-            tkw[k] = tkw.get(k, DEFAULT_TKW[k])
+        for k in self.default_tkw:
+            tkw[k] = tkw.get(k, self.default_tkw[k])
+
+        if N is None:
+            tmin, tmax = tkw['tmin'], tkw['tmax']
+            if any(var is None for var in (tmin, tmax, fmin, fmax)):
+                N = self.default_N
+            else:
+                f_fn = lambda *args, **kw: fn(*args, **kw, get_w=True)[1]
+                N = self._est_N_nonalias(f_fn, tmin, tmax, fmin, fmax)
+
+        if fmax is None:
+            fmax = N // 2
+
         t = _t(**tkw, N=N)
-        return (t, *[tkw[k] for k in ('tmin', 'tmax')])
+        tmin, tmax = tkw['tmin'], tkw['tmax']
+        return ((t, tmin, tmax, fmax) if fn else
+                (t, tmin, tmax))
+
+    def _est_N_nonalias(self, f_fn, tmin, tmax, fmin, fmax):
+        """Find smallest `N` (number of samples) such that signal generated
+        from `tmin` to `tmax` will not alias.
+
+        https://dsp.stackexchange.com/a/72942/50076
+
+        max_phi_increment = fmax_fn * (t[1] - t[0])
+        t[1] - t[0] = (tmax - tmin) / (N - 1)  [[endpoint=True]]
+        max_phi_increment = pi
+        fmax_fn * (tmax - tmin) / (N - 1) = pi
+        1 + fmax_fn * (tmax - tmin) / pi = N
+        """
+        # sample sufficiently finely
+        t = np.linspace(tmin, tmax, 50000, endpoint=True)
+        fmax_fn = np.max(f_fn(t, tmin, tmax, fmin, fmax))
+
+        min_nonalias_N = int(np.ceil(1 + fmax_fn*(tmax - tmin)/pi))
+        return min_nonalias_N
 
     def _process_input(self, signals):
         """
@@ -422,9 +577,7 @@ class TestSignals():
                             "(got %s)" % type(signals))
 
         if signals == 'all':
-            signals = self.SUPPORTED.copy()
-            for extra in self.EXTRAS_ALL:
-                signals.insert(signals.index(extra[1:]) + 1, extra)
+            signals = self.DEMO.copy()
         elif not isinstance(signals, (list, tuple)):
             signals = [signals]
 
@@ -594,3 +747,7 @@ def _wrap(txt, wrap_len=50):
     return '\n'.join(['\n'.join(
         wrap(line, 90, break_long_words=False, replace_whitespace=False))
         for line in txt.splitlines() if line.strip() != ''])
+
+
+def _t(tmin, tmax, N, endpoint=False):
+    return np.linspace(tmin, tmax, N, endpoint=endpoint)

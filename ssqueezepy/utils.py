@@ -302,20 +302,22 @@ def cwt_scalebounds(wavelet, N, preset=None, min_cutoff=None, max_cutoff=None,
         cutoff: float / None
             Used to find min scale. See help(utils.find_min_scale)
 
-        preset: str['maximal', 'minimal'] / None
+        preset: str['maximal', 'minimal', 'naive'] / None
             - 'maximal': yields a larger max and smaller min.
             - 'minimal': strives to keep wavelet in "well-behaved" range of std_t
             and std_w, but very high or very low frequencies' energies will be
             under-represented. Is closer to MATLAB's default `cwtfreqbounds`.
+            - 'minimal-low': `'minimal'`s lower bound, `'maximal'`'s upper
             - 'naive': returns (1, N), which is per original MATLAB Toolbox,
             but a poor choice for most wavelet options.
             - None: will use `min_cutoff, max_cutoff, cutoff` values, else
             override all of them. If it and they are all None, will default to
-            `preset='maximal'`.
+            `preset='minimal-low'`.
 
             preset: (min_cutoff, max_cutoff, cutoff)
-                - 'maximal': 0.001, 0.8, -0.5
-                - 'minimal': 0.1,   0.8, 1
+                - 'maximal':     0.001, 0.8, -0.5
+                - 'minimal':     0.6,   0.8, 1
+                - 'minimal-low': 0.6,   0.8, -0.5
 
         double_N: bool (default True)
             Whether to use 2*N in computations. Typically `N == len(x)`,
@@ -326,34 +328,40 @@ def cwt_scalebounds(wavelet, N, preset=None, min_cutoff=None, max_cutoff=None,
 
     """
     def _process_args(preset, min_cutoff, max_cutoff, cutoff):
-        maximal_defaults = dict(min_cutoff=2e-3, max_cutoff=.8, cutoff=-.5)
+        defaults = {'minimal': dict(min_cutoff=.6,   max_cutoff=.8, cutoff=1),
+                    'maximal': dict(min_cutoff=2e-3, max_cutoff=.8, cutoff=-.5)}
+        defaults['minimal-low'] = {k: defaults[d][k] for d, k in
+                                   [('minimal', 'min_cutoff'),
+                                    ('minimal', 'max_cutoff'),
+                                    ('maximal', 'cutoff')]}
+        none_default = 'minimal-low'
 
         if preset is not None:
             if any((min_cutoff, max_cutoff, cutoff)):
                 WARN("`preset` will override `min_cutoff, max_cutoff, cutoff`")
-            if preset == 'maximal':
-                min_cutoff, max_cutoff, cutoff = maximal_defaults.values()
-            elif preset == 'minimal':
-                min_cutoff, max_cutoff, cutoff = .1, .8, 1
+
+            supported = ('maximal', 'minimal', 'minimal-low', 'naive')
+            if preset not in supported:
+                raise ValueError("`preset` must be one of: {} (got {})".format(
+                    ', '.join(supported), preset))
             elif preset == 'naive':
                 pass  # handle later
             else:
-                raise ValueError("`preset` must be one of: 'minimal', 'maximal', "
-                                 "'naive', None (got %s)" % preset)
+                min_cutoff, max_cutoff, cutoff = defaults[preset].values()
         else:
             if min_cutoff is None:
-                min_cutoff = maximal_defaults['min_cutoff']
+                min_cutoff = defaults[none_default]['min_cutoff']
             elif min_cutoff <= 0:
                 raise ValueError("`min_cutoff` must be >0 (got %s)" % min_cutoff)
 
             if max_cutoff is None:
-                max_cutoff = maximal_defaults['max_cutoff']
+                max_cutoff = defaults[none_default]['max_cutoff']
             elif max_cutoff < min_cutoff:
                 raise ValueError("must have `max_cutoff > min_cutoff` "
                                  "(got %s, %s)" % (max_cutoff, min_cutoff))
 
             if cutoff is None:
-                cutoff = maximal_defaults['cutoff']
+                cutoff = defaults[none_default]['cutoff']
             elif cutoff == 0:
                 NOTE("`cutoff==0` might never be attained; setting to 1e-14")
                 cutoff = 1e-14

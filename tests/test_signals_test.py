@@ -17,9 +17,9 @@ def test_demo():
     signals = [
         'am-cosine',
         ('hchirp', dict(fmin=.2)),
-        ('sine:am-cosine', (dict(f=32, phi=1), dict(amin=.3))),
+        ('sine:am-cosine', (dict(f=32, phi0=1), dict(amin=.3))),
     ]
-    tsigs.demo(signals, N=512)
+    tsigs.demo(signals, N=256)
     tsigs.demo(signals, dft='rows')
     tsigs.demo(signals, dft='cols')
 
@@ -30,10 +30,17 @@ def test_wavcomp():
                 Wavelet(('gmw', {'beta': 22})),
                 ]
     tsigs.wavcomp(wavelets)
-    tsigs.wavcomp(wavelets, signals=[('#echirp', dict(fmin=.1))], N=512)
+
+    # test name-param pair, and ability to auto-set `N`
+    N_all = [256, None]
+    signals_all = [[('#echirp', dict(fmin=.1))],
+                   [('lchirp',  dict(fmin=1, fmax=60, tmin=0, tmax=5))]]
+    for N, signals in zip(N_all, signals_all):
+        tsigs.wavcomp(wavelets, signals=signals, N=N)
 
 
 def test_cwt_vs_stft():
+    # (N, beta, NW): (512, 42.5, 255); (256, 21.5, 255)
     N = 256
     n_fft = N
     win_len = n_fft
@@ -46,6 +53,7 @@ def test_cwt_vs_stft():
     config_str = '\nNW=%s' % NW
 
     # ensure `wavelet` and `window` have ~same time & frequency resolutions
+    # TODO make function to auto-find matching wavelet given window & vice versa
     print("std_w, std_t, harea\nwavelet: {:.4f}, {:.4f}, {:.8f}"
           "\nwindow:  {:.4f}, {:.4f}, {:.8f}".format(
               wavelet.std_w, wavelet.std_t, wavelet.harea,
