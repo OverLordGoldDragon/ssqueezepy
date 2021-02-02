@@ -423,7 +423,7 @@ class TestSignals():
 
             if out is not None:
                 out, pkw = out
-                default_pkw['title'] = self._title(name, N, fparams, aparams)
+                default_pkw['title'] = self._title(name, len(x), fparams, aparams)
                 for k, v in default_pkw.items():
                     pkw[k] = pkw.get(k, v)
 
