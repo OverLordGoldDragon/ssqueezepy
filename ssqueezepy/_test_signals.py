@@ -409,7 +409,7 @@ class TestSignals():
     def test_transforms(self, fn, signals='all', N=None):
         """Make `fn` return `None` to skip visuals (e.g. if already done by `fn`).
 
-        Input signature is `fn(x, t, params)`, where
+        Input signature is `fn(x, t, params, ...)`, where
         `params = (name, fparams, aparams)`. Output, if not None, must be
         `(Tf, pkw)`, where `Tf` is a 2D np.ndarray time-frequency transform,
         and `pkw` is keyword arguments to `ssqueezepy.visuals.imshow`

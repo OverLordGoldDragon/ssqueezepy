@@ -496,7 +496,8 @@ def _process_fs_and_t(fs, t, N):
     if t is not None:
         if len(t) != N:
             # not explicitly used anywhere but ensures wrong `t` wasn't supplied
-            raise Exception("`t` must be of same length as `x`.")
+            raise Exception("`t` must be of same length as `x` "
+                            "(%s != %s)" % (len(t), N))
         elif not np.mean(np.abs(np.diff(t, 2, axis=0))) < 1e-7:  # float32 thr.
             raise Exception("Time vector `t` must be uniformly sampled.")
         fs = 1 / (t[1] - t[0])
