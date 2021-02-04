@@ -5,3 +5,4 @@ coveralls
 pytest
 pytest-cov
 pycode
+librosa
