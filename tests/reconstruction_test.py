@@ -173,13 +173,37 @@ def test_ssq_stft():
                     window *= window_scaling
 
                 Sx, *_ = ssq_stft(x, window=window, n_fft=n_fft)
-                xr = issq_stft(Sx, window=window, n_fft=n_fft)
+                xr = issq_stft(  Sx, window=window, n_fft=n_fft)
 
                 txt = ("\nSSQ_STFT: (N, n_fft, window_scaling) = ({}, {}, {})"
                        ).format(N, n_fft, window_scaling)
                 assert len(x) == len(xr), "%s != %s %s" % (N, len(xr), txt)
                 mae = np.abs(x - xr).mean()
                 assert mae < th, "MAE = %.2e > %.2e %s" % (mae, th, txt)
+
+
+def test_stft_vs_librosa():
+    from librosa import stft as lstft
+
+    # try all even/odd combos
+    for N in (512, 513):
+      for hop_len in (1, 2, 3):
+        for n_fft in (512, 513):
+          for win_len in (N//8, N//8 - 1):
+             x = np.random.randn(N)
+             Sx  = stft( x, n_fft=n_fft, hop_len=hop_len,    win_len=win_len,
+                         window='hann', modulated=False)
+             lSx = lstft(x, n_fft=n_fft, hop_length=hop_len, win_length=win_len,
+                         window='hann')
+
+             if n_fft % 2 == 0:
+                 if hop_len == 1:
+                     lSx = lSx[:, :-1]
+                 elif (((N % 2 == 0) and hop_len == 2) or
+                       ((N % 2 == 1) and hop_len == 3)):
+                     lSx = lSx[:, :-1]
+             mae = np.mean(np.abs(Sx - lSx))
+             assert mae < 1e-15, "MAE: %s" % mae
 
 
 def _maybe_viz(Wx, xo, xrec, title, err):
@@ -202,5 +226,9 @@ if __name__ == '__main__':
         from ssqueezepy.visuals import plot, imshow
         test_ssq_cwt()
         test_cwt()
+        test_component_inversion()
+        test_stft()
+        test_ssq_stft()
+        test_stft_vs_librosa()
     else:
         pytest.main([__file__, "-s"])

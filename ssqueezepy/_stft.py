@@ -211,8 +211,6 @@ def get_window(window, win_len, n_fft=None, derivative=False):
         elif isinstance(window, np.ndarray):
             if len(window) != win_len:
                 WARN("len(window) != win_len (%s != %s)" % (len(window), win_len))
-            if len(window) < (win_len + pl + pr):
-                window = np.pad(window, [pl, pr])
 
         else:
             raise ValueError("`window` must be string or np.ndarray "
@@ -220,6 +218,8 @@ def get_window(window, win_len, n_fft=None, derivative=False):
     else:
         # sym=False <-> fftbins=True (see above)
         window = sig.windows.dpss(win_len, 4, sym=False)
+
+    if len(window) < (win_len + pl + pr):
         window = np.pad(window, [pl, pr])
 
     if derivative:
