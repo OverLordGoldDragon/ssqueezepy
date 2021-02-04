@@ -80,7 +80,7 @@ def padsignal(x, padtype='reflect', padlength=None, get_params=False):
 
     # Arguments:
         x: np.ndarray
-            Input vector, 1D.
+            Input vector, 1D or 2D. 2D has time in dim1, e.g. `(n_signals, time)`.
 
         padtype: str
             Pad scheme to apply on input. One of:
@@ -91,6 +91,7 @@ def padsignal(x, padtype='reflect', padlength=None, get_params=False):
         padlength: int / None
             Number of samples to pad input to (i.e. len(x_padded) == padlength).
             Even: left = right, Odd: left = right + 1.
+            Defaults to next highest power of 2 w.r.t. `len(x)`.
 
     # Returns:
         xp: np.ndarray
@@ -111,44 +112,60 @@ def padsignal(x, padtype='reflect', padlength=None, get_params=False):
         http://min.sjtu.edu.cn/files/wavelet/
         6-lifting%20wavelet%20and%20filterbank.pdf
     """
-    # TODO: padlength -> padded_len ?
-    padtypes = ('reflect', 'symmetric', 'replicate', 'wrap', 'zero')
-    if padtype not in padtypes:
-        raise ValueError(("Unsupported `padtype` {}; must be one of: {}"
-                          ).format(padtype, ", ".join(padtypes)))
+    def _process_args(x, padtype):
+        # TODO: padlength -> padded_len ?
+        supported = ('reflect', 'symmetric', 'replicate', 'wrap', 'zero')
+        if padtype not in supported:
+            raise ValueError(("Unsupported `padtype` {}; must be one of: {}"
+                              ).format(padtype, ", ".join(supported)))
+        if not isinstance(x, np.ndarray):
+            raise TypeError("`x` must be a numpy array (got %s)" % type(x))
+        elif x.ndim not in (1, 2):
+            raise ValueError("`x` must be 1D or 2D (got x.ndim == %s)" % x.ndim)
 
-    n = len(x)
+    _process_args(x, padtype)
+    N = x.shape[-1]
+
     if padlength is None:
         # pad up to the nearest power of 2
-        n_up, n1, n2 = p2up(n)
+        n_up, n1, n2 = p2up(N)
     else:
         n_up = padlength
-        if abs(padlength - n) % 2 == 0:
-            n1 = n2 = (n_up - n) // 2
+        if abs(padlength - N) % 2 == 0:
+            n1 = n2 = (n_up - N) // 2
         else:
-            n2 = (n_up - n) // 2
+            n2 = (n_up - N) // 2
             n1 = n2 + 1
     n_up, n1, n2 = int(n_up), int(n1), int(n2)
 
+    if x.ndim == 1:
+        pad_width = (n1, n2)
+    elif x.ndim == 2:
+        pad_width = [(0, 0), (n1, n2)]
+
     # comments use (n=4, n1=4, n2=3) as example, but this combination can't occur
-    if padtype == 'reflect':
+    if padtype == 'zero':
+        # [1,2,3,4] -> [0,0,0,0, 1,2,3,4, 0,0,0]
+        xp = np.pad(x, pad_width)
+    elif padtype == 'reflect':
         # [1,2,3,4] -> [3,4,3,2, 1,2,3,4, 3,2,1]
-        xp = np.pad(x, [n1, n2], mode='reflect')
-    elif padtype == 'symmetric':
-        # [1,2,3,4] -> [4,3,2,1, 1,2,3,4, 4,3,2]
-        xp = np.hstack([x[::-1][-n1:], x, x[::-1][:n2]])
+        xp = np.pad(x, pad_width, mode='reflect')
     elif padtype == 'replicate':
         # [1,2,3,4] -> [1,1,1,1, 1,2,3,4, 4,4,4]
-        xp = np.pad(x, [n1, n2], mode='edge')
+        xp = np.pad(x, pad_width, mode='edge')
     elif padtype == 'wrap':
         # [1,2,3,4] -> [1,2,3,4, 1,2,3,4, 1,2,3]
-        xp = np.pad(x, [n1, n2], mode='wrap')
-    elif padtype == 'zero':
-        # [1,2,3,4] -> [0,0,0,0, 1,2,3,4, 0,0,0]
-        xp = np.pad(x, [n1, n2])
+        xp = np.pad(x, pad_width, mode='wrap')
+    elif padtype == 'symmetric':
+        # [1,2,3,4] -> [4,3,2,1, 1,2,3,4, 4,3,2]
+        if x.ndim == 1:
+            xp = np.hstack([x[::-1][-n1:], x, x[::-1][:n2]])
+        elif x.ndim == 2:
+            xp = np.hstack([x[:, ::-1][:, -n1:], x, x[:, ::-1][:, :n2]])
 
-    _ = (len(xp), n_up, n1, n, n2)
-    assert (len(xp) == n_up == n1 + n + n2), "%s ?= %s ?= %s + %s + %s" % _
+    Npad = xp.shape[-1]
+    _ = (Npad, n_up, n1, N, n2)
+    assert (Npad == n_up == n1 + N + n2), "%s ?= %s ?= %s + %s + %s" % _
     return (xp, n_up, n1, n2) if get_params else xp
 
 

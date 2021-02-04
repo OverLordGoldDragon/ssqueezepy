@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 from numpy.fft import fft, ifft, ifftshift
-from .utils import WARN, p2up, adm_cwt, adm_ssq, _process_fs_and_t
+from .utils import WARN, adm_cwt, adm_ssq, _process_fs_and_t
 from .utils import padsignal, process_scales
 from .algos import replace_at_inf_or_nan
 from .wavelets import Wavelet
@@ -9,13 +9,19 @@ from .wavelets import Wavelet
 
 def cwt(x, wavelet='gmw', scales='log', fs=None, t=None, nv=32, l1_norm=True,
         derivative=False, padtype='reflect', rpadded=False, vectorized=True):
-    """Continuous Wavelet Transform, discretized, as described in
+    """1D Continuous Wavelet Transform, discretized, as described in
     Sec. 4.3.3 of [1] and Sec. IIIA of [2]. Uses a form of discretized
     convolution theorem via wavelets in the Fourier domain and FFT of input.
 
     # Arguments:
         x: np.ndarray
-            Input vector, 1D.
+            Input vector, 1D or 2D.
+
+            2D:
+              - *will not* compute 2D CWT, but rather convolve wavelets with
+                rows of `x` at respective `scale`.
+              - Time is in dim1, i.e. `(x_scale, time)`.
+              - `len(scales)` must equal `len(x)`.
 
         wavelet: str / tuple[str, dict] / `wavelets.Wavelet`
             Wavelet sampled in Fourier frequency domain.
@@ -63,8 +69,9 @@ def cwt(x, wavelet='gmw', scales='log', fs=None, t=None, nv=32, l1_norm=True,
         derivative: bool (default False)
             Whether to compute and return `dWx`. Requires `fs` or `t`.
 
-        padtype: str
+        padtype: str / None
             Pad scheme to apply on input. See `help(utils.padsignal)`.
+            `None` -> no padding.
 
         rpadded: bool (default False)
              Whether to return padded Wx and dWx.
@@ -119,7 +126,7 @@ def cwt(x, wavelet='gmw', scales='log', fs=None, t=None, nv=32, l1_norm=True,
         return (Wx, dWx) if derivative else (Wx, None)
 
     def _for_loop(xh, scales, wavelet, pn, derivative):
-        Wx = np.zeros((len(scales), len(xh))).astype('complex128')
+        Wx = np.zeros((len(scales), xh.shape[-1])).astype('complex128')
         if derivative:
             dWx = Wx.copy()
 
@@ -127,43 +134,64 @@ def cwt(x, wavelet='gmw', scales='log', fs=None, t=None, nv=32, l1_norm=True,
             # sample FT of wavelet at scale `a`
             # * pn = freq-domain spectral reversal to center time-domain wavelet
             psih = wavelet(scale=a, nohalf=False) * pn
-            Wx[i] = ifftshift(ifft(psih * xh))
+            _xh = xh if xh.ndim == 1 else xh[i]
+            Wx[i] = ifftshift(ifft(psih * _xh))
 
             if derivative:
                 dpsih = (1j * wavelet.xi / dt) * psih
-                dWx[i] = ifftshift(ifft(dpsih * xh))
+                dWx[i] = ifftshift(ifft(dpsih * _xh))
         return (Wx, dWx) if derivative else (Wx, None)
 
     def _process_args(x, scales, nv, fs, t):
+        if not isinstance(x, np.ndarray):
+            raise TypeError("`x` must be a numpy array (got %s)" % type(x))
+        elif x.ndim not in (1, 2):
+            raise ValueError("`x` must be 1D or 2D (got x.ndim == %s)" % x.ndim)
+
         if np.isnan(x.max()) or np.isinf(x.max()) or np.isinf(x.min()):
             WARN("found NaN or inf values in `x`; will zero")
             replace_at_inf_or_nan(x, replacement=0.)
+
         if isinstance(scales, np.ndarray):
             nv = None
-        dt, *_ = _process_fs_and_t(fs, t, N=len(x))
-        return nv, dt  # == 1 / fs
+        N = x.shape[-1]
+        dt, *_ = _process_fs_and_t(fs, t, N=N)
+        return N, nv, dt
 
-    nv, dt = _process_args(x, scales, nv, fs, t)
+    N, nv, dt = _process_args(x, scales, nv, fs, t)
 
-    xp, nup, n1, _ = padsignal(x, padtype, get_params=True)
+    if padtype is not None:
+        xp, _, n1, _ = padsignal(x, padtype, get_params=True)
+    else:
+        xp = x
 
-    xp -= xp.mean()
-    xh = fft(xp)
+    # zero-mean `xp`, take to freq-domain
+    xp_mean = xp.mean(axis=-1)
+    xp -= (xp_mean if xp.ndim == 1 else xp_mean.reshape(-1, 1))
+    xh = fft(xp, axis=-1)
+
+    # validate `wavelet`, process `scales`, define `pn` for later
     wavelet = Wavelet._init_if_not_isinstance(wavelet)
-    scales = process_scales(scales, len(x), wavelet, nv=nv)
-    pn = (-1)**np.arange(nup)
+    scales = process_scales(scales, N, wavelet, nv=nv)
+    pn = (-1)**np.arange(xp.shape[-1])
 
+    if xp.ndim == 2 and len(xp) != len(scales):
+        raise ValueError("2D `x` number of rows must equal number of `scales` "
+                         "(got %s, %s)" % (len(x), len(scales)))
+
+    # temporarily adjust `wavlet.N`, take CWT
     N_orig = wavelet.N
-    wavelet.N = nup
+    wavelet.N = xp.shape[-1]
     Wx, dWx = (_vectorized(xh, scales, wavelet, pn, derivative) if vectorized else
                _for_loop(  xh, scales, wavelet, pn, derivative))
-    wavelet.N = N_orig
+    wavelet.N = N_orig  # restore
 
-    if not rpadded:
+    # handle unpadding, normalization
+    if not rpadded and padtype is not None:
         # shorten to pre-padded size
-        Wx = Wx[:, n1:n1 + len(x)]
+        Wx = Wx[:, n1:n1 + N]
         if derivative:
-            dWx = dWx[:, n1:n1 + len(x)]
+            dWx = dWx[:, n1:n1 + N]
     if not l1_norm:
         # normalize energy per L2 wavelet norm, else already L1-normalized
         Wx *= np.sqrt(scales)
@@ -176,7 +204,7 @@ def cwt(x, wavelet='gmw', scales='log', fs=None, t=None, nv=32, l1_norm=True,
 
 def icwt(Wx, wavelet='gmw', scales='log', nv=None, one_int=True, x_len=None,
          x_mean=0, padtype='zero', rpadded=False, l1_norm=True):
-    """The inverse continuous wavelet transform of Wx, via double or
+    """The inverse Continuous Wavelet Transform of `Wx`, via double or
     single integral.
 
     # Arguments:
@@ -210,8 +238,8 @@ def icwt(Wx, wavelet='gmw', scales='log', nv=None, one_int=True, x_len=None,
             infinite scale component). Default 0.
 
         padtype: str
-            Pad scheme to apply on input. See `help(utils.padsignal)`.
-            !!! currently uses only 'zero'
+            Pad scheme to apply on input, in case of `one_int=False`.
+            See `help(utils.padsignal)`.
 
         rpadded: bool (default False)
             True if Wx is padded (e.g. if used `cwt(, rpadded=True)`).
@@ -281,18 +309,17 @@ def icwt(Wx, wavelet='gmw', scales='log', nv=None, one_int=True, x_len=None,
 def _icwt_2int(Wx, scales, scaletype, l1_norm, wavelet, x_len,
                padtype='zero', rpadded=False):
     """Double-integral iCWT; works with any(?) wavelet."""
-    nup, n1, n2 = p2up(x_len)
     # add CWT padding if it doesn't exist  # TODO symmetric & other?
     if not rpadded:
-        Wx = np.pad(Wx, [[0, 0], [n1, n2]])  # pad time axis, left=n1, right=n2
+        Wx, n_up, n1, n2 = padsignal(Wx, padtype=padtype)
 
     # see help(cwt) on `norm` and `pn`
     norm = _icwt_norm(scaletype, l1_norm)
-    pn = (-1)**np.arange(nup)
-    x = np.zeros(nup)
+    pn = (-1)**np.arange(n_up)
+    x = np.zeros(n_up)
 
     for a, Wxa in zip(scales, Wx):  # TODO vectorize?
-        psih = wavelet(scale=a, N=nup) * pn
+        psih = wavelet(scale=a, N=n_up) * pn
         xa = ifftshift(ifft(fft(Wxa) * psih))  # convolution theorem
         x += xa.real / norm(a)
 

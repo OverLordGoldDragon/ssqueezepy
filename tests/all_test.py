@@ -34,7 +34,9 @@ from ssqueezepy.utils import find_max_scale, unbuffer, _assert_positive_integer
 from ssqueezepy.utils import _infer_scaletype, _process_fs_and_t, make_scales
 from ssqueezepy._cwt import _icwt_norm
 from ssqueezepy._stft import get_window
+from ssqueezepy._ssq_stft import issq_stft
 from ssqueezepy.visuals import hist, plot, plots, scat, plotscat, imshow
+from ssqueezepy.visuals import wavelet_tf
 from ssqueezepy.toolkit import lin_band, cos_f, sin_f, mad_rms, amax
 from ssqueezepy._test_signals import TestSignals
 from ssqueezepy import ssq_cwt, issq_cwt, cwt, icwt, ssqueeze
@@ -72,7 +74,7 @@ def test_ssq_cwt():
                 np.power(2**(1/16), np.arange(1, 32))),
         difftype=('phase', 'numeric'),
         padtype=('zero', 'replicate'),
-        mapkind=('energy', 'peak'),
+        mapkind=('maximal', 'energy', 'peak'),
     )
 
     for name in params:
@@ -103,6 +105,16 @@ def test_cwt():
     x[1] = np.inf
     x[2] = -np.inf
     _ = cwt(x, 'morlet', vectorized=False, derivative=True, l1_norm=False)
+
+    x2d = np.random.randn(64, 64)
+    _ = cwt(x2d, 'gmw', vectorized=True,  derivative=True)
+    _ = cwt(x2d, 'gmw', vectorized=False, derivative=True)
+
+
+def test_ssq_stft():
+    Tsx = np.random.randn(128, 128)
+    pass_on_error(issq_stft, Tsx, modulated=False)
+    pass_on_error(issq_stft, Tsx, hop_len=2)
 
 
 def test_wavelets():
@@ -171,6 +183,7 @@ def test_visuals():
     imshow(g, ridge=1, ticks=0)
 
     pass_on_error(plot, None, None)
+    pass_on_error(wavelet_tf, 'morlet', notext=True)
 
 
 def test_utils():
@@ -188,6 +201,8 @@ def test_utils():
 
     _ = padsignal(xh, padlength=len(xh)*2, padtype='symmetric')
     _ = padsignal(xh, padlength=len(xh)*2, padtype='wrap')
+    x2d = np.random.randn(4, 64)
+    _ = padsignal(x2d, padlength=96, padtype='symmetric')
 
     g = np.ones((128, 200))
     unbuffer(g, xh, 1, n_fft=len(xh), N=None, win_exp=0)
@@ -212,6 +227,7 @@ def test_utils():
     pass_on_error(_process_fs_and_t, -1, None, 1)
 
     pass_on_error(make_scales, 128, scaletype='banana')
+    pass_on_error(padsignal, np.random.randn(3, 4, 5))
 
 
 def test_anim():
@@ -229,9 +245,16 @@ def test_ssqueezing():
     pass_on_error(ssqueeze, Wx, w, transform='cwt', wavelet=None,
                    mapkind='maximal')
     pass_on_error(ssqueeze, Wx, w, transform='stft', mapkind='minimal')
+    pass_on_error(ssqueeze, Wx, w, transform='stft', ssq_freqs='linear')
     pass_on_error(ssqueeze, Wx, w, transform='abs')
     pass_on_error(ssqueeze, Wx, w, squeezing='big_bird')
     pass_on_error(ssqueeze, Wx, w, squeezing=lambda x: x**2)
+    pass_on_error(ssqueeze, Wx, w, squeezing='abs')
+
+
+def test_get_window():
+    _ = get_window('hann', win_len=128, n_fft=None)
+    pass_on_error(get_window, 1, 2)
 
 
 def test_windows():
@@ -287,12 +310,14 @@ if __name__ == '__main__':
     if VIZ:
         test_ssq_cwt()
         test_cwt()
+        test_ssq_stft()
         test_wavelets()
         test_toolkit()
         test_visuals()
         test_utils()
         test_anim()
         test_ssqueezing()
+        test_get_window()
         test_windows()
         test_morse_utils()
     else:
