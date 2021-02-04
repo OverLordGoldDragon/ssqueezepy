@@ -311,7 +311,7 @@ def _icwt_2int(Wx, scales, scaletype, l1_norm, wavelet, x_len,
     """Double-integral iCWT; works with any(?) wavelet."""
     # add CWT padding if it doesn't exist  # TODO symmetric & other?
     if not rpadded:
-        Wx, n_up, n1, n2 = padsignal(Wx, padtype=padtype)
+        Wx, n_up, n1, n2 = padsignal(Wx, padtype=padtype, get_params=True)
 
     # see help(cwt) on `norm` and `pn`
     norm = _icwt_norm(scaletype, l1_norm)
