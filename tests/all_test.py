@@ -106,10 +106,6 @@ def test_cwt():
     x[2] = -np.inf
     _ = cwt(x, 'morlet', vectorized=False, derivative=True, l1_norm=False)
 
-    x2d = np.random.randn(64, 64)
-    _ = cwt(x2d, 'gmw', vectorized=True,  derivative=True)
-    _ = cwt(x2d, 'gmw', vectorized=False, derivative=True)
-
 
 def test_ssq_stft():
     Tsx = np.random.randn(128, 128)

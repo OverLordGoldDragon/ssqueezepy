@@ -9,19 +9,13 @@ from .wavelets import Wavelet
 
 def cwt(x, wavelet='gmw', scales='log', fs=None, t=None, nv=32, l1_norm=True,
         derivative=False, padtype='reflect', rpadded=False, vectorized=True):
-    """1D Continuous Wavelet Transform, discretized, as described in
+    """Continuous Wavelet Transform, discretized, as described in
     Sec. 4.3.3 of [1] and Sec. IIIA of [2]. Uses a form of discretized
     convolution theorem via wavelets in the Fourier domain and FFT of input.
 
     # Arguments:
         x: np.ndarray
-            Input vector, 1D or 2D.
-
-            2D:
-              - *will not* compute 2D CWT, but rather convolve wavelets with
-                rows of `x` at respective `scale`.
-              - Time is in dim1, i.e. `(x_scale, time)`.
-              - `len(scales)` must equal `len(x)`.
+            Input vector, 1D.
 
         wavelet: str / tuple[str, dict] / `wavelets.Wavelet`
             Wavelet sampled in Fourier frequency domain.
@@ -126,7 +120,7 @@ def cwt(x, wavelet='gmw', scales='log', fs=None, t=None, nv=32, l1_norm=True,
         return (Wx, dWx) if derivative else (Wx, None)
 
     def _for_loop(xh, scales, wavelet, pn, derivative):
-        Wx = np.zeros((len(scales), xh.shape[-1])).astype('complex128')
+        Wx = np.zeros((len(scales), len(xh))).astype('complex128')
         if derivative:
             dWx = Wx.copy()
 
@@ -134,12 +128,11 @@ def cwt(x, wavelet='gmw', scales='log', fs=None, t=None, nv=32, l1_norm=True,
             # sample FT of wavelet at scale `a`
             # * pn = freq-domain spectral reversal to center time-domain wavelet
             psih = wavelet(scale=a, nohalf=False) * pn
-            _xh = xh if xh.ndim == 1 else xh[i]
-            Wx[i] = ifftshift(ifft(psih * _xh))
+            Wx[i] = ifftshift(ifft(psih * xh))
 
             if derivative:
                 dpsih = (1j * wavelet.xi / dt) * psih
-                dWx[i] = ifftshift(ifft(dpsih * _xh))
+                dWx[i] = ifftshift(ifft(dpsih * xh))
         return (Wx, dWx) if derivative else (Wx, None)
 
     def _process_args(x, scales, nv, fs, t):
@@ -166,8 +159,7 @@ def cwt(x, wavelet='gmw', scales='log', fs=None, t=None, nv=32, l1_norm=True,
         xp = x
 
     # zero-mean `xp`, take to freq-domain
-    xp_mean = xp.mean(axis=-1)
-    xp -= (xp_mean if xp.ndim == 1 else xp_mean.reshape(-1, 1))
+    xp -= xp.mean()
     xh = fft(xp, axis=-1)
 
     # validate `wavelet`, process `scales`, define `pn` for later
@@ -175,16 +167,12 @@ def cwt(x, wavelet='gmw', scales='log', fs=None, t=None, nv=32, l1_norm=True,
     scales = process_scales(scales, N, wavelet, nv=nv)
     pn = (-1)**np.arange(xp.shape[-1])
 
-    if xp.ndim == 2 and len(xp) != len(scales):
-        raise ValueError("2D `x` number of rows must equal number of `scales` "
-                         "(got %s, %s)" % (len(x), len(scales)))
-
     # temporarily adjust `wavlet.N`, take CWT
-    N_orig = wavelet.N
-    wavelet.N = xp.shape[-1]
+    wavelet_N_orig = wavelet.N
+    wavelet.N = len(xp)
     Wx, dWx = (_vectorized(xh, scales, wavelet, pn, derivative) if vectorized else
                _for_loop(  xh, scales, wavelet, pn, derivative))
-    wavelet.N = N_orig  # restore
+    wavelet.N = wavelet_N_orig  # restore
 
     # handle unpadding, normalization
     if not rpadded and padtype is not None:
