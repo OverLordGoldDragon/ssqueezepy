@@ -5,6 +5,7 @@ from numpy.fft import ifft, fftshift, ifftshift
 from numba import jit
 from types import FunctionType
 from scipy import integrate
+from .configs import gdefaults, handle_defaults
 
 pi = np.pi
 NOTE = lambda msg: logging.warning("NOTE: %s" % msg)
@@ -314,9 +315,17 @@ def _xifn(scale, N):
     return xi
 
 #### Wavelet functions ######################################################
-def morlet(mu=6.):
-    """https://en.wikipedia.org/wiki/Morlet_wavelet#Definition
-       https://www.desmos.com/calculator/cuypxm8s1y"""
+def morlet(mu=13.4):
+    """Higher `mu` -> greater frequency, lesser time resolution.
+    Recommended range: 4 to 16. For `mu > 6` the wavelet is almsot exactly
+    Gaussian for most scales, providing maximum joint resolution.
+
+    `mu=13.4` matches Generalized Morse Wavelets' `(beta, gamma) = (3, 60)`.
+    For full correspondence see `help(_gmw.gmw)`.
+
+    https://en.wikipedia.org/wiki/Morlet_wavelet#Definition
+    https://www.desmos.com/calculator/cuypxm8s1y
+    """
     cs = (1 + np.exp(-mu**2) - 2 * np.exp(-3/4 * mu**2)) ** (-.5)
     ks = np.exp(-.5 * mu**2)
     return lambda w: _morlet(w, mu, cs, ks)
@@ -327,7 +336,11 @@ def _morlet(w, mu, cs, ks):
                                         - ks * np.exp(-.5 * w**2))
 
 
-def bump(mu=5., s=1., om=0.):
+@handle_defaults
+def bump(mu=5., s=1., om=None):
+    """Bump wavelet.
+    https://www.mathworks.com/help/wavelet/gs/choose-a-wavelet.html
+    """
     return lambda w: _bump(w, (w - mu) / s, om, s)
 
 @jit(nopython=True, cache=True)
@@ -338,6 +351,9 @@ def _bump(w, _w, om, s):
 
 
 def cmhat(mu=1., s=1.):
+    """Complex Mexican Hat wavelet.
+    https://en.wikipedia.org/wiki/Complex_mexican_hat_wavelet
+    """
     return lambda w: _cmhat(w - mu, s)
 
 @jit(nopython=True, cache=True)
@@ -347,12 +363,13 @@ def _cmhat(_w, s):
 
 
 def hhhat(mu=5.):
+    """Hilbert analytic function of Hermitian Hat."""
     return lambda w: _hhhat(w - mu)
 
 @jit(nopython=True, cache=True)
 def _hhhat(_w):
-    return 2 / np.sqrt(5) * pi**(-1/4) * (_w * (1 + _w) * np.exp(-1/2 * _w**2)
-                                          ) * (1 + np.sign(_w))
+    return 2/np.sqrt(5)*pi**(-1/4) * (_w * (1 + _w) * np.exp(-1/2 * _w**2)
+                                      ) * (1 + np.sign(_w))
 
 
 #### Wavelet properties ######################################################
@@ -661,3 +678,5 @@ def isinstance_by_name(obj, ref):
 ##############################################################################
 from ._gmw import gmw
 from .visuals import plot
+
+print(bump(), 3)

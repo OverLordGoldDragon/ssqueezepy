@@ -17,7 +17,7 @@ pi = np.pi
 
 
 #### Base wavelets (`K=1`) ###################################################
-def gmw(gamma=3, beta=12, norm='bandpass', centered_scale=False):
+def gmw(gamma=3, beta=60, norm='bandpass', centered_scale=False):
     """Generalized Morse Wavelets. Returns function which computes GMW in the
     frequency domain.
 
@@ -161,7 +161,7 @@ def compute_gmw(N, scale, gamma=3, beta=60, time=False, norm='bandpass',
     return (X, x) if time else X
 
 
-def gmw_l1(gamma=3., beta=12., centered_scale=False):
+def gmw_l1(gamma=3., beta=60., centered_scale=False):
     """Generalized Morse Wavelets, L1(bandpass)-normalized. See `help(_gmw.gmw)`.
     """
     _check_args(gamma=gamma, beta=beta, allow_zerobeta=False)
@@ -178,7 +178,7 @@ def _gmw_l1(w, gamma, beta, wc, w_negs):
                       + beta * np.log(w)  - w**gamma) * (~w_negs)
 
 
-def gmw_l2(gamma=3., beta=12., centered_scale=False):
+def gmw_l2(gamma=3., beta=60., centered_scale=False):
     """Generalized Morse Wavelets, L2(energy)-normalized. See `help(_gmw.gmw)`.
     """
     _check_args(gamma=gamma, beta=beta, allow_zerobeta=False)
