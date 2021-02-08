@@ -872,6 +872,7 @@ def _annotate(txt, xy=(.85, .9), weight='bold', fontsize=16):
     except:
         plt.annotate(txt, **_kw)  # in case platform lacks 'Consolas'
 
+
 #############################################################################
 from .wavelets import Wavelet, _xifn, aifftshift
 from .wavelets import center_frequency, freq_resolution, time_resolution

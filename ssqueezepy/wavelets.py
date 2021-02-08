@@ -230,14 +230,14 @@ class Wavelet():
         from . import visuals
         kw['wavelet'] = kw.get('wavelet', self)
         {
-          'heatmap':    visuals.wavelet_heatmap,
-          'waveforms':  visuals.wavelet_waveforms,
-          'filterbank': visuals.wavelet_filterbank,
-          'harea':      visuals.sweep_harea,
-          'std_t':      visuals.sweep_std_t,
-          'std_w':      visuals.sweep_std_w,
-          'time-frequency':      visuals.wavelet_tf,
-          'anim:time-frequency': visuals.wavelet_tf_anim,
+            'heatmap':    visuals.wavelet_heatmap,
+            'waveforms':  visuals.wavelet_waveforms,
+            'filterbank': visuals.wavelet_filterbank,
+            'harea':      visuals.sweep_harea,
+            'std_t':      visuals.sweep_std_t,
+            'std_w':      visuals.sweep_std_w,
+            'time-frequency':      visuals.wavelet_tf,
+            'anim:time-frequency': visuals.wavelet_tf_anim,
         }[name](**kw)
 
     def _desc(self, N=None, scale=None):
