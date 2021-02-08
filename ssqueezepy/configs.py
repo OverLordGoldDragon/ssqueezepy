@@ -48,8 +48,9 @@ for line in txt:
 
 def gdefaults(module_and_obj=None, get_all=False, as_dict=False, **kw):
     if module_and_obj is None:
-        obj = inspect.stack()[1][3]
-        module = inspect.stack()[1][1].split(os.path.sep)[-1].rstrip('.py')
+        stack = inspect.stack(0)
+        obj = stack[1][3]
+        module = stack[1][1].split(os.path.sep)[-1].rstrip('.py')
     else:
         module, obj = module_and_obj.split('.')
     if not isinstance(kw, dict):
@@ -65,10 +66,15 @@ def gdefaults(module_and_obj=None, get_all=False, as_dict=False, **kw):
             else:
                 kw[key] = GDEFAULTS[module][obj].get(key, value)
 
-    if get_all and module in GDEFAULTS and obj in GDEFAULTS[module]:
+    if module in GDEFAULTS and obj in GDEFAULTS[module]:
+        # preserve defaults' order
+        defaults = {}
         for k, v in GDEFAULTS[module][obj].items():
-            if k not in kw:
-                kw[k] = v
+            if k in kw:
+                defaults[k] = kw[k]
+            elif get_all:
+                defaults[k] = v
+        kw = defaults
 
     if as_dict:
         return kw

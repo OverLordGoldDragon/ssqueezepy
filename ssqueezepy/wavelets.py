@@ -284,7 +284,15 @@ class Wavelet():
                 raise TypeError(errmsg)
             wavelet, wavopts = wavelet
         elif isinstance(wavelet, str):
-            wavopts = gdefaults(f"wavelets.{wavelet}", get_all=True, as_dict=True)
+            wavopts = {}
+
+        if isinstance(wavelet, str):
+            module = 'wavelets' if wavelet != 'gmw' else '_gmw'
+            defaults = gdefaults(f"{module}.{wavelet}", get_all=True,
+                                 as_dict=True)
+            for k, v in defaults.items():
+                defaults[k] = wavopts.get(k, v)
+            wavopts = defaults.copy()
 
         wavelet = wavelet.lower()
         if wavelet == 'gmw':
@@ -328,7 +336,7 @@ def morlet(mu=None):
     https://en.wikipedia.org/wiki/Morlet_wavelet#Definition
     https://www.desmos.com/calculator/cuypxm8s1y
     """
-    mu = gdefaults(mu=mu)
+    mu = gdefaults('wavelets.morlet', mu=mu)
     cs = (1 + np.exp(-mu**2) - 2 * np.exp(-3/4 * mu**2)) ** (-.5)
     ks = np.exp(-.5 * mu**2)
     return lambda w: _morlet(w, mu, cs, ks)
@@ -343,7 +351,7 @@ def bump(mu=None, s=None, om=None):
     """Bump wavelet.
     https://www.mathworks.com/help/wavelet/gs/choose-a-wavelet.html
     """
-    mu, s, om = gdefaults(mu=mu, s=s, om=om)
+    mu, s, om = gdefaults('wavelets.bump', mu=mu, s=s, om=om)
     return lambda w: _bump(w, (w - mu) / s, om, s)
 
 @jit(nopython=True, cache=True)
@@ -357,7 +365,7 @@ def cmhat(mu=1., s=1.):
     """Complex Mexican Hat wavelet.
     https://en.wikipedia.org/wiki/Complex_mexican_hat_wavelet
     """
-    mu, s = gdefaults(mu=mu, s=s)
+    mu, s = gdefaults('wavelets.cmhat', mu=mu, s=s)
     return lambda w: _cmhat(w - mu, s)
 
 @jit(nopython=True, cache=True)
@@ -368,7 +376,7 @@ def _cmhat(_w, s):
 
 def hhhat(mu=5.):
     """Hilbert analytic function of Hermitian Hat."""
-    mu = gdefaults(hhhat)
+    mu = gdefaults('wavelets.hhhat', mu=mu)
     return lambda w: _hhhat(w - mu)
 
 @jit(nopython=True, cache=True)

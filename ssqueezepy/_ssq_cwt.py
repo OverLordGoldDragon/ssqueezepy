@@ -56,7 +56,7 @@ def ssq_cwt(x, wavelet='gmw', scales='log', nv=None, fs=None, t=None,
                 not invertible but has better robustness properties in some cases.
                 Not recommended unless you know what you're doing.
 
-        mapkind: str['maximal', 'peak', 'energy']
+        mapkind: str['maximal', 'peak', 'energy'] / tuple(float, float)
             Kind of frequency mapping used, determining the range of frequencies
             spanned (fm to fM, min to max).
 
@@ -75,6 +75,7 @@ def ssq_cwt(x, wavelet='gmw', scales='log', nv=None, fs=None, t=None,
                 (left-half can be trimmed too). Use for energy-centric mapping,
                 which for sufficiently-spanned `scales` will always have lesser
                 fM (but ~same fM).
+                - tuple: sets `ssq_freqrange` directly.
 
         difftype: str['direct', 'phase', 'numeric']
             Method by which to differentiate Wx (default='direct') to obtain

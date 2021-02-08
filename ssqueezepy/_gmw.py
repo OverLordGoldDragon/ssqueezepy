@@ -106,7 +106,7 @@ def gmw(gamma=None, beta=None, norm='bandpass', centered_scale=False):
         https://github.com/jonathanlilly/jLab/blob/master/jWavelet/morsewave.m
     """
     _check_args(gamma=gamma, beta=beta, norm=norm)
-    gamma, beta = gdefaults(gamma=gamma, beta=beta)
+    gamma, beta = gdefaults('_gmw.gmw', gamma=gamma, beta=beta)
     return (gmw_l1(gamma, beta, centered_scale) if norm == 'bandpass' else
             gmw_l2(gamma, beta, centered_scale))
 

@@ -59,7 +59,7 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
             summation, e.g. `Wx**2` via `lambda x: x**2`. Output shape
             must match `Wx.shape`.
 
-        mapkind: str['maximal', 'peak', 'energy']
+        mapkind: str['maximal', 'peak', 'energy'] / tuple(float, float)
             See `help(ssq_cwt)`.
 
         wavelet: wavelets.Wavelet
@@ -119,7 +119,9 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
         return Tx
 
     def _ssq_freqrange(mapkind, dt, N, wavelet, scales):
-        if mapkind == 'maximal':
+        if isinstance(mapkind, tuple):
+            fm, fM = mapkind
+        elif mapkind == 'maximal':
             dT = dt * N
             # normalized frequencies to map discrete-domain to physical:
             #     f[[cycles/samples]] -> f[[cycles/second]]
@@ -210,10 +212,17 @@ def _check_ssqueezing_args(squeezing, mapkind=None, wavelet=None,
 
     if mapkind is None:
         return
-    supported = ('maximal', 'peak', 'energy')
-    if mapkind not in supported:
-        raise ValueError("`mapkind` must be one of {} (got {})".format(
-            ', '.join(supported), mapkind))
+    if isinstance(mapkind, (tuple, list)):
+        if not all(isinstance(m, (float, int)) for m in mapkind):
+            raise ValueError("all elements of `mapkind` must be float or int")
+    elif isinstance(mapkind, str):
+        supported = ('maximal', 'peak', 'energy')
+        if mapkind not in supported:
+            raise ValueError("`mapkind` must be one of {} (got {})".format(
+                ', '.join(supported), mapkind))
+    else:
+        raise TypeError("`mapkind` must be str, tuple, or list "
+                        "(got %s)" % type(mapkind))
 
     if mapkind != 'maximal':
         if transform != 'cwt':
