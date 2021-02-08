@@ -5,7 +5,7 @@ from numpy.fft import ifft, fftshift, ifftshift
 from numba import jit
 from types import FunctionType
 from scipy import integrate
-from .configs import gdefaults, handle_defaults
+from .configs import gdefaults
 
 pi = np.pi
 NOTE = lambda msg: logging.warning("NOTE: %s" % msg)
@@ -121,6 +121,8 @@ class Wavelet():
         if self.config:
             cfg = ""
             for k, v in self.config.items():
+                if isinstance(v, float) and v.is_integer():
+                    v = int(v)
                 cfg += "{}={}, ".format(k, v)
             cfg = cfg.rstrip(', ')
         else:
@@ -282,7 +284,7 @@ class Wavelet():
                 raise TypeError(errmsg)
             wavelet, wavopts = wavelet
         elif isinstance(wavelet, str):
-            wavopts = {}
+            wavopts = gdefaults(f"wavelets.{wavelet}", get_all=True, as_dict=True)
 
         wavelet = wavelet.lower()
         if wavelet == 'gmw':
@@ -315,7 +317,7 @@ def _xifn(scale, N):
     return xi
 
 #### Wavelet functions ######################################################
-def morlet(mu=13.4):
+def morlet(mu=None):
     """Higher `mu` -> greater frequency, lesser time resolution.
     Recommended range: 4 to 16. For `mu > 6` the wavelet is almsot exactly
     Gaussian for most scales, providing maximum joint resolution.
@@ -326,6 +328,7 @@ def morlet(mu=13.4):
     https://en.wikipedia.org/wiki/Morlet_wavelet#Definition
     https://www.desmos.com/calculator/cuypxm8s1y
     """
+    mu = gdefaults(mu=mu)
     cs = (1 + np.exp(-mu**2) - 2 * np.exp(-3/4 * mu**2)) ** (-.5)
     ks = np.exp(-.5 * mu**2)
     return lambda w: _morlet(w, mu, cs, ks)
@@ -336,11 +339,11 @@ def _morlet(w, mu, cs, ks):
                                         - ks * np.exp(-.5 * w**2))
 
 
-@handle_defaults
-def bump(mu=5., s=1., om=None):
+def bump(mu=None, s=None, om=None):
     """Bump wavelet.
     https://www.mathworks.com/help/wavelet/gs/choose-a-wavelet.html
     """
+    mu, s, om = gdefaults(mu=mu, s=s, om=om)
     return lambda w: _bump(w, (w - mu) / s, om, s)
 
 @jit(nopython=True, cache=True)
@@ -354,6 +357,7 @@ def cmhat(mu=1., s=1.):
     """Complex Mexican Hat wavelet.
     https://en.wikipedia.org/wiki/Complex_mexican_hat_wavelet
     """
+    mu, s = gdefaults(mu=mu, s=s)
     return lambda w: _cmhat(w - mu, s)
 
 @jit(nopython=True, cache=True)
@@ -364,6 +368,7 @@ def _cmhat(_w, s):
 
 def hhhat(mu=5.):
     """Hilbert analytic function of Hermitian Hat."""
+    mu = gdefaults(hhhat)
     return lambda w: _hhhat(w - mu)
 
 @jit(nopython=True, cache=True)
@@ -678,5 +683,3 @@ def isinstance_by_name(obj, ref):
 ##############################################################################
 from ._gmw import gmw
 from .visuals import plot
-
-print(bump(), 3)

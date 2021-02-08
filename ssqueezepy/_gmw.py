@@ -10,14 +10,15 @@ from numpy.fft import ifft
 from numba import jit
 from scipy.special import (gamma   as gamma_fn,
                            gammaln as gammaln_fn)
-from ssqueezepy.algos import nCk
-from ssqueezepy.wavelets import _xifn
+from .algos import nCk
+from .wavelets import _xifn
+from .configs import gdefaults
 
 pi = np.pi
 
 
 #### Base wavelets (`K=1`) ###################################################
-def gmw(gamma=3, beta=60, norm='bandpass', centered_scale=False):
+def gmw(gamma=None, beta=None, norm='bandpass', centered_scale=False):
     """Generalized Morse Wavelets. Returns function which computes GMW in the
     frequency domain.
 
@@ -105,6 +106,7 @@ def gmw(gamma=3, beta=60, norm='bandpass', centered_scale=False):
         https://github.com/jonathanlilly/jLab/blob/master/jWavelet/morsewave.m
     """
     _check_args(gamma=gamma, beta=beta, norm=norm)
+    gamma, beta = gdefaults(gamma=gamma, beta=beta)
     return (gmw_l1(gamma, beta, centered_scale) if norm == 'bandpass' else
             gmw_l2(gamma, beta, centered_scale))
 
