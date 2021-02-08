@@ -89,13 +89,7 @@ def wavelet_tf(wavelet, N=2048, scale=100, notext=False, width=1.1, height=1):
            "       = std_t * std_w\n\n"
            "(rad-c/s=\n radians*cycles/samples)"
            ).format(wc, std_t, std_w, std_t * std_w)
-    _kw = dict(xycoords='axes fraction', xy=(.7, .76), weight='bold',
-               fontsize=16)
-    try:
-        # 'Consolas' for vertical align
-        plt.annotate(txt, family='Consolas', **_kw)
-    except:
-        plt.annotate(txt, **_kw)  # in case platform lacks 'Consolas'
+    _annotate(txt, xy=(.7, .76), fontsize=16)
 
     ## Title: wavelet name & parameters
     title = wavelet._desc(N=N, scale=scale)
@@ -287,7 +281,7 @@ def wavelet_heatmap(wavelet, scales='log', N=2048):
     wavelet = Wavelet._init_if_not_isinstance(wavelet)
     if not isinstance(scales, np.ndarray):
         from .utils import process_scales
-        scales = process_scales('log', N, wavelet, double_N=False)
+        scales = process_scales(scales, N, wavelet, double_N=False)
 
     #### Compute time- & freq-domain wavelets for all scales #################
     Psi = wavelet.psifn(scale=scales, N=N)
@@ -386,8 +380,8 @@ def sweep_harea(wavelet, N, scales='log', get=False, kw_w=None, kw_t=None):
     from .utils import process_scales
 
     kw_w, kw_t = (kw_w or {}), (kw_t or {})
-    scales = process_scales(scales, N, wavelet)
     wavelet = Wavelet._init_if_not_isinstance(wavelet)
+    scales = process_scales(scales, N, wavelet)
 
     std_ws = sweep_std_w(wavelet, N, scales, get=True, **kw_w)
     plt.show()
@@ -510,6 +504,69 @@ def _viz_cwt_scalebounds(wavelet, N, min_scale=None, max_scale=None,
         _viz_max(wavelet, N, max_scale, std_t, stdevs, Nt)
     if not (min_scale or max_scale):
         raise ValueError("Must set at least one of `min_scale`, `max_scale`")
+
+
+def wavelet_filterbank(wavelet, N=1024, scales='log', skips=0, title_append=None,
+                       positives=False, show=True, get=False):
+    """Plot all frequency-domain wavelets, superimposed.
+
+    `skips=1` will plot every *other* wavelet, `=2` will skip 2, etc.
+    `=0` shows all.
+
+    `title_append`: will `title += title_append` if not None. Must be string.
+    Can use to display additional info.
+
+    `positives=True` will show full wavelets as opposed to trimmed at Nyquist.
+
+    `get=True` to return the filter bank (ignores `skip`).
+    """
+    def _title():
+        scaletype = _infer_scaletype(scales)[0]
+        desc = wavelet._desc(N=N)
+
+        title = "{}, scaletype={}{}".format(desc, scaletype, title_append or '')
+        title = _textwrap(title, wrap_len=72)
+        return title
+
+    from .utils import process_scales, _infer_scaletype, _textwrap
+
+    # process `scales` & prepare freq-domain wavelets
+    scales = process_scales(scales, N, wavelet)
+    wavelet = Wavelet._init_if_not_isinstance(wavelet)
+    Psih = wavelet(scale=scales, N=N)
+
+    # process `skips`
+    Psih_show, scales_show = [], []
+    for i, psih in enumerate(Psih):
+        if i % (skips + 1) == 0:
+            Psih_show.append(psih)
+            scales_show.append(scales[i])
+    Psih_show = np.vstack(Psih_show).T
+
+    # prepare plot params
+    if positives:
+        w = None
+        xlims = (-N/100, N*1.01)
+    else:
+        Psih_show = Psih_show[:N//2]
+        w = np.linspace(0, np.pi, N//2, endpoint=True)
+        xlims = (-np.pi/100, np.pi*1.01)
+
+    # plot
+    if positives:
+        plt.axvline(N/2, color='tab:red')  # show Nyquist
+    plot(w, Psih_show, color='tab:blue', title=_title(), xlims=xlims, show=0)
+
+    # style
+    _, ymax = plt.gca().get_ylim()
+    plt.ylim(-ymax/100, ymax*1.03)
+    txt = "(min, max)=(%.3f, %.1f)" % (np.min(scales_show), np.max(scales_show))
+    _annotate(txt, xy=(.63, .95), fontsize=17)
+
+    if show:
+        plt.show()
+    if get:
+        return Psih
 
 
 #### Visual tools ## messy code ##############################################
@@ -806,6 +863,14 @@ def _scale_plot(fig, ax, show=False, ax_equal=False, w=None, h=None,
     if show:
         plt.show()
 
+
+def _annotate(txt, xy=(.85, .9), weight='bold', fontsize=16):
+    _kw = dict(xycoords='axes fraction', xy=xy, weight=weight, fontsize=fontsize)
+    try:
+        # 'Consolas' for vertical align
+        plt.annotate(txt, family='Consolas', **_kw)
+    except:
+        plt.annotate(txt, **_kw)  # in case platform lacks 'Consolas'
 
 #############################################################################
 from .wavelets import Wavelet, _xifn, aifftshift

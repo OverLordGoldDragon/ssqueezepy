@@ -97,7 +97,7 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=1.,
         https://github.com/ebrevdo/synchrosqueezing/blob/master/synchrosqueezing/
         stft_fw.m
     """
-    def _stft(xp, window, n_fft, hop_len, fs, modulated, derivative):
+    def _stft(xp, window, diff_window, n_fft, hop_len, fs, modulated, derivative):
         Sx  = buffer(xp, n_fft, n_fft - hop_len)
         dSx = Sx.copy()
         Sx  *= window.reshape(-1, 1)
@@ -126,7 +126,8 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=1.,
     padlength = len(x) + n_fft - 1  # pad `x` to length `padlength`
     xp = padsignal(x, padtype, padlength=padlength)
 
-    Sx, dSx = _stft(xp, window, n_fft, hop_len, fs, modulated, derivative)
+    Sx, dSx = _stft(xp, window, diff_window, n_fft, hop_len, fs, modulated,
+                    derivative)
 
     return (Sx, dSx) if derivative else Sx
 
@@ -217,7 +218,7 @@ def get_window(window, win_len, n_fft=None, derivative=False):
                              "(got %s)" % window)
     else:
         # sym=False <-> fftbins=True (see above)
-        window = sig.windows.dpss(win_len, 4, sym=False)
+        window = sig.windows.dpss(win_len, min(4, win_len//2 - 1), sym=False)
 
     if len(window) < (win_len + pl + pr):
         window = np.pad(window, [pl, pr])

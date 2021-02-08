@@ -37,11 +37,10 @@ import inspect
 import numpy as np
 import matplotlib.pyplot as plt
 from numpy.fft import rfft
-from textwrap import wrap
 
 from ._ssq_cwt import ssq_cwt
 from ._ssq_stft import ssq_stft
-from .utils import WARN
+from .utils import WARN, _textwrap
 from .wavelets import Wavelet
 from .visuals import plot, plots, imshow
 
@@ -476,7 +475,7 @@ class TestSignals():
         if aparams:
             atxt = ', '.join(f"{k}={v}" for k, v in aparams.items())
             title += ', %s' % atxt
-        title = _wrap(title, wrap_len)
+        title = _textwrap(title, wrap_len)
         return title
 
     @staticmethod
@@ -725,7 +724,7 @@ class TestSignals():
         ctitle1 = title + '\nabs(CWT) | ' + twav
         ctitle2 = 'abs(SSQ_CWT)'
 
-        ctitle1 = _wrap(ctitle1, wrap_len)
+        ctitle1 = _textwrap(ctitle1, wrap_len)
         return ctitle1, ctitle2
 
     @staticmethod
@@ -738,15 +737,8 @@ class TestSignals():
         stitle1 = title + '\nabs(STFT) | ' + twin
         stitle2 = 'abs(SSQ_STFT)'
 
-        stitle1 = _wrap(stitle1, wrap_len)
+        stitle1 = _textwrap(stitle1, wrap_len)
         return stitle1, stitle2
-
-
-def _wrap(txt, wrap_len=50):
-    """Preserves line breaks and includes `'\n'.join()` step."""
-    return '\n'.join(['\n'.join(
-        wrap(line, 90, break_long_words=False, replace_whitespace=False))
-        for line in txt.splitlines() if line.strip() != ''])
 
 
 def _t(tmin, tmax, N, endpoint=False):

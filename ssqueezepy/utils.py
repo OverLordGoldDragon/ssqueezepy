@@ -4,6 +4,7 @@ import logging
 from numpy.fft import fft, fftshift
 from scipy import integrate
 from numba import jit
+from textwrap import wrap
 from .algos import _min_neglect_idx, find_maximum, find_first_occurrence
 from .wavelets import Wavelet
 
@@ -728,3 +729,10 @@ def _integrate_analytic(int_fn, nowarn=False):
     int_nz = _integrate_near_zero()
     arr, t = _find_convergent_array()
     return integrate.trapz(arr, t) + int_nz
+
+
+def _textwrap(txt, wrap_len=50):
+    """Preserves line breaks and includes `'\n'.join()` step."""
+    return '\n'.join(['\n'.join(
+        wrap(line, wrap_len, break_long_words=False, replace_whitespace=False))
+        for line in txt.splitlines() if line.strip() != ''])

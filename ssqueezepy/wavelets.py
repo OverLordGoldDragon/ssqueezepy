@@ -23,7 +23,7 @@ class Wavelet():
         plt.plot(wavelet(scale=8))
     """
     SUPPORTED = {'gmw', 'morlet', 'bump', 'cmhat', 'hhhat'}
-    VISUALS = {'time-frequency', 'heatmap', 'waveforms',
+    VISUALS = {'time-frequency', 'heatmap', 'waveforms', 'filterbank',
                'harea', 'std_t', 'std_w', 'anim:time-frequency'}
 
     def __init__(self, wavelet='morlet', N=1024):
@@ -220,33 +220,25 @@ class Wavelet():
             for name in ('heatmap', 'harea', 'time-frequency'):
                 kw['N'] = kw.get('N', self.N)
                 self._viz(name, **kw)
+        elif name not in Wavelet.VISUALS:
+            raise ValueError(f"visual '{name}' not supported; must be one of: "
+                             + ', '.join(Wavelet.VISUALS))
         else:
             self._viz(name, **kw)
 
     def _viz(self, name, **kw):
-        from .visuals import (
-            wavelet_tf, wavelet_heatmap, wavelet_tf_anim, wavelet_waveforms,
-            sweep_harea, sweep_std_t, sweep_std_w,
-        )
+        from . import visuals
         kw['wavelet'] = kw.get('wavelet', self)
-
-        if name == 'time-frequency':
-            wavelet_tf(**kw)
-        elif name == 'heatmap':
-            wavelet_heatmap(**kw)
-        elif name == 'waveforms':
-            wavelet_waveforms(**kw)
-        elif name == 'harea':
-            sweep_harea(**kw)
-        elif name == 'std_t':
-            sweep_std_t(**kw)
-        elif name == 'std_w':
-            sweep_std_w(**kw)
-        elif name == 'anim:time-frequency':
-            wavelet_tf_anim(**kw)
-        else:
-            raise ValueError(f"visual '{name}' not supported; must be one of: "
-                             + ', '.join(Wavelet.VISUALS))
+        {
+          'heatmap':    visuals.wavelet_heatmap,
+          'waveforms':  visuals.wavelet_waveforms,
+          'filterbank': visuals.wavelet_filterbank,
+          'harea':      visuals.sweep_harea,
+          'std_t':      visuals.sweep_std_t,
+          'std_w':      visuals.sweep_std_w,
+          'time-frequency':      visuals.wavelet_tf,
+          'anim:time-frequency': visuals.wavelet_tf_anim,
+        }[name](**kw)
 
     def _desc(self, N=None, scale=None):
         """Nicely-formatted parameter summary, used in other methods"""
@@ -331,7 +323,7 @@ def morlet(mu=6.):
 
 @jit(nopython=True, cache=True)
 def _morlet(w, mu, cs, ks):
-    return np.sqrt(2) * cs * pi**.25 * (np.exp(-.5 * (mu - w)**2)
+    return np.sqrt(2) * cs * pi**.25 * (np.exp(-.5 * (w - mu)**2)
                                         - ks * np.exp(-.5 * w**2))
 
 
