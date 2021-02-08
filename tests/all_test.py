@@ -74,7 +74,7 @@ def test_ssq_cwt():
                 np.power(2**(1/16), np.arange(1, 32))),
         difftype=('phase', 'numeric'),
         padtype=('zero', 'replicate'),
-        mapkind=('maximal', 'energy', 'peak'),
+        maprange=('maximal', 'energy', 'peak', (1, 32)),
     )
 
     for name in params:
@@ -239,8 +239,8 @@ def test_ssqueezing():
     pass_on_error(ssqueeze, Wx, w, transform='greenland')
     pass_on_error(ssqueeze, Wx, w, transform='cwt', scales=None)
     pass_on_error(ssqueeze, Wx, w, transform='cwt', wavelet=None,
-                   mapkind='maximal')
-    pass_on_error(ssqueeze, Wx, w, transform='stft', mapkind='minimal')
+                   maprange='maximal')
+    pass_on_error(ssqueeze, Wx, w, transform='stft', maprange='minimal')
     pass_on_error(ssqueeze, Wx, w, transform='stft', ssq_freqs='linear')
     pass_on_error(ssqueeze, Wx, w, transform='abs')
     pass_on_error(ssqueeze, Wx, w, squeezing='big_bird')

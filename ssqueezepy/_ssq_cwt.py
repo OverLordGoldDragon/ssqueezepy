@@ -7,8 +7,8 @@ from ._cwt import cwt
 
 
 def ssq_cwt(x, wavelet='gmw', scales='log', nv=None, fs=None, t=None,
-            ssq_freqs=None, padtype='reflect', squeezing='sum',
-            mapkind='peak', difftype='direct', difforder=None, gamma=None,
+            ssq_freqs=None, padtype='reflect', squeezing='sum', maprange='peak',
+            difftype='direct', difforder=None, gamma=None,
             preserve_transform=True):
     """Synchrosqueezed Continuous Wavelet Transform.
     Implements the algorithm described in Sec. III of [1].
@@ -56,7 +56,7 @@ def ssq_cwt(x, wavelet='gmw', scales='log', nv=None, fs=None, t=None,
                 not invertible but has better robustness properties in some cases.
                 Not recommended unless you know what you're doing.
 
-        mapkind: str['maximal', 'peak', 'energy'] / tuple(float, float)
+        maprange: str['maximal', 'peak', 'energy'] / tuple(float, float)
             Kind of frequency mapping used, determining the range of frequencies
             spanned (fm to fM, min to max).
 
@@ -144,7 +144,7 @@ def ssq_cwt(x, wavelet='gmw', scales='log', nv=None, fs=None, t=None,
         synsq_cwt_fw.m
     """
     def _process_args(N, scales, fs, t, nv, difftype, difforder, squeezing,
-                      mapkind, wavelet):
+                      maprange, wavelet):
         if difftype not in ('direct', 'phase', 'numeric'):
             raise ValueError("`difftype` must be one of: direct, phase, numeric"
                              " (got %s)" % difftype)
@@ -157,7 +157,7 @@ def ssq_cwt(x, wavelet='gmw', scales='log', nv=None, fs=None, t=None,
         elif difftype == 'numeric':
             difforder = 4
 
-        _check_ssqueezing_args(squeezing, mapkind, wavelet)
+        _check_ssqueezing_args(squeezing, maprange, wavelet)
 
         if nv is None and not isinstance(scales, np.ndarray):
             nv = 32
@@ -184,7 +184,7 @@ def ssq_cwt(x, wavelet='gmw', scales='log', nv=None, fs=None, t=None,
 
     N = len(x)
     dt, fs, difforder, nv = _process_args(N, scales, fs, t, nv, difftype,
-                                          difforder, squeezing, mapkind, wavelet)
+                                          difforder, squeezing, maprange, wavelet)
 
     wavelet = Wavelet._init_if_not_isinstance(wavelet, N=N)
     scales, cwt_scaletype, *_ = process_scales(scales, N, wavelet, nv=nv,
@@ -206,7 +206,7 @@ def ssq_cwt(x, wavelet='gmw', scales='log', nv=None, fs=None, t=None,
 
     Tx, ssq_freqs = ssqueeze(_Wx, w, scales=scales, fs=fs, ssq_freqs=ssq_freqs,
                              transform='cwt', squeezing=squeezing,
-                             mapkind=mapkind, wavelet=wavelet)
+                             maprange=maprange, wavelet=wavelet)
 
     if difftype == 'numeric':
         Wx = Wx[:, 4:-4]
