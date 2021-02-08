@@ -46,6 +46,7 @@ from . import utils
 from . import toolkit
 from . import visuals
 from . import algos
+from . import configs
 from . import experimental
 
 from .ssqueezing import *

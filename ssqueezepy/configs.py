@@ -53,8 +53,6 @@ def gdefaults(module_and_obj=None, get_all=False, as_dict=False, **kw):
         module = stack[1][1].split(os.path.sep)[-1].rstrip('.py')
     else:
         module, obj = module_and_obj.split('.')
-    if not isinstance(kw, dict):
-        raise TypeError("`kw` must be dict (got %s)" % type(kw))
 
     for key, value in kw.items():
         if value is None:

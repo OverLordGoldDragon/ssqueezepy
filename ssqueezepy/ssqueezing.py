@@ -224,7 +224,7 @@ def _check_ssqueezing_args(squeezing, maprange=None, wavelet=None,
         raise TypeError("`maprange` must be str, tuple, or list "
                         "(got %s)" % type(maprange))
 
-    if maprange != 'maximal':
+    if isinstance(maprange, str) and maprange != 'maximal':
         if transform != 'cwt':
             NOTE("`maprange` currently only functional with `transform='cwt'`")
         elif wavelet is None:

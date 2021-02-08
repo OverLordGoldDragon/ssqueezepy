@@ -39,6 +39,7 @@ from ssqueezepy.visuals import hist, plot, plots, scat, plotscat, imshow
 from ssqueezepy.visuals import wavelet_tf
 from ssqueezepy.toolkit import lin_band, cos_f, sin_f, mad_rms, amax
 from ssqueezepy._test_signals import TestSignals
+from ssqueezepy.configs import gdefaults, float_if_number
 from ssqueezepy import ssq_cwt, issq_cwt, cwt, icwt, ssqueeze
 from ssqueezepy import _gmw
 
@@ -297,6 +298,11 @@ def test_test_signals():
     tsigs.default_args.update(backup)
 
 
+def test_configs():
+    pass_on_error(gdefaults, None)
+    pass_on_error(float_if_number, 'number')
+
+
 def pass_on_error(fn, *args, **kw):
     try: fn(*args, **kw)
     except: pass
@@ -316,6 +322,7 @@ if __name__ == '__main__':
         test_get_window()
         test_windows()
         test_morse_utils()
+        test_configs()
     else:
         pytest.main([__file__, "-s"])
 

@@ -361,7 +361,7 @@ def _bump(w, _w, om, s):
                                     ) / .443993816053287
 
 
-def cmhat(mu=1., s=1.):
+def cmhat(mu=None, s=None):
     """Complex Mexican Hat wavelet.
     https://en.wikipedia.org/wiki/Complex_mexican_hat_wavelet
     """
@@ -374,7 +374,7 @@ def _cmhat(_w, s):
         s**(5/2) * _w**2 * np.exp(-s**2 * _w**2 / 2) * (_w >= 0))
 
 
-def hhhat(mu=5.):
+def hhhat(mu=None):
     """Hilbert analytic function of Hermitian Hat."""
     mu = gdefaults('wavelets.hhhat', mu=mu)
     return lambda w: _hhhat(w - mu)
