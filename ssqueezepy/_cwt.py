@@ -163,7 +163,7 @@ def cwt(x, wavelet='gmw', scales='log', fs=None, t=None, nv=32, l1_norm=True,
     xh = fft(xp, axis=-1)
 
     # validate `wavelet`, process `scales`, define `pn` for later
-    wavelet = _process_gmw_wavelet(wavelet)
+    wavelet = _process_gmw_wavelet(wavelet, l1_norm)
     wavelet = Wavelet._init_if_not_isinstance(wavelet)
     scales = process_scales(scales, N, wavelet, nv=nv)
     pn = (-1)**np.arange(xp.shape[-1])
