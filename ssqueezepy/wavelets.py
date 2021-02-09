@@ -27,7 +27,7 @@ class Wavelet():
     VISUALS = {'time-frequency', 'heatmap', 'waveforms', 'filterbank',
                'harea', 'std_t', 'std_w', 'anim:time-frequency'}
 
-    def __init__(self, wavelet='morlet', N=1024):
+    def __init__(self, wavelet='gmw', N=1024):
         self._validate_and_set_wavelet(wavelet)
 
         self.N = N  # also sets _xi
@@ -220,7 +220,7 @@ class Wavelet():
     def viz(self, name='overview', **kw):
         """`Wavelet.VISUALS` for list of supported `name`s."""
         if name == 'overview':
-            for name in ('heatmap', 'harea', 'time-frequency'):
+            for name in ('heatmap', 'harea', 'filterbank', 'time-frequency'):
                 kw['N'] = kw.get('N', self.N)
                 self._viz(name, **kw)
         elif name not in Wavelet.VISUALS:

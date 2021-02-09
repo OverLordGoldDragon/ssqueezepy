@@ -104,6 +104,7 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=1.,
         dSx *= diff_window.reshape(-1, 1)
 
         if modulated:
+            # TODO this can be made more efficient; buffer(modulated=True)
             # shift windowed slices so they're always DFT-centered (about n=0),
             # thus shifting bases (cisoids) along the window: e^(-j*(w - u))
             Sx = ifftshift(Sx, axes=0)

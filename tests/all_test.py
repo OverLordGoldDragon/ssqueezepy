@@ -3,8 +3,8 @@
 """
 #### Disable Numba JIT during testing, as pytest can't measure its coverage ##
 # TODO find shorter way to do this
-print("numba.njit is now monkey")
-print("numba.jit  is now monkey")
+print("numba.njit is now monke")
+print("numba.jit  is now monke")
 def njit(fn):
     def decor(*args, **kw):
         return fn(*args, **kw)

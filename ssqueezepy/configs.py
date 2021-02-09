@@ -48,7 +48,7 @@ for line in txt:
 
 def gdefaults(module_and_obj=None, get_all=False, as_dict=False, **kw):
     if module_and_obj is None:
-        stack = inspect.stack(0)
+        stack = inspect.stack(0)  # `(0)` faster than `()`
         obj = stack[1][3]
         module = stack[1][1].split(os.path.sep)[-1].rstrip('.py')
     else:
