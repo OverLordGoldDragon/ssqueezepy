@@ -339,10 +339,10 @@ def _process_gmw_wavelet(wavelet, l1_norm):
     """Ensure `norm` for GMW is consistent with `l1_norm`."""
     norm = 'bandpass' if l1_norm else 'energy'
 
-    if isinstance(wavelet, str) and wavelet.lower()[:3]('gmw'):
+    if isinstance(wavelet, str) and wavelet.lower()[:3] == 'gmw':
         wavelet = ('gmw', {'norm': norm})
 
-    elif isinstance(wavelet, tuple) and wavelet[0].lower()[:3]('gmw'):
+    elif isinstance(wavelet, tuple) and wavelet[0].lower()[:3] == 'gmw':
         wavelet, wavopts = wavelet
         wavopts['norm'] = wavopts.get('norm', norm)
         wavelet = (wavelet, wavopts)
