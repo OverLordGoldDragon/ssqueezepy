@@ -523,6 +523,7 @@ def wavelet_filterbank(wavelet, N=1024, scales='log', skips=0, title_append=None
     def _title():
         scaletype = _infer_scaletype(scales)[0]
         desc = wavelet._desc(N=N)
+        desc = desc.replace(" |", " filterbank |")
 
         title = "{}, scaletype={}{}".format(desc, scaletype, title_append or '')
         title = _textwrap(title, wrap_len=72)
@@ -555,7 +556,8 @@ def wavelet_filterbank(wavelet, N=1024, scales='log', skips=0, title_append=None
     # plot
     if positives:
         plt.axvline(N/2, color='tab:red')  # show Nyquist
-    plot(w, Psih_show, color='tab:blue', title=_title(), xlims=xlims, show=0)
+    plot(w, Psih_show, color='tab:blue', title=_title(), xlims=xlims, show=0,
+         xlabel="radians")
 
     # style
     _, ymax = plt.gca().get_ylim()
