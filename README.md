@@ -40,7 +40,7 @@ Synchrosqueezing is a powerful _reassignment method_ that focuses time-frequency
 
 ### 3. Testing suite: CWT vs STFT, reflect-superimposed linear chirp
 
-<img src="https://user-images.githubusercontent.com/16495490/106623998-a0a71d00-658e-11eb-8824-1932a71ca8bb.png">
+<img src="https://user-images.githubusercontent.com/16495490/107299009-f5b3c900-6a8f-11eb-99e9-38c53f671ba2.png">
 
 ### 4. Testing suite: GMW high time vs frequency localization, parallel hyperbolic chirp
 
