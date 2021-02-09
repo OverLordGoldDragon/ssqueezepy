@@ -121,7 +121,10 @@ class Wavelet():
         if self.config:
             cfg = ""
             for k, v in self.config.items():
-                if isinstance(v, float) and v.is_integer():
+                if k in ('norm', 'centered_scale'):
+                    # too long, no real need
+                    continue
+                elif isinstance(v, float) and v.is_integer():
                     v = int(v)
                 cfg += "{}={}, ".format(k, v)
             cfg = cfg.rstrip(', ')

@@ -18,7 +18,7 @@ pi = np.pi
 
 
 #### Base wavelets (`K=1`) ###################################################
-def gmw(gamma=None, beta=None, norm='bandpass', centered_scale=False):
+def gmw(gamma=None, beta=None, norm=None, centered_scale=None):
     """Generalized Morse Wavelets. Returns function which computes GMW in the
     frequency domain.
 
@@ -106,7 +106,9 @@ def gmw(gamma=None, beta=None, norm='bandpass', centered_scale=False):
         https://github.com/jonathanlilly/jLab/blob/master/jWavelet/morsewave.m
     """
     _check_args(gamma=gamma, beta=beta, norm=norm)
-    gamma, beta = gdefaults('_gmw.gmw', gamma=gamma, beta=beta)
+    gamma, beta, norm, centered_scale = gdefaults('_gmw.gmw', gamma=gamma,
+                                                  beta=beta, norm=norm,
+                                                  centered_scale=centered_scale)
     return (gmw_l1(gamma, beta, centered_scale) if norm == 'bandpass' else
             gmw_l2(gamma, beta, centered_scale))
 
@@ -565,7 +567,7 @@ def _check_args(gamma=None, beta=None, norm=None, scale=None,
                              "use `_gmw.morsewave`, which supports it")
 
     if norm is not None and norm not in ('bandpass', 'energy'):
-        raise ValueError(f"`norm` must be 'energy' or 'bandpass' (got {norm})")
+        raise ValueError(f"`norm` must be 'energy' or 'bandpass' (got '{norm}')")
 
     if scale is not None and scale <= 0:
         raise ValueError(f"`scale` must be positive (got {scale})")

@@ -19,10 +19,23 @@ WARN = lambda msg: logging.warning("WARNING: %s" % msg)
 
 def float_if_number(s):
     """If float works, so should int."""
+    if isinstance(s, (bool, type(None))):
+        return s
     try:
         return float(s)
     except ValueError:
         return s
+
+def process_special(s):
+    return {
+        'None':  None,
+        'True':  True,
+        'False': False,
+    }.get(s, s)
+
+def process_value(value):
+    value = value.strip('"').strip("'")
+    return float_if_number(process_special(value))
 
 
 path = os.path.join(os.path.dirname(__file__), 'configs.ini')
@@ -43,7 +56,7 @@ for line in txt:
         GDEFAULTS[module][obj] = {}
     else:
         key, value = [s.strip(' ') for s in line.split('=')]
-        GDEFAULTS[module][obj][key] = float_if_number(value)
+        GDEFAULTS[module][obj][key] = process_value(value)
 
 
 def gdefaults(module_and_obj=None, get_all=False, as_dict=False, **kw):

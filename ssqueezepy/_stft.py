@@ -83,11 +83,6 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=1.,
             where its (and Sx's) DFTs are taken along columns rather than rows.
             d/dt(window) obtained via freq-domain differentiation (help(cwt)).
 
-    Recommended:
-        - odd win_len with odd n_fft and even with even, not vice versa
-        These make the ('periodic') window's left=right pad len which gives
-        it zero phase, desired in some applications
-
     # References:
         1. Synchrosqueezing-based Recovery of Instantaneous Frequency from
         Nonuniform Samples. G. Thakur and H.-T. Wu.

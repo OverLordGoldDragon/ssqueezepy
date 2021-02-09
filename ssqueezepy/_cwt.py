@@ -23,7 +23,7 @@ def cwt(x, wavelet='gmw', scales='log', fs=None, t=None, nv=32, l1_norm=True,
                 - tuple[str, dict]: name of builtin wavelet and its configs.
                   E.g. `('morlet', {'mu': 5})`.
                 - `wavelets.Wavelet` instance. Can use for custom wavelet.
-                  See help(wavelets.Wavelet).
+                  See `help(wavelets.Wavelet)`.
 
         scales: str['log', 'linear', 'log:maximal', ...] / np.ndarray
             CWT scales.
@@ -163,6 +163,7 @@ def cwt(x, wavelet='gmw', scales='log', fs=None, t=None, nv=32, l1_norm=True,
     xh = fft(xp, axis=-1)
 
     # validate `wavelet`, process `scales`, define `pn` for later
+    wavelet = _process_gmw_wavelet(wavelet)
     wavelet = Wavelet._init_if_not_isinstance(wavelet)
     scales = process_scales(scales, N, wavelet, nv=nv)
     pn = (-1)**np.arange(xp.shape[-1])
@@ -268,6 +269,7 @@ def icwt(Wx, wavelet='gmw', scales='log', nv=None, one_int=True, x_len=None,
     if not isinstance(scales, np.ndarray) and nv is None:
         nv = 32  # must match forward's; default to `cwt`'s
 
+    wavelet = _process_gmw_wavelet(wavelet, l1_norm)
     wavelet = Wavelet._init_if_not_isinstance(wavelet)
     scales, scaletype, _, nv = process_scales(scales, x_len, wavelet, nv=nv,
                                               get_params=True)
@@ -331,3 +333,23 @@ def _icwt_norm(scaletype, l1_norm):
         elif scaletype == 'linear':
             norm = lambda a: a**1.5
     return norm
+
+
+def _process_gmw_wavelet(wavelet, l1_norm):
+    """Ensure `norm` for GMW is consistent with `l1_norm`."""
+    norm = 'bandpass' if l1_norm else 'energy'
+
+    if isinstance(wavelet, str) and wavelet.lower()[:3]('gmw'):
+        wavelet = ('gmw', {'norm': norm})
+
+    elif isinstance(wavelet, tuple) and wavelet[0].lower()[:3]('gmw'):
+        wavelet, wavopts = wavelet
+        wavopts['norm'] = wavopts.get('norm', norm)
+        wavelet = (wavelet, wavopts)
+
+    elif isinstance(wavelet, Wavelet):
+        if wavelet.name == 'GMW L2' and l1_norm:
+            raise ValueError("using GMW L2 wavelet with `l1_norm=True`")
+        elif wavelet.name == 'GMW L1' and not l1_norm:
+            raise ValueError("using GMW L1 wavelet with `l1_norm=False`")
+    return wavelet
