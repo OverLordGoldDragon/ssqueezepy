@@ -6,7 +6,7 @@ from ssqueezepy.wavelets import Wavelet
 from ssqueezepy._gmw import compute_gmw, morsewave
 
 # no visuals here but 1 runs as regular script instead of pytest, for debugging
-VIZ = 1
+VIZ = 0
 
 
 def test_simplified_vs_full():
