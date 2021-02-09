@@ -24,7 +24,7 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
             If None, will infer from and set to same distribution as `scales`.
 
         scales: str['log', 'linear', 'log:maximal', ...] / np.ndarray
-            See help(cwt).
+            See `help(cwt)`.
 
         fs: float / None
             Sampling frequency of `x`. Defaults to 1, which makes ssq

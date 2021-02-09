@@ -8,7 +8,7 @@ from .algos import find_closest, find_maximum
 
 
 #### Visualizations ##########################################################
-def wavelet_tf(wavelet, N=2048, scale=100, notext=False, width=1.1, height=1):
+def wavelet_tf(wavelet, N=2048, scale=None, notext=False, width=1.1, height=1):
     """Visualize `wavelet` joint time-frequency resolution. Plots frequency-domain
     wavelet (psih) along y-axis, and time-domain wavelet (psi) along x-axis.
 
@@ -19,7 +19,33 @@ def wavelet_tf(wavelet, N=2048, scale=100, notext=False, width=1.1, height=1):
     `wavelet` is instance of `wavelets.Wavelet` or its valid `wavelet` argument.
     See also: https://www.desmos.com/calculator/nqowgloycy
     """
+    def pick_scale(wavelet, N):
+        """Pick scale such that both time- & freq-domain wavelets look nice."""
+        from .wavelets import time_resolution
+        st_min, st_max = 65 * (N / 2048), 75 * (N / 2048)
+        max_iters = 100
+        scale = 60
+        # generous `min_decay` since we don't care about initial bad cases
+        kw = dict(wavelet=wavelet, N=N, min_decay=1, nondim=False)
+        std_t = time_resolution(scale=scale, **kw)
+
+        i = 0
+        while not (st_min < std_t < st_max):
+            if std_t > st_max:
+                scale /= 1.1
+            else:
+                scale *= 1.1
+            std_t = time_resolution(scale=scale, **kw)
+
+            if i > max_iters:
+                raise ValueError(f"couldn't autofind `scale` after {max_iters} "
+                                 "iterations, aborting")
+            i += 1
+        return scale
+
     wavelet = Wavelet._init_if_not_isinstance(wavelet)
+    if scale is None:
+        scale = pick_scale(wavelet, N)
 
     #### Compute psi & psihf #################################################
     psi  = ifft(wavelet(scale * _xifn(1, N)) * (-1)**np.arange(N))

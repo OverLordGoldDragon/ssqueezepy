@@ -8,8 +8,10 @@ from .wavelets import _xifn
 
 def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=1.,
          padtype='reflect', modulated=True, derivative=False):
-    """Compute the short-time Fourier transform and modified short-time
-    Fourier transform from [1].
+    """Short-Time Fourier Transform.
+
+    `modulated=True` computes "modified" variant from [1] which is advantageous
+    to reconstruction & synchrosqueezing (see "Modulation" below).
 
     # Arguments:
         x: np.ndarray
@@ -58,7 +60,7 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=1.,
         derivative: bool (default False)
             Whether to compute and return `dSx`. Requires `fs`.
 
-    **Modulation:**
+    **Modulation**
         `True` will center DFT cisoids at the window for each shift `u`:
             Sm[u, k] = sum_{0}^{N-1} f[n] * g[n - u] * exp(-j*2pi*k*(n - u)/N)
         as opposed to usual STFT:

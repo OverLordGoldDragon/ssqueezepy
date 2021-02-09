@@ -378,13 +378,17 @@ def phase_cwt(Wx, dWx, difftype='direct', gamma=None):
         https://github.com/ebrevdo/synchrosqueezing/blob/master/synchrosqueezing/
         phase_cwt.m
     """
-    if difftype == 'phase':
+    if difftype == 'direct':
+        with np.errstate(divide='ignore', invalid='ignore'):
+            w = np.imag(dWx / Wx) / (2*pi)
+    elif difftype == 'phase':
         # TODO gives bad results; shouldn't we divide by Wx?
         u = np.unwrap(np.angle(Wx)).T
         w = np.vstack([np.diff(u, axis=0), u[-1] - u[0]]).T / (2*pi)
     else:
-        with np.errstate(divide='ignore', invalid='ignore'):
-            w = np.imag(dWx / Wx) / (2*pi)
+        raise ValueError(f"unsupported `difftype` '{difftype}'; must be one of "
+                         "'direct', 'phase'.")
+
     # treat negative phases as positive; these are in small minority, and
     # slightly aid invertibility (as less of `Wx` is zeroed in ssqueezing)
     w = np.abs(w)
