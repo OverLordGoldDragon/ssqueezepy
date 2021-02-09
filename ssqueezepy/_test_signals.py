@@ -373,7 +373,7 @@ class TestSignals():
 
     def packed(self, N=None, freqs=None, overlap=.8, **tkw):
         N = N or self.default_N
-        t, _, tmax = self._process_params(N, tkw)
+        t, *_ = self._process_params(N, tkw)
         if freqs is None:
             freqs = [.5, 1, 2, N/10, N/10 + N/50, N/10 + N/25,
                      N/5, N/4, N/3, N/3 + N/10]
@@ -456,7 +456,7 @@ class TestSignals():
 
         data = {}
         for name, (fparams, aparams) in zip(names, params_all):
-            fn, afn, _, aname, tkw = _process_args(name, fparams, aparams)
+            fn, afn, *_, tkw = _process_args(name, fparams, aparams)
             x, t = fn(N, **fparams)
             x *= afn(len(x), **aparams, **tkw)[0]
             if name[0] == '#':

@@ -449,8 +449,8 @@ def morsefreq(gamma, beta, n_out=1):
         wi = (gamma_fn((beta + 2) / gamma) /
               gamma_fn((beta + 1) / gamma))
     if n_out > 3:
-        _, n2, k2 = _morsemom(2, gamma, beta, n_out=3)
-        _, n3, k3 = _morsemom(3, gamma, beta, n_out=3)
+        k2 = _morsemom(2, gamma, beta, n_out=3)[-1]
+        k3 = _morsemom(3, gamma, beta, n_out=3)[-1]
         cwi = -(k3 / k2**1.5)
 
     if n_out == 1:
