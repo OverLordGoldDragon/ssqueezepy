@@ -290,14 +290,15 @@ class Wavelet():
             wavopts = {}
 
         if isinstance(wavelet, str):
+            wavelet = wavelet.lower()
             module = 'wavelets' if wavelet != 'gmw' else '_gmw'
             defaults = gdefaults(f"{module}.{wavelet}", get_all=True,
                                  as_dict=True)
+
             for k, v in defaults.items():
                 defaults[k] = wavopts.get(k, v)
             wavopts = defaults.copy()
 
-        wavelet = wavelet.lower()
         if wavelet == 'gmw':
             self.fn = gmw(**wavopts)
         elif wavelet == 'morlet':

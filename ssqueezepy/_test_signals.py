@@ -466,15 +466,17 @@ class TestSignals():
         return data
 
     @classmethod
-    def _title(self, signal, N, fparams, aparams, wrap_len=50):
+    def _title(self, signal, N, fparams, aparams, wrap_len=70):
         fparams = self._process_varname_alias(signal, N, fparams)
         fparams = dict(N=N, **fparams)
 
         ptxt = ', '.join(f"{k}={v}" for k, v in fparams.items())
         title = "{} | {}".format(signal, ptxt)
+
         if aparams:
             atxt = ', '.join(f"{k}={v}" for k, v in aparams.items())
             title += ', %s' % atxt
+
         title = _textwrap(title, wrap_len)
         return title
 
@@ -483,7 +485,7 @@ class TestSignals():
         fparams = fparams.copy()
         for k, v in fparams.items():
             if (k == 'fmax' and v is None and
-                    signal in ['lchirp', 'echirp', 'hchirp']):
+                    any(s in signal for s in ('lchirp', 'echirp', 'hchirp'))):
                 fparams['fmax'] = N / 2
         return fparams
 
