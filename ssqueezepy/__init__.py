@@ -40,7 +40,7 @@ from . import _stft
 from . import _ssq_cwt
 from . import _ssq_stft
 from . import _gmw
-from . import test_signals
+from . import _test_signals
 from . import wavelets
 from . import utils
 from . import toolkit
