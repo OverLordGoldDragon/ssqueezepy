@@ -38,7 +38,7 @@ from ssqueezepy._ssq_stft import issq_stft
 from ssqueezepy.visuals import hist, plot, plots, scat, plotscat, imshow
 from ssqueezepy.visuals import wavelet_tf
 from ssqueezepy.toolkit import lin_band, cos_f, sin_f, mad_rms, amax
-from ssqueezepy.test_signals import TestSignals
+from ssqueezepy._test_signals import TestSignals
 from ssqueezepy.configs import gdefaults, float_if_number
 from ssqueezepy import ssq_cwt, issq_cwt, cwt, icwt, ssqueeze
 from ssqueezepy import _gmw
@@ -279,7 +279,7 @@ def test_morse_utils():
     pass_on_error(_gmw._check_args, scale=-1)
 
 
-def testtest_signals():
+def test_test_signals():
     tsigs = TestSignals()
     pass_on_error(tsigs, dft='doot')
 
@@ -322,6 +322,7 @@ if __name__ == '__main__':
         test_get_window()
         test_windows()
         test_morse_utils()
+        test_test_signals
         test_configs()
     else:
         pytest.main([__file__, "-s"])

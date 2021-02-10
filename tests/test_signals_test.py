@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Test ssqueezepy/test_signals.py"""
+"""Test ssqueezepy/_test_signals.py"""
 import pytest
 import numpy as np
 import scipy.signal as sig
