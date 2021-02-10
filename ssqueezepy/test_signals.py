@@ -51,8 +51,8 @@ DEFAULT_ARGS = {
     'cosine': dict(f=8, phi0=0),
     'sine':   dict(f=8, phi0=0),
     'lchirp': dict(tmin=0, tmax=1, fmin=0,  fmax=None),
-    'echirp': dict(tmin=0, tmax=1, fmin=1, fmax=None),
-    'hchirp': dict(tmin=0, tmax=1, fmin=.5,  fmax=None),
+    'echirp': dict(tmin=0, tmax=1, fmin=1,  fmax=None),
+    'hchirp': dict(tmin=0, tmax=1, fmin=.5, fmax=None),
     'jumps':  dict(),
     'low':    dict(),
     'am-cosine': dict(amin=.1),
@@ -91,7 +91,7 @@ class TestSignals():
 
         default_args: dict
             `{<signal_name>: {'param_name': value}}` pairs, where `signal_name`
-            is one of `SUPPORTED`. See `_test_signals.DEFAULT_ARGS`.
+            is one of `SUPPORTED`. See `test_signals.DEFAULT_ARGS`.
 
         default_tkw: dict
             Example with all key-value pairs: `dict(tmin=0, tmax=1)`.
