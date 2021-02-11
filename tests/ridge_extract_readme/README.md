@@ -140,7 +140,7 @@ Further information about the particular algorithm (version of eq. III.4 in publ
 
 ![signal_failed_wsst](/tests/ridge_extract_readme/imgs/signal_failed_wsst.png)
 ![cwt_ridge_signal_failed_wsst_noPen](/tests/ridge_extract_readme/imgs/cwt_signal_failed_wsst_ridge_pen00.png)
-![ssq_ridge_signal_failed_wsst_penalty02](/tests/ridge_extract_readme/imgs/ssq_signal_failed_wsst_ridge_pen05.png)
+![cwt_ridge_signal_failed_wsst_penalty05](/tests/ridge_extract_readme/imgs/cwt_signal_failed_wsst_ridge_pen05.png)
 
 
 ### Practical considerations
