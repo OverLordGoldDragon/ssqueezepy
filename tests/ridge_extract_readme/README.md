@@ -109,7 +109,7 @@ Further information about the particular algorithm (version of eq. III.4 in publ
 ![cwt_ridge_signal_3](/tests/ridge_extract_readme/imgs/cwt_signal_3_ridge.png)
 ![ssq_ridge_signal_3](/tests/ridge_extract_readme/imgs/ssq_signal_3_ridge.png)
 
-## 4: Insufficient penalty term when syncrosqueezed signal strength is irregular
+## 4: Example of insufficient penalty term 
 
 
 ```python
