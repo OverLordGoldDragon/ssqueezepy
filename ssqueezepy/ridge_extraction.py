@@ -7,6 +7,7 @@ EPS = np.finfo(np.float64).eps
 def extract_ridges(Tf, scales, penalty=2., n_ridges=1, BW=25):
     """Tracks time-frequency ridges by performing forward-backward ridge tracking
     algorithm, based on ref [1].
+<<<<<<< HEAD
     # Arguments
         Tf: np.ndarray
             Complex time-frequency representation.
@@ -16,10 +17,30 @@ def extract_ridges(Tf, scales, penalty=2., n_ridges=1, BW=25):
             Value to penalise frequency jumps.
         n_ridges: int
             Number of ridges to be calculated.
+=======
+
+    # Arguments
+        Tf: np.ndarray
+            Complex time-frequency representation.
+
+        scales:
+            Frequency scales to calculate distance penalty term.
+
+        penalty: float
+            Value to penalise frequency jumps.
+
+        n_ridges: int
+            Number of ridges to be calculated.
+
+>>>>>>> origin/master
         BW: int
             Decides how many bins will be subtracted around max
             energy frequency bins when extracting multiple ridges
             (2 is standard value for syncrosqueezed transform).
+<<<<<<< HEAD
+=======
+
+>>>>>>> origin/master
     # Returns
         ridge_idxs:
             Indices for maximum frequency ridge(s)
@@ -27,6 +48,10 @@ def extract_ridges(Tf, scales, penalty=2., n_ridges=1, BW=25):
             Frequencies tracking maximum frequency ridge(s)
         max_energy: np.ndarray [n_timeshifts x n_ridges]
             Energy maxima vectors along time axis.
+<<<<<<< HEAD
+=======
+
+>>>>>>> origin/master
     # References
         1. On the extraction of instantaneous frequencies from ridges in
         time-frequency representations of signals.
@@ -37,6 +62,10 @@ def extract_ridges(Tf, scales, penalty=2., n_ridges=1, BW=25):
         """Penalty matrix describes all potential penalties of  jumping from
         current frequency (first axis) to one or several new frequencies (second
         axis)
+<<<<<<< HEAD
+=======
+
+>>>>>>> origin/master
         `scales`: frequency scale vector from time-freq transform
         `penalty`: user-set penalty for freqency jumps (standard = 1.0)
         """
@@ -47,9 +76,17 @@ def extract_ridges(Tf, scales, penalty=2., n_ridges=1, BW=25):
 
     def accumulated_penalty_energy_fw(energy_to_track, penalty_matrix):
         """Calculates acummulated penalty in forward direction (t=0...end).
+<<<<<<< HEAD
         `energy_to_track`: squared abs time-frequency transform
         `penalty_matrix`: pre-calculated penalty for all potential jumps between
                           two frequencies
+=======
+
+        `energy_to_track`: squared abs time-frequency transform
+        `penalty_matrix`: pre-calculated penalty for all potential jumps between
+                          two frequencies
+
+>>>>>>> origin/master
         # Returns
             `penalized_energy`: new energy with added forward penalty
             `ridge_idxs`: calculated initial ridge with only forward penalty
@@ -70,10 +107,18 @@ def extract_ridges(Tf, scales, penalty=2., n_ridges=1, BW=25):
     def accumulated_penalty_energy_bw(energy_to_track, penalty_matrix,
                                       penalized_energy_fw, ridge_idxs_fw):
         """Calculates acummulated penalty in backward direction (t=end...0)
+<<<<<<< HEAD
+=======
+
+>>>>>>> origin/master
         `energy_to_track`: squared abs time-frequency transform
         `penalty_matrix`: pre calculated penalty for all potential jumps between
                           two frequencies
         `ridge_idxs_fw`: calculated forward ridge
+<<<<<<< HEAD
+=======
+
+>>>>>>> origin/master
         Returns: `ridge_idxs_fw`: new ridge with added backward penalty, int array
         """
         pen_e = penalized_energy_fw
@@ -94,9 +139,17 @@ def extract_ridges(Tf, scales, penalty=2., n_ridges=1, BW=25):
     def fw_bw_ridge_tracking(energy_to_track, penalty_matrix):
         """Calculates acummulated penalty in forward (t=end...0) followed by
         backward (t=end...0) direction
+<<<<<<< HEAD
         `energy`: squared abs time-frequency transform
         `penalty_matrix`: pre calculated penalty for all potential jumps between
                           two frequencies
+=======
+
+        `energy`: squared abs time-frequency transform
+        `penalty_matrix`: pre calculated penalty for all potential jumps between
+                          two frequencies
+
+>>>>>>> origin/master
         Returns: `ridge_idxs_fw_bw`: estimated forward backward frequency
                                     ridge indices
         """
@@ -108,8 +161,12 @@ def extract_ridges(Tf, scales, penalty=2., n_ridges=1, BW=25):
 
         return ridge_idxs_fw_bw
 
+<<<<<<< HEAD
     scales = np.log(scales)
     scales=scales.squeeze()
+=======
+    scales = scales.squeeze()
+>>>>>>> origin/master
     energy = np.abs(Tf)**2
     n_timeshifts = Tf.shape[1]
 
@@ -121,7 +178,11 @@ def extract_ridges(Tf, scales, penalty=2., n_ridges=1, BW=25):
 
     for current_ridge_idxs in range(n_ridges):
         energy_max = energy.max(axis=0)
+<<<<<<< HEAD
         energy_neg_log_norm = -np.log(energy / energy_max  + EPS)
+=======
+        energy_neg_log_norm = -np.log(energy / energy_max + EPS)
+>>>>>>> origin/master
 
         ridge_idxs[:, current_ridge_idxs
                    ] = fw_bw_ridge_tracking(energy_neg_log_norm, penalty_matrix)
@@ -134,4 +195,8 @@ def extract_ridges(Tf, scales, penalty=2., n_ridges=1, BW=25):
             ridx = ridge_idxs[time_idx, current_ridge_idxs]
             energy[int(ridx - BW):int(ridx + BW), time_idx] = 0
 
+<<<<<<< HEAD
     return ridge_idxs, fridge, max_energy
+=======
+    return ridge_idxs, fridge, max_energy
+>>>>>>> origin/master
