@@ -347,7 +347,7 @@ def cwt_scalebounds(wavelet, N, preset=None, min_cutoff=None, max_cutoff=None,
     """
     def _process_args(preset, min_cutoff, max_cutoff, cutoff):
         defaults = {'minimal': dict(min_cutoff=.6,   max_cutoff=.8, cutoff=1),
-                    'maximal': dict(min_cutoff=2e-3, max_cutoff=.8, cutoff=-.5)}
+                    'maximal': dict(min_cutoff=1e-5, max_cutoff=.8, cutoff=-.5)}
         defaults['minimal-low'] = {k: defaults[d][k] for d, k in
                                    [('minimal', 'min_cutoff'),
                                     ('minimal', 'max_cutoff'),
@@ -446,7 +446,7 @@ def process_scales(scales, len_x, wavelet=None, nv=None, get_params=False,
         elif isinstance(scales, np.ndarray):
             if scales.squeeze().ndim != 1:
                 raise ValueError("`scales`, if array, must be 1D "
-                                 "(got shape %s)" % scales.shape)
+                                 "(got shape %s)" % str(scales.shape))
             scaletype, _nv = _infer_scaletype(scales)
             if scaletype == 'log':
                 if nv is not None and _nv != nv:
@@ -483,6 +483,8 @@ def process_scales(scales, len_x, wavelet=None, nv=None, get_params=False,
 def _infer_scaletype(ipt):
     """Infer whether `ipt` is linearly or exponentially distributed (if latter,
     also infers `nv`). Used internally on `scales` and `ssq_freqs`.
+
+    Returns one of: 'linear', 'log', 'log-piecewise'
     """
     if not isinstance(ipt, np.ndarray):
         raise TypeError("`ipt` must be a numpy array (got %s)" % type(ipt))
@@ -500,11 +502,26 @@ def _infer_scaletype(ipt):
         scaletype = 'log'
         # ceil to avoid faulty float-int ROUNDOFFS
         nv = int(np.round(1 / np.diff(np.log2(ipt), axis=0)[0]))
-    else:
+    elif logscale_transition_idx(ipt) is None:
         raise ValueError("could not infer `scaletype` from `ipt`; "
                          "`ipt` array must be linear or exponential. "
                          "(got diff(ipt)=%s..." % np.diff(ipt, axis=0)[:4])
+    else:
+        scaletype = 'log-piecewise'
+        nv = None
     return scaletype, nv
+
+
+def logscale_transition_idx(scales):
+    scales_diff2 = np.diff(np.log(scales), 2, axis=0)
+    idx = np.argmax(scales_diff2) + 1
+
+    # every other value must be zero, assert it is so
+    scales_diff2[idx - 1] = 0
+    if not np.all(np.abs(scales_diff2) < 1e-15):
+        return None
+    else:
+        return idx
 
 
 def _process_fs_and_t(fs, t, N):

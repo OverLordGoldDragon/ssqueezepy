@@ -41,14 +41,16 @@ def test_wavcomp():
 
 def test_cwt_vs_stft():
     # (N, beta, NW): (512, 42.5, 255); (256, 21.5, 255)
-    N = 256
+    N = 256#512
+    signals = 'all'
     n_fft = N
-    win_len = n_fft
+    win_len = n_fft#//2
     tsigs = TestSignals(N=N)
     wavelet = Wavelet(('GMW', {'beta': 21.5}))
 
     NW = win_len//2 - 1
     window = np.abs(sig.windows.dpss(win_len, NW))
+    # window = np.pad(window, win_len//2)
     window_name = 'DPSS'
     config_str = '\nNW=%s' % NW
 
@@ -59,7 +61,7 @@ def test_cwt_vs_stft():
               wavelet.std_w, wavelet.std_t, wavelet.harea,
               *window_resolution(window)))
 
-    tsigs.cwt_vs_stft(wavelet, window, signals='all', N=N, win_len=win_len,
+    tsigs.cwt_vs_stft(wavelet, window, signals=signals, N=N, win_len=win_len,
                       n_fft=n_fft, window_name=window_name, config_str=config_str)
 
 

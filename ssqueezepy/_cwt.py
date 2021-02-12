@@ -2,7 +2,7 @@
 import numpy as np
 from numpy.fft import fft, ifft, ifftshift
 from .utils import WARN, adm_cwt, adm_ssq, _process_fs_and_t
-from .utils import padsignal, process_scales
+from .utils import padsignal, process_scales, logscale_transition_idx
 from .algos import replace_at_inf_or_nan
 from .wavelets import Wavelet
 
@@ -138,8 +138,8 @@ def cwt(x, wavelet='gmw', scales='log', fs=None, t=None, nv=32, l1_norm=True,
     def _process_args(x, scales, nv, fs, t):
         if not isinstance(x, np.ndarray):
             raise TypeError("`x` must be a numpy array (got %s)" % type(x))
-        elif x.ndim not in (1, 2):
-            raise ValueError("`x` must be 1D or 2D (got x.ndim == %s)" % x.ndim)
+        elif x.ndim != 1:
+            raise ValueError("`x` must be 1D (got x.ndim == %s)" % x.ndim)
 
         if np.isnan(x.max()) or np.isinf(x.max()) or np.isinf(x.min()):
             WARN("found NaN or inf values in `x`; will zero")
@@ -271,9 +271,23 @@ def icwt(Wx, wavelet='gmw', scales='log', nv=None, one_int=True, x_len=None,
 
     wavelet = _process_gmw_wavelet(wavelet, l1_norm)
     wavelet = Wavelet._init_if_not_isinstance(wavelet)
+    # will override `nv` to match `scales`'s
     scales, scaletype, _, nv = process_scales(scales, x_len, wavelet, nv=nv,
                                               get_params=True)
     assert (len(scales) == na), "%s != %s" % (len(scales), na)
+
+    #### Handle piecewise scales case ########################################
+    # `nv` must be left unspecified so it's inferred automatically from `scales`
+    # in `process_scales` for each piecewise case
+    if scaletype == 'log-piecewise':
+        kw = dict(wavelet=wavelet, one_int=one_int, x_len=x_len, x_mean=x_mean,
+                  padtype=padtype, rpadded=rpadded, l1_norm=l1_norm)
+
+        idx = logscale_transition_idx(scales)
+        x  = icwt(Wx[:idx], scales=scales[:idx], **kw)
+        x += icwt(Wx[idx:], scales=scales[idx:], **kw)
+        return x
+    ##########################################################################
 
     #### Invert ##############################################################
     if one_int:

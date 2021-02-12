@@ -2,11 +2,11 @@
 import numpy as np
 from ._stft import stft, get_window, _check_NOLA
 from ._ssq_cwt import _invert_components, _process_component_inversion_args
-from .utils import WARN, EPS, pi
+from .utils import WARN, EPS, pi, _process_fs_and_t
 from .ssqueezing import ssqueeze, _check_ssqueezing_args
 
 
-def ssq_stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=1.,
+def ssq_stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=1., t=None,
              modulated=True, ssq_freqs=None, padtype='reflect', squeezing='sum',
              gamma=None, preserve_transform=True):
     """Synchrosqueezed Short-Time Fourier Transform.
@@ -18,7 +18,7 @@ def ssq_stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=1.,
         x: np.ndarray
             Input vector, 1D.
 
-        window, n_fft, win_len, hop_len, fs, padtype, modulated
+        window, n_fft, win_len, hop_len, fs, t, padtype, modulated
             See `help(stft)`.
 
         ssq_freqs, squeezing
@@ -56,6 +56,7 @@ def ssq_stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=1.,
         Nonuniform Samples. G. Thakur and H.-T. Wu.
         https://arxiv.org/abs/1006.2533
     """
+    _, fs, _ = _process_fs_and_t(fs, t, len(x))
     n_fft = n_fft or len(x)
     _check_ssqueezing_args(squeezing)
 

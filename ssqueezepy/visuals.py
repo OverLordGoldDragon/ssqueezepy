@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from numpy.fft import ifft
 from pathlib import Path
 from .algos import find_closest, find_maximum
+from .configs import gdefaults
 
 
 #### Visualizations ##########################################################
@@ -534,7 +535,7 @@ def _viz_cwt_scalebounds(wavelet, N, min_scale=None, max_scale=None,
 
 def wavelet_filterbank(wavelet, N=1024, scales='log', skips=0, title_append=None,
                        positives=False, show=True, get=False):
-    """Plot all frequency-domain wavelets, superimposed.
+    """Plot all frequency-domain wavelets, superposed.
 
     `skips=1` will plot every *other* wavelet, `=2` will skip 2, etc.
     `=0` shows all.
@@ -615,7 +616,7 @@ def imshow(data, title=None, show=1, cmap=None, norm=None, complex=None, abs=0,
     else:
         vmin, vmax = norm
     if cmap is None:
-        cmap = 'bone' if abs else 'bwr'
+        cmap = 'jet' if abs else 'bwr'
     _kw = dict(vmin=vmin, vmax=vmax, cmap=cmap, aspect=aspect, **kw)
 
     if abs:
@@ -818,14 +819,15 @@ def vhlines(lines, kind='v'):
 
     if not isinstance(lines, (list, tuple)):
         lines, lkw = [lines], {}
-    elif isinstance(lines, list):
+    elif isinstance(lines, (list, np.ndarray)):
         lkw = {}
     elif isinstance(lines, tuple):
         lines, lkw = lines
-        lines = lines if isinstance(lines, list) else [lines]
+        lines = lines if isinstance(lines, (list, np.ndarray)) else [lines]
     else:
         raise ValueError("`lines` must be list or (list, dict) "
                          "(got %s)" % lines)
+
     for line in lines:
         lfn(line, **lkw)
 
@@ -854,7 +856,7 @@ def _maybe_title(title, ax=None):
 
     title, kw = (title if isinstance(title, tuple) else
                  (title, {}))
-    defaults = dict(loc='left', weight='bold', fontsize=16)
+    defaults = gdefaults('visuals._maybe_title', get_all=True, as_dict=True)
     for name in defaults:
         kw[name] = kw.get(name, defaults[name])
 

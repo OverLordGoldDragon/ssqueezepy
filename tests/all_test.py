@@ -39,7 +39,7 @@ from ssqueezepy.visuals import hist, plot, plots, scat, plotscat, imshow
 from ssqueezepy.visuals import wavelet_tf
 from ssqueezepy.toolkit import lin_band, cos_f, sin_f, mad_rms, amax
 from ssqueezepy._test_signals import TestSignals
-from ssqueezepy.configs import gdefaults, float_if_number
+from ssqueezepy.configs import gdefaults
 from ssqueezepy import ssq_cwt, issq_cwt, cwt, icwt, ssqueeze
 from ssqueezepy import _gmw
 
@@ -300,7 +300,6 @@ def test_test_signals():
 
 def test_configs():
     pass_on_error(gdefaults, None)
-    pass_on_error(float_if_number, 'number')
 
 
 def pass_on_error(fn, *args, **kw):

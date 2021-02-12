@@ -3,7 +3,7 @@ import numpy as np
 from types import FunctionType
 from .algos import find_closest, indexed_sum, replace_at_inf
 from .utils import process_scales, _infer_scaletype, _process_fs_and_t
-from .utils import NOTE, pi
+from .utils import NOTE, pi, logscale_transition_idx
 from .wavelets import center_frequency
 
 
@@ -177,6 +177,25 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
         scales, cwt_scaletype, _, nv = process_scales(scales, N, get_params=True)
     else:
         cwt_scaletype, nv = None, None
+
+    #### Handle piecewise scales case #########################################
+    # `nv` must be left unspecified so it's inferred automatically from `scales`
+    # in `process_scales` for each piecewise case
+    # `ssq_freqs` will also infer automatically
+    if cwt_scaletype == 'log-piecewise':
+        if not isinstance(scales, np.ndarray):
+            raise ValueError("`scales` must be np.ndarray if `cwt_scaletype="
+                             "'log-piecewise'` (got %s)" % type(scales))
+        kw = dict(fs=fs, t=t, transform=transform,
+                  squeezing=squeezing, maprange=maprange, wavelet=wavelet)
+
+        idx = logscale_transition_idx(scales)
+        Tx, ssq_freqs = np.zeros(Wx.shape, dtype=np.cfloat), np.zeros(len(Wx))
+        for ix in (slice(0, idx), slice(idx, None)):
+            Tx[ix], ssq_freqs[ix] = ssqueeze(Wx[ix], w[ix], scales=scales[ix],
+                                             **kw)
+        return Tx, ssq_freqs
+    ###########################################################################
 
     if not isinstance(ssq_freqs, np.ndarray):
         if isinstance(ssq_freqs, str):

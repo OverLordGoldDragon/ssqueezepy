@@ -24,7 +24,7 @@ variety of localization characteristics.
 6. **hchirp**: hyperbolic chirp, `cos(2pi a/(b - t))`, spanning `fmin` to `fmax`
 
 7, 8, 9: **par_lchirp, par_echirp, par_hchirp**: linear, exponential, hyperbolic
-         chirps, superimposed, with frequency modulation in parallel,
+         chirps, superposed, with frequency modulation in parallel,
          spanning `fmin1` to `fmax1` and `fmin2` to `fmax2`.
 
 10. **jumps**: large instant frequency transitions, `cos(2pi f*t), f=2 -> f=100`

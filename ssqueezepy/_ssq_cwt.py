@@ -24,20 +24,10 @@ def ssq_cwt(x, wavelet='gmw', scales='log', nv=None, fs=None, t=None,
             CWT scales. See `help(cwt)`.
 
         nv: int / None
-            Number of voices (CWT only). Suggested >= 32 (default=32).
+            Number of voices. Suggested >= 32 (default=32).
 
-        fs: float / None
-            Sampling frequency of `x`. Defaults to 1, which makes ssq
-            frequencies range from 1/dT to 0.5, i.e. as fraction of reference
-            sampling rate up to Nyquist limit; dT = total duration (N/fs).
-            Overridden by `t`, if provided.
-            Relevant on `t` and `dT`: https://dsp.stackexchange.com/a/71580/50076
-
-        t: np.ndarray / None
-            Vector of times at which samples are taken (eg np.linspace(0, 1, n)).
-            Must be uniformly-spaced.
-            Defaults to `np.linspace(0, len(x)/fs, len(x), endpoint=False)`.
-            Overrides `fs` if not None.
+        fs, t
+            See `help(_cwt.cwt)`.
 
         ssq_freqs: str['log', 'linear'] / np.ndarray / None
             Frequencies to synchrosqueeze CWT scales onto. Scale-frequency

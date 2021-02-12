@@ -3,10 +3,11 @@ import numpy as np
 import scipy.signal as sig
 from numpy.fft import fft, ifft, rfft, irfft, fftshift, ifftshift
 from .utils import WARN, padsignal, buffer, unbuffer, window_norm
+from .utils import _process_fs_and_t
 from .wavelets import _xifn
 
 
-def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=1.,
+def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=1., t=None,
          padtype='reflect', modulated=True, derivative=False):
     """Short-Time Fourier Transform.
 
@@ -47,6 +48,12 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=1.,
             frequencies range from 0 to 0.5*fs, i.e. as fraction of reference
             sampling rate up to Nyquist limit. Used to compute `dSx` and
             `ssq_freqs`.
+
+        t: np.ndarray / None
+            Vector of times at which samples are taken (eg np.linspace(0, 1, n)).
+            Must be uniformly-spaced.
+            Defaults to `np.linspace(0, len(x)/fs, len(x), endpoint=False)`.
+            Overrides `fs` if not None.
 
         padtype: str
             Pad scheme to apply on input. See `help(utils.padsignal)`.
@@ -114,10 +121,11 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=1.,
             dSx = rfft(dSx, axis=0) * fs
         return (Sx, dSx) if derivative else (Sx, None)
 
+    _, fs, _ = _process_fs_and_t(fs, t, len(x))
     n_fft = n_fft or len(x)
     if win_len is None:
         win_len = (len(window) if isinstance(window, np.ndarray) else
-                   n_fft//8)
+                   n_fft)
     window, diff_window = get_window(window, win_len, n_fft, derivative=True)
     _check_NOLA(window, hop_len)
 
@@ -216,7 +224,7 @@ def get_window(window, win_len, n_fft=None, derivative=False):
                              "(got %s)" % window)
     else:
         # sym=False <-> fftbins=True (see above)
-        window = sig.windows.dpss(win_len, min(4, win_len//2 - 1), sym=False)
+        window = sig.windows.dpss(win_len, max(4, win_len//8), sym=False)
 
     if len(window) < (win_len + pl + pr):
         window = np.pad(window, [pl, pr])

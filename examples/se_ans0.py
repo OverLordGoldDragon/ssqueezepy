@@ -33,7 +33,7 @@ plt.axhline(30, color='r')
 plt.show()
 
 #%%## Animate rows ###########################################################
-def row_anim(Wxz, idxs, scales, superimposed=False):
+def row_anim(Wxz, idxs, scales, superposed=False):
     mx = np.max(np.abs(Wxz))
     for scale, row in zip(scales[idxs], Wxz):
         if row.max() == Wxz.max():
@@ -41,7 +41,7 @@ def row_anim(Wxz, idxs, scales, superimposed=False):
         else:
             plt.plot(row.real, color='tab:blue')
         plt.ylim(-1.05*mx, 1.05*mx)
-        if not superimposed:
+        if not superposed:
             plt.annotate("scale=%.1f" % scale, weight='bold', fontsize=14,
                          xy=(.85, .93), xycoords='axes fraction')
             plt.show()
@@ -51,7 +51,7 @@ def row_anim(Wxz, idxs, scales, superimposed=False):
 #%%
 row_anim(Wxz, idxs, scales)
 #%%## Superimpose ####
-row_anim(Wxz, idxs, scales, superimposed=True)
+row_anim(Wxz, idxs, scales, superposed=True)
 #%%## Synchrosqueeze
 Tx, _, ssq_freqs, *_ = ssq_cwt(x, wavelet, t=_t(0, 1, N))
 #%%
