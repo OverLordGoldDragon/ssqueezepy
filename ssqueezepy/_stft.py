@@ -180,7 +180,7 @@ def istft(Sx, window=None, n_fft=None, win_len=None, hop_len=1, N=None,
     """
     ### process args #####################################
     n_fft = n_fft or (Sx.shape[0] - 1) * 2
-    win_len = win_len or n_fft // 8
+    win_len = win_len or n_fft
     N = N or (hop_len * Sx.shape[1] - 1)  # assume largest possible N if not given
 
     window = get_window(window, win_len, n_fft=n_fft)
