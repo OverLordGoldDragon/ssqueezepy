@@ -48,6 +48,7 @@ from . import algos
 from . import experimental
 
 
+
 from .ssqueezing import *
 from ._ssq_cwt import *
 from ._ssq_stft import *
@@ -55,7 +56,7 @@ from ._cwt import *
 from ._stft import *
 from .wavelets import *
 from .ridge_extraction import *
-
+from ._test_signals import *
 
 def wavs():
     return wavelets.Wavelet.SUPPORTED

@@ -6,7 +6,7 @@ from ssqueezepy import ssq_cwt, ssq_stft, extract_ridges
 from ssqueezepy.visuals import plot, imshow
 
 # set to 1 to run tests as functions, showing plots; also runs optional tests
-VIZ = 0
+VIZ = 1
 
 
 def test_basic():
@@ -73,13 +73,12 @@ def _test_lchirp_reflected():
     x, t = tsigs.lchirp(N)
     x += x[::-1]
 
-    tf_transforms(x, t)
+    tf_transforms(x, t,cwt_bw=20)
 
 
 def _test_lchirp_parallel():
     """Parallel F.M. linear chirps. OPTIONAL TEST to not add compute time."""
     N = 512
-
     tsigs = TestSignals(N)
     x, t = tsigs.par_lchirp(N)
 
@@ -110,12 +109,13 @@ def viz(x, Tf, ridge_idxs, yticks=None, ssq=False, transform='cwt', show_x=True)
     plot(ridge_idxs, **pkw, show=1)
 
 
-def tf_transforms(x, t, wavelet='gmw', window=None, padtype='wrap',
+def tf_transforms(x, t, wavelet='morlet', window=None, padtype='wrap',
                   penalty=.5, n_ridges=2, cwt_bw=15, stft_bw=15,
                   ssq_cwt_bw=4, ssq_stft_bw=4):
-    kw = dict(t=t, padtype=padtype)
-    Twx, ssq_freqs_c, Wx, scales, *_ = ssq_cwt(x,  wavelet, **kw)
-    Tsx, ssq_freqs_s, Sx, Sfs, *_    = ssq_stft(x, window,  **kw)
+    kw_cwt = dict(t=t, padtype=padtype)
+    kw_stft=dict(fs=((t[-1]-t[0])/len(t))**-1,padtype=padtype)
+    Twx, ssq_freqs_c, Wx, scales, *_ = ssq_cwt(x,  wavelet, **kw_cwt)
+    Tsx, ssq_freqs_s, Sx, Sfs, *_    = ssq_stft(x, window,  **kw_stft)
 
     ckw = dict(penalty=penalty, n_ridges=n_ridges, transform='cwt')
     skw = dict(penalty=penalty, n_ridges=n_ridges, transform='stft')
