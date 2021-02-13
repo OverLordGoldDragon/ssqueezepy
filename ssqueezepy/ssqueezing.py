@@ -195,24 +195,26 @@ def _compute_associated_frequencies(dt, na, N, transform, ssq_scaletype,
         ssq_freqs = fm * np.power(fM / fm, np.arange(na)/(na - 1))
 
     elif ssq_scaletype == 'log-piecewise':
-        # here we don't know what the pre-downsampled `len(scales)` was,
-        # so we take a longer route by piecewising respective center freqs
-        ssq_freqs = fm * np.power(fM / fm, np.arange(na)/(na - 1))
         idx = logscale_transition_idx(scales)
+        if idx is None:
+            ssq_freqs = fm * np.power(fM / fm, np.arange(na)/(na - 1))
+        else:
+            f0, f2 = fm, fM
+            f1 = _get_center_frequency(wavelet, N, maprange, dt, scales[idx])
 
-        f0, f2 = fm, fM
-        f1 = _get_center_frequency(wavelet, N, maprange, dt, scales[idx])
+            # here we don't know what the pre-downsampled `len(scales)` was,
+            # so we take a longer route by piecewising respective center freqs
+            t1 = np.arange(0, na - idx - 1) /(na - 1)
+            t2 = np.arange(na - idx - 1, na)/(na - 1)
+            # simulates effect of "endpoint" since we'd need to know `f2`
+            # with `endpoint=False`
+            t1 = np.hstack([t1, t2[0]])
 
-        t1 = np.arange(0, na - idx - 1) /(na - 1)
-        t2 = np.arange(na - idx - 1, na)/(na - 1)
-        # simulates effect of "endpoint" since we'd need to know `f2` with False
-        t1 = np.hstack([t1, t2[0]])
-
-        sqf1 = _exp_fm(t1, f0, f1)[:-1]
-        sqf2 = _exp_fm(t2, f1, f2)
-        ssq_freqs = np.hstack([sqf1, sqf2])
-        ssq_idx = logscale_transition_idx(ssq_freqs)
-        assert (na - ssq_idx) == idx, "{} != {}".format(na - ssq_idx, idx)
+            sqf1 = _exp_fm(t1, f0, f1)[:-1]
+            sqf2 = _exp_fm(t2, f1, f2)
+            ssq_freqs = np.hstack([sqf1, sqf2])
+            ssq_idx = logscale_transition_idx(ssq_freqs)
+            assert (na - ssq_idx) == idx, "{} != {}".format(na - ssq_idx, idx)
 
     else:
         if transform == 'cwt':

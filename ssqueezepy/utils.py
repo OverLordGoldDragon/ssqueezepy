@@ -616,12 +616,14 @@ def make_scales(N, min_scale=None, max_scale=None, nv=32, scaletype='log',
         scales = 2 ** (np.arange(mn_pow, mx_pow) / nv)
         idx = find_downsampling_scale(wavelet, scales)
 
-        # `+downsample - 1` starts `scales2` as continuing from `scales1`
-        # at `scales2`'s sampling rate; rest of ops are based on this design,
-        # such as `/nv` in ssq, which divides `scales2[0]` by `nv`, but if
-        # `scales2[0]` is one sample away from `scales1[-1]`, seems incorrect
-        scales1, scales2 = scales[:idx], scales[idx + downsample - 1::downsample]
-        scales = np.hstack([scales1, scales2])
+        if idx is not None:
+            # `+downsample - 1` starts `scales2` as continuing from `scales1`
+            # at `scales2`'s sampling rate; rest of ops are based on this design,
+            # such as `/nv` in ssq, which divides `scales2[0]` by `nv`, but if
+            # `scales2[0]` is one sample away from `scales1[-1]`, seems incorrect
+            scales1 = scales[:idx]
+            scales2 = scales[idx + downsample - 1::downsample]
+            scales = np.hstack([scales1, scales2])
 
     elif scaletype == 'linear':
         # TODO poor scheme (but there may not be any good one)
@@ -725,6 +727,7 @@ def find_downsampling_scale(wavelet, scales, span=5, tol=3, method='sum',
     Psih = Psih[:, :Psih.shape[1]//2]
     n_scales = len(Psih)
     n_groups = n_scales - span - 1
+    psihs_peaks = None
 
     for i in range(n_groups):
         psihs = Psih[i:i + span]
@@ -744,7 +747,7 @@ def find_downsampling_scale(wavelet, scales, span=5, tol=3, method='sum',
         if viz:
             _viz(psihs, psihs_peaks, joint_peak, i)
 
-    if viz or viz_last:
+    if (viz or viz_last) and psihs_peaks is not None:
         print(("Failing scale: (idx, scale) = ({}, {:.2f})\n"
                "out of max:    (idx, scale) = ({}, {:.2f})"
                ).format(i, float(scales[i]), len(scales) - 1, float(scales[-1])))
