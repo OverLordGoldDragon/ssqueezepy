@@ -713,9 +713,8 @@ def find_downsampling_scale(wavelet, scales, span=5, tol=3, method='sum',
     if method not in supported:
         raise ValueError("`method` must be one of {} (got {})".format(
             ', '.join(supported), method))
-    if not isinstance(wavelet, (Wavelet, np.ndarray)):
-        raise TypeError("`wavelet` must be instance of `Wavelet` or `np.ndarray` "
-                        "(got %s)" % type(wavelet))
+    if not isinstance(wavelet, np.ndarray):
+        wavelet = Wavelet._init_if_not_isinstance(wavelet)
 
     Psih = (wavelet if isinstance(wavelet, np.ndarray) else
             wavelet(scale=scales))
