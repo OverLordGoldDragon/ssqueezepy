@@ -7,8 +7,9 @@ from .algos import replace_at_inf_or_nan
 from .wavelets import Wavelet
 
 
-def cwt(x, wavelet='gmw', scales='log', fs=None, t=None, nv=32, l1_norm=True,
-        derivative=False, padtype='reflect', rpadded=False, vectorized=True):
+def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
+        l1_norm=True, derivative=False, padtype='reflect', rpadded=False,
+        vectorized=True):
     """Continuous Wavelet Transform, discretized, as described in
     Sec. 4.3.3 of [1] and Sec. IIIA of [2]. Uses a form of discretized
     convolution theorem via wavelets in the Fourier domain and FFT of input.

@@ -6,7 +6,7 @@ from .wavelets import Wavelet
 from ._cwt import cwt
 
 
-def ssq_cwt(x, wavelet='gmw', scales='log', nv=None, fs=None, t=None,
+def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
             ssq_freqs=None, padtype='reflect', squeezing='sum', maprange='peak',
             difftype='direct', difforder=None, gamma=None,
             preserve_transform=True):
@@ -180,7 +180,7 @@ def ssq_cwt(x, wavelet='gmw', scales='log', nv=None, fs=None, t=None,
     scales, cwt_scaletype, *_ = process_scales(scales, N, wavelet, nv=nv,
                                                get_params=True)
 
-    # l1_norm=True to spare a multiplication; for SSWT L1 & L2 are exactly
+    # l1_norm=True to spare a multiplication; for SSQ_CWT L1 & L2 are exactly
     # same anyway since we're inverting CWT over time-frequency plane
     rpadded = (difftype == 'numeric')
     Wx, scales, dWx = cwt(x, wavelet, scales=scales, fs=fs, nv=nv, l1_norm=True,

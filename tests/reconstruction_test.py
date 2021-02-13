@@ -6,7 +6,7 @@ from ssqueezepy import cwt, icwt, stft, istft
 from ssqueezepy._stft import get_window
 from ssqueezepy.toolkit import lin_band
 
-VIZ = 0  # set to 1 to enable various visuals and run without pytest
+VIZ = 1  # set to 1 to enable various visuals and run without pytest
 
 
 #### Helper methods ##########################################################
@@ -58,10 +58,11 @@ def test_ssq_cwt():
     errs = []
     for fn in test_fns:
         x, ts = fn(2048)
-        for scales in ('log', 'linear'):
+        for scales in ('log', 'log-piecewise', 'linear'):
             if fn.__name__ == 'low_freqs':
-                if scales == 'linear':
+                if scales in ('linear', 'log-piecewise'):
                     # 'linear' default can't handle low frequencies for large N
+                    # 'log-piecewise' maps it too sparsely # TODO verify this
                     continue
                 scales = f'{scales}:maximal'
 

@@ -434,9 +434,11 @@ def process_scales(scales, len_x, wavelet=None, nv=None, get_params=False,
         if isinstance(scales, str):
             if ':' in scales:
                 scales, preset = scales.split(':')
-            if scales not in ('log', 'linear'):
-                raise ValueError("`scales`, if string, must be one of: log, "
-                                 "linear (got %s)" % scales)
+
+            supported = ('log', 'log-piecewise', 'linear')
+            if scales not in supported:
+                raise ValueError("`scales`, if string, must be one of: "
+                                 "%s (got %s)" % (', '.join(supported), scales))
             if nv is None:
                 nv = 32
             if wavelet is None:
@@ -453,13 +455,15 @@ def process_scales(scales, len_x, wavelet=None, nv=None, get_params=False,
                     raise Exception("`nv` used in `scales` differs from "
                                     "`nv` passed (%s != %s)" % (_nv, nv))
                 nv = _nv
+            elif scaletype == 'log-piecewise':
+                nv = _nv  # will be array
             scales = scales.reshape(-1, 1)  # ensure 2D for broadcast ops later
 
         else:
             raise TypeError("`scales` must be a string or Numpy array "
                             "(got %s)" % type(scales))
 
-        if nv is not None:
+        if nv is not None and not isinstance(nv, np.ndarray):
             _assert_positive_integer(nv, 'nv')
             nv = int(nv)
         return scaletype, nv, preset
@@ -473,52 +477,69 @@ def process_scales(scales, len_x, wavelet=None, nv=None, get_params=False,
     #### Compute scales & params #############################################
     min_scale, max_scale = cwt_scalebounds(wavelet, N=len_x, preset=preset,
                                            double_N=double_N)
-    scales = make_scales(len_x, min_scale, max_scale, nv=nv, scaletype=scaletype)
+    scales = make_scales(len_x, min_scale, max_scale, nv=nv, scaletype=scaletype,
+                         wavelet=wavelet)
     na = len(scales)
 
     return (scales if not get_params else
             (scales, scaletype, na, nv))
 
 
-def _infer_scaletype(ipt):
-    """Infer whether `ipt` is linearly or exponentially distributed (if latter,
+def _infer_scaletype(scales):
+    """Infer whether `scales` is linearly or exponentially distributed (if latter,
     also infers `nv`). Used internally on `scales` and `ssq_freqs`.
 
     Returns one of: 'linear', 'log', 'log-piecewise'
     """
-    if not isinstance(ipt, np.ndarray):
-        raise TypeError("`ipt` must be a numpy array (got %s)" % type(ipt))
-    elif ipt.dtype not in (np.float32, np.float64):
-        raise TypeError("`ipt.dtype` must be np.float32 or np.float64 "
-                        "(got %s)" % ipt.dtype)
+    if not isinstance(scales, np.ndarray):
+        raise TypeError("`scales` must be a numpy array (got %s)" % type(scales))
+    elif scales.dtype not in (np.float32, np.float64):
+        raise TypeError("`scales.dtype` must be np.float32 or np.float64 "
+                        "(got %s)" % scales.dtype)
 
-    th_log = 1e-15 if ipt.dtype == np.float64 else 4e-7
+    th_log = 1e-15 if scales.dtype == np.float64 else 4e-7
     th_lin = th_log * 1e3  # less accurate for some reason
 
-    if np.mean(np.abs(np.diff(ipt, 2, axis=0))) < th_lin:
+    if np.mean(np.abs(np.diff(scales, 2, axis=0))) < th_lin:
         scaletype = 'linear'
         nv = None
-    elif np.mean(np.abs(np.diff(np.log(ipt), 2, axis=0))) < th_log:
+
+    elif np.mean(np.abs(np.diff(np.log(scales), 2, axis=0))) < th_log:
         scaletype = 'log'
-        # ceil to avoid faulty float-int ROUNDOFFS
-        nv = int(np.round(1 / np.diff(np.log2(ipt), axis=0)[0]))
-    elif logscale_transition_idx(ipt) is None:
-        raise ValueError("could not infer `scaletype` from `ipt`; "
-                         "`ipt` array must be linear or exponential. "
-                         "(got diff(ipt)=%s..." % np.diff(ipt, axis=0)[:4])
+        # ceil to avoid faulty float-int roundoffs
+        nv = int(np.round(1 / np.diff(np.log2(scales), axis=0)[0]))
+
+    elif logscale_transition_idx(scales) is None:
+        raise ValueError("could not infer `scaletype` from `scales`; "
+                         "`scales` array must be linear or exponential. "
+                         "(got diff(scales)=%s..." % np.diff(scales, axis=0)[:4])
+
     else:
         scaletype = 'log-piecewise'
-        nv = None
+        logdiffs = 1 / np.diff(np.log2(scales), axis=0)
+        nv = np.vstack([logdiffs[:1], logdiffs])
+
+        nv_transition_idx = np.argmax(np.abs(np.diff(nv, axis=0))) + 1
+        idx = logscale_transition_idx(scales)
+        assert nv_transition_idx == idx, "%s != %s" % (nv_transition_idx, idx)
+
     return scaletype, nv
 
 
 def logscale_transition_idx(scales):
-    scales_diff2 = np.diff(np.log(scales), 2, axis=0)
-    idx = np.argmax(scales_diff2) + 1
-
+    """Returns `idx` that splits `scales` as `[scales[:idx], scales[idx:]]`.
+    """
+    scales_diff2 = np.abs(np.diff(np.log(scales), 2, axis=0))
+    idx = np.argmax(scales_diff2) + 2
+    diff2_max = scales_diff2.max()
     # every other value must be zero, assert it is so
-    scales_diff2[idx - 1] = 0
-    if not np.all(np.abs(scales_diff2) < 1e-15):
+    scales_diff2[idx - 2] = 0
+
+    if not np.any(diff2_max > 100*np.abs(scales_diff2).mean()):
+        # everything's zero, i.e. no transition detected
+        return None
+    elif not np.all(np.abs(scales_diff2) < 1e-14):
+        # other nonzero diffs found, more than one transition point
         return None
     else:
         return idx
@@ -545,9 +566,41 @@ def _process_fs_and_t(fs, t, N):
     return dt, fs, t
 
 
-def make_scales(N, min_scale=None, max_scale=None, nv=32, scaletype='log'):
-    min_scale = min_scale or 1
-    max_scale = max_scale or N
+def make_scales(N, min_scale=None, max_scale=None, nv=32, scaletype='log',
+                wavelet=None, downsample=3):
+    """Recommended to first work out `min_scale` & `max_scale` with
+    `cwt_scalebounds`.
+
+    # Arguments:
+        N: int
+            `len(x)` or `len(x_padded)`.
+
+        min_scale, max_scale: float, float
+            Set scale range. Obtained e.g. from `utils.cwt_scalebounds`.
+
+        nv: int
+            Number of voices (wavelets) per octave.
+
+        scaletype: str['log', 'log-piecewise', 'linear']
+            Scaling kind to make.
+            `'log-piecewise'` uses `utils.find_downsampling_scale`.
+
+        wavelet: wavelets.Wavelet
+            Used only for `scaletype='log-piecewise'`.
+
+        downsample: int
+            Downsampling factor. Used only for `scaletype='log-piecewise'`.
+
+    # Returns:
+        scales: np.ndarray
+    """
+    if scaletype == 'log-piecewise' and wavelet is None:
+        raise ValueError("must pass `wavelet` for `scaletype == 'log-piecewise'`")
+    if min_scale is None and max_scale is None and wavelet is not None:
+        min_scale, max_scale = cwt_scalebounds(wavelet, N)
+    else:
+        min_scale = min_scale or 1
+        max_scale = max_scale or N
 
     # number of 2^-distributed scales spanning min to max
     na = int(np.ceil(nv * np.log2(max_scale / min_scale)))
@@ -559,8 +612,19 @@ def make_scales(N, min_scale=None, max_scale=None, nv=32, scaletype='log'):
     if scaletype == 'log':
         scales = 2 ** (np.arange(mn_pow, mx_pow) / nv)
 
+    elif scaletype == 'log-piecewise':
+        scales = 2 ** (np.arange(mn_pow, mx_pow) / nv)
+        idx = find_downsampling_scale(wavelet, scales)
+
+        # `+downsample - 1` starts `scales2` as continuing from `scales1`
+        # at `scales2`'s sampling rate; rest of ops are based on this design,
+        # such as `/nv` in ssq, which divides `scales2[0]` by `nv`, but if
+        # `scales2[0]` is one sample away from `scales1[-1]`, seems incorrect
+        scales1, scales2 = scales[:idx], scales[idx + downsample - 1::downsample]
+        scales = np.hstack([scales1, scales2])
+
     elif scaletype == 'linear':
-        # TODO poor scheme
+        # TODO poor scheme (but there may not be any good one)
         min_scale, max_scale = 2**(mn_pow/nv), 2**(mx_pow/nv)
         na = int(np.ceil(max_scale / min_scale))
         scales = np.linspace(min_scale, max_scale, na)
@@ -570,6 +634,123 @@ def make_scales(N, min_scale=None, max_scale=None, nv=32, scaletype='log'):
                          "got: %s" % scaletype)
     scales = scales.reshape(-1, 1)  # ensure 2D for broadcast ops later
     return scales
+
+
+def find_downsampling_scale(wavelet, scales, span=5, tol=3, method='sum',
+                            nonzero_th=.02, nonzero_tol=4., viz=False,
+                            viz_last=False):
+    """
+
+    # Arguments
+        wavelet: np.ndarray / wavelets.Wavelet
+        scales: np.ndarray
+
+        span: int
+            Number of wavelets to cross-correlate at each comparison
+
+        tol: int
+            Tolerance value, works with `method`
+
+        method: str['any', 'all', 'sum']
+            Condition relating `span` and `tol` to determine whether wavelets
+            are packed "too densely" at a given cross-correlation, relative
+            to "joint peak".
+
+                'any': at least one of wavelet peaks lie `tol` or more bins away
+                'all': all wavelet peaks lie `tol` or more bins away
+                'sum': sum(distances between wavelet peaks and joint peak) > `tol`
+
+        nonzero_th: float
+            Wavelet points as a fraction of respective maxima to consider
+            nonzero (i.e. `np.where(psih > psih.max()*nonzero_th)`).
+
+        nonzero_tol: float
+            Average number of nonzero points in a `span` group of wavelets above
+            which testing is exempted. (e.g. if 5 wavelets have 25 nonzero points,
+            average is 5, so if `nonzero_tol=4`, the `scale` is skipped/passed).
+
+        viz: bool (default False)
+            Visualize every test for debug purposes.
+
+        viz_last: bool (default True)
+            Visualize the failing scale (recommended if trying by hand);
+            ignored if `viz=True`.
+    """
+    def check_group(psihs_peaks, joint_peak, method, tol):
+        too_dense = False
+        distances = np.abs(psihs_peaks[1] - joint_peak)
+
+        if method == 'any':
+            dist_max = distances.max()
+            if dist_max < tol:
+                too_dense = True
+        elif method == 'all':
+            dist_satisfied = (distances > tol)
+            if not np.all(dist_satisfied):
+                too_dense = True
+        elif method == 'sum':
+            dist_sum = distances.sum()
+            if dist_sum < tol:
+                too_dense = True
+        return too_dense
+
+    def _viz(psihs, psihs_peaks, joint_peak, psihs_nonzeros, i):
+        from .visuals import plot, scat
+
+        max_nonzero_idx = np.where(psihs_nonzeros)[1].max()
+
+        plot(psihs.T[:max_nonzero_idx + 3], color='tab:blue',
+             vlines=(joint_peak, {'color': 'tab:red'}))
+        scat(psihs_peaks[1], psihs[psihs_peaks].T, color='tab:red', show=1)
+
+        distances = np.abs(psihs_peaks[1] - joint_peak)
+        print("(idx, peak distances from joint peak, joint peak) = "
+              "({}, {}, {})".format(i, distances, joint_peak), flush=True)
+
+    supported = ('any', 'all', 'sum')
+    if method not in supported:
+        raise ValueError("`method` must be one of {} (got {})".format(
+            ', '.join(supported), method))
+    if not isinstance(wavelet, (Wavelet, np.ndarray)):
+        raise TypeError("`wavelet` must be instance of `Wavelet` or `np.ndarray` "
+                        "(got %s)" % type(wavelet))
+
+    Psih = (wavelet if isinstance(wavelet, np.ndarray) else
+            wavelet(scale=scales))
+    if len(Psih) != len(scales):
+        raise ValueError("len(Psih) != len(scales) "
+                         "(%s != %s)" % (len(Psih), len(scales)))
+
+    # analytic, drop right half (all zeros)
+    Psih = Psih[:, :Psih.shape[1]//2]
+    n_scales = len(Psih)
+    n_groups = n_scales - span - 1
+
+    for i in range(n_groups):
+        psihs = Psih[i:i + span]
+
+        psihs_nonzeros = (psihs > nonzero_th*psihs.max(axis=1)[:, None])
+        avg_nonzeros = psihs_nonzeros.sum() / span
+        if avg_nonzeros > nonzero_tol:
+            continue
+
+        psihs_peaks = np.where(psihs == psihs.max(axis=1)[:, None])
+        joint_peak = np.argmax(np.prod(psihs, 0))  # mutually cross-correlate
+
+        too_dense = check_group(psihs_peaks, joint_peak, method, tol)
+        if too_dense:
+            break
+
+        if viz:
+            _viz(psihs, psihs_peaks, joint_peak, i)
+
+    if viz or viz_last:
+        print(("Failing scale: (idx, scale) = ({}, {:.2f})\n"
+               "out of max:    (idx, scale) = ({}, {:.2f})"
+               ).format(i, float(scales[i]), len(scales) - 1, float(scales[-1])))
+        _viz(psihs, psihs_peaks, joint_peak, psihs_nonzeros, i)
+
+    return i if (i < n_groups - 1) else None
 
 
 #### STFT utils ###############################################################
