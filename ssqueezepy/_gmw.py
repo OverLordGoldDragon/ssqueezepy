@@ -18,11 +18,11 @@ pi = np.pi
 
 
 #### Base wavelets (`K=1`) ###################################################
-def gmw(gamma=None, beta=None, norm=None, centered_scale=None):
+def gmw(gamma=None, beta=None, norm=None, order=None, centered_scale=None):
     """Generalized Morse Wavelets. Returns function which computes GMW in the
     frequency domain.
 
-    Assumes `K == 1` and `beta != 0`; for full functionality use `_gmw.morsewave`.
+    Assumes `beta != 0`; for full functionality use `_gmw.morsewave`.
     Unlike `morsewave`, works with scales rather than frequencies.
 
     Note that function for `norm='energy'` does *not* rescale freq-domain wavelet
@@ -46,6 +46,11 @@ def gmw(gamma=None, beta=None, norm=None, centered_scale=None):
                 for all `freqs`, i.e. `max(psih) == 2`, `w[argmax(psih)] == wc`.
 
             Additionally see `help(_gmw.morsewave)`.
+
+        order: int (default 1)
+            Order of the wavelet. `k+1`-th order wavelet is orthogonal to `k`-th.
+            `k=0` will call a different but equivalent function for simpler code
+            and compute efficiency.
 
         centered_scale: bool (default False)
             Unlike other `ssqueezepy.wavelets`, by default `scale=1` in
@@ -105,16 +110,21 @@ def gmw(gamma=None, beta=None, norm=None, centered_scale=None):
         v1.6.9, http://www.jmlilly.net/jmlsoft.html
         https://github.com/jonathanlilly/jLab/blob/master/jWavelet/morsewave.m
     """
-    _check_args(gamma=gamma, beta=beta, norm=norm)
-    gamma, beta, norm, centered_scale = gdefaults('_gmw.gmw', gamma=gamma,
-                                                  beta=beta, norm=norm,
-                                                  centered_scale=centered_scale)
-    return (gmw_l1(gamma, beta, centered_scale) if norm == 'bandpass' else
-            gmw_l2(gamma, beta, centered_scale))
+    _check_args(gamma=gamma, beta=beta, norm=norm, order=order)
+    kw = gdefaults('_gmw.gmw', gamma=gamma, beta=beta, norm=norm, order=order,
+                   centered_scale=centered_scale, as_dict=True)
+    norm, k = kw.pop('norm'), kw.pop('order')
+
+    l1_fn, l2_fn = ((gmw_l1, gmw_l2) if k == 0 else
+                    (gmw_l1_k, gmw_l2_k))
+    if k > 0:
+        kw['k'] = k
+    return (l1_fn(**kw) if norm == 'bandpass' else
+            l2_fn(**kw))
 
 
 def compute_gmw(N, scale, gamma=3, beta=60, time=False, norm='bandpass',
-                centered_scale=False, norm_scale=True):
+                order=0, centered_scale=False, norm_scale=True):
     """Evaluates GMWs, returning as arrays. See `help(_gmw.gmw)` for full docs.
 
     # Arguments
@@ -124,7 +134,7 @@ def compute_gmw(N, scale, gamma=3, beta=60, time=False, norm='bandpass',
         scale: float > 0
             Scale at which to sample the freq-domain wavelet: `psih(s * w)`.
 
-        gamma, beta, norm:
+        gamma, beta, norm, order:
             See `help(_gmw.gmw)`.
 
         time: bool (default False)
@@ -144,7 +154,7 @@ def compute_gmw(N, scale, gamma=3, beta=60, time=False, norm='bandpass',
             Time-domain wavelet, returned if `time=True`.
     """
     _check_args(gamma=gamma, beta=beta, norm=norm, scale=scale)
-    gmw_fn = gmw(gamma, beta, norm, centered_scale)
+    gmw_fn = gmw(gamma, beta, norm, order, centered_scale)
 
     w = _xifn(scale, N)
     X = np.zeros(N)
@@ -166,7 +176,8 @@ def compute_gmw(N, scale, gamma=3, beta=60, time=False, norm='bandpass',
 
 
 def gmw_l1(gamma=3., beta=60., centered_scale=False):
-    """Generalized Morse Wavelets, L1(bandpass)-normalized. See `help(_gmw.gmw)`.
+    """Generalized Morse Wavelets, first order, L1(bandpass)-normalized.
+    See `help(_gmw.gmw)`.
     """
     _check_args(gamma=gamma, beta=beta, allow_zerobeta=False)
     wc = morsefreq(gamma, beta)
@@ -183,7 +194,8 @@ def _gmw_l1(w, gamma, beta, wc, w_negs):
 
 
 def gmw_l2(gamma=3., beta=60., centered_scale=False):
-    """Generalized Morse Wavelets, L2(energy)-normalized. See `help(_gmw.gmw)`.
+    """Generalized Morse Wavelets, first order, L2(energy)-normalized.
+    See `help(_gmw.gmw)`.
     """
     _check_args(gamma=gamma, beta=beta, allow_zerobeta=False)
     wc = morsefreq(gamma, beta)
@@ -205,40 +217,86 @@ def _gmw_l2(w, gamma, beta, wc, r, rgamma, w_negs):
 
 
 def gmw_l1_k(gamma=3., beta=60., k=1, centered_scale=False):
+    """Generalized Morse Wavelets, `k`-th order, L1(bandpass)-normalized.
+    See `help(_gmw.gmw)`.
+    """
     _check_args(gamma=gamma, beta=beta, allow_zerobeta=False)
-    wc = morsefreq(gamma, beta)
 
+    wc = morsefreq(gamma, beta)
+    k_consts = _gmw_k_constants(gamma, beta, k, norm='bandpass')
+
+    if centered_scale:
+        return lambda w: _gmw_l1_k(np.atleast_1d(w * wc), gamma, beta, wc, w < 0,
+                                   k_consts)
+    else:
+        return lambda w: _gmw_l1_k(np.atleast_1d(w), gamma, beta, wc, w < 0,
+                                   k_consts)
+
+@jit(nopython=True, cache=True)
+def _gmw_l1_k(w, gamma, beta, wc, w_negs, k_consts):
+    w *= ~w_negs  # zero negative `w` to avoid nans
+
+    C = np.zeros(w.shape)
+    for m in range(len(k_consts)):
+        C += k_consts[m] * (2*w**gamma)**m
+
+    return C * np.exp(- beta * np.log(wc) + wc**gamma
+                      + beta * np.log(w)  - w**gamma) * (~w_negs)
+
+
+def gmw_l2_k(gamma=3., beta=60., k=1, centered_scale=False):
+    """Generalized Morse Wavelets, `k`-th order, L2(energy)-normalized.
+    See `help(_gmw.gmw)`.
+    """
+    _check_args(gamma=gamma, beta=beta, allow_zerobeta=False)
+
+    wc = morsefreq(gamma, beta)
+    k_consts = _gmw_k_constants(gamma, beta, k, norm='energy')
+
+    if centered_scale:
+        return lambda w: _gmw_l2_k(np.atleast_1d(w * wc), gamma, beta, wc, w < 0,
+                                   k_consts)
+    else:
+        return lambda w: _gmw_l2_k(np.atleast_1d(w), gamma, beta, wc, w < 0,
+                                   k_consts)
+
+@jit(nopython=True, cache=True)
+def _gmw_l2_k(w, gamma, beta, wc, w_negs, k_consts):
+    w *= ~w_negs  # zero negative `w` to avoid nans
+
+    C = np.zeros(w.shape)
+    for m in range(len(k_consts)):
+        C += k_consts[m] * (2*w**gamma)**m
+
+    return C * np.exp(beta * np.log(w) - w**gamma) * (~w_negs)
+
+
+def _gmw_k_constants(gamma, beta, k, norm='bandpass'):
+    """Laguerre polynomial constants & `coeff` term.
+
+    Higher-order GMWs are coded such that constants are pre-computed and reused
+    for any `w` input, since they remain fixed for said order.
+    """
     r = (2 * beta + 1) / gamma
     c = r - 1
 
+    # compute `coeff`
+    if norm == 'bandpass':
+        coeff = np.sqrt(np.exp(gammaln_fn(r) + gammaln_fn(k + 1) -
+                               gammaln_fn(k + r)))
+    elif norm == 'energy':
+        coeff = np.sqrt(2*pi * gamma * (2**r) *
+                        np.exp(gammaln_fn(k + 1) - gammaln_fn(k + r)))
+
+    # compute Laguerre polynomial constants
     L_consts = np.zeros(k + 1)
     for m in range(k + 1):
         fact = np.exp(gammaln_fn(k + c + 1) - gammaln_fn(c + m + 1) -
                       gammaln_fn(k - m + 1))
         L_consts[m] = (-1)**m * fact / gamma_fn(m + 1)
 
-    coeff = np.sqrt(np.exp(gammaln_fn(r) + gammaln_fn(k + 1) -
-                           gammaln_fn(k + r)))
-    print(coeff, k)
-    print(L_consts)
-
-    if centered_scale:
-        return lambda w: _gmw_l1_k(np.atleast_1d(w * wc), gamma, beta, wc, w < 0,
-                                   L_consts, coeff)
-    else:
-        return lambda w: _gmw_l1_k(np.atleast_1d(w), gamma, beta, wc, w < 0,
-                                   L_consts, coeff)
-
-@jit(nopython=True, cache=True)
-def _gmw_l1_k(w, gamma, beta, wc, w_negs, L_consts, coeff):
-    w *= ~w_negs  # zero negative `w` to avoid nans
-
-    L = np.zeros(len(w))
-    for m in range(len(L_consts)):
-        L += L_consts[m] * (2*w**gamma)**m
-
-    return 2*coeff*L* np.exp(- beta * np.log(wc) + wc**gamma
-                             + beta * np.log(w)  - w**gamma) * (~w_negs)
+    k_consts = 2 * L_consts * coeff
+    return k_consts
 
 #### General order wavelets (any `K`) ########################################
 def morsewave(N, freqs, gamma=3, beta=60, K=1, norm='bandpass'):
@@ -382,7 +440,7 @@ def _morsewave_first_family(fact, N, K, gamma, beta, w, psizero, norm):
     for k in range(K):
         # Log of gamma function much better ... trick from Maltab's ``beta'`
         if norm == 'energy':
-            A = morseafun(gamma, beta, k + 1, norm)
+            A = morseafun(gamma, beta, k + 1, norm='energy')
             coeff = np.sqrt(1. / fact) * A
         elif norm == 'bandpass':
             if beta == 0:
@@ -588,7 +646,7 @@ def _moments_to_cumulants(moments):
     return cumulants
 
 
-def _check_args(gamma=None, beta=None, norm=None, scale=None,
+def _check_args(gamma=None, beta=None, norm=None, order=None, scale=None,
                 allow_zerobeta=True):
     """Only checks those that are passed in."""
     if gamma is not None and gamma <= 0:
@@ -604,6 +662,13 @@ def _check_args(gamma=None, beta=None, norm=None, scale=None,
 
     if norm is not None and norm not in ('bandpass', 'energy'):
         raise ValueError(f"`norm` must be 'energy' or 'bandpass' (got '{norm}')")
+
+    if order is not None:
+        if (not isinstance(order, (int, float)) or
+                (isinstance(order, float) and not order.is_integer())):
+            raise TypeError("`order` must be integer (got %s)" % str(order))
+        elif order < 0:
+            raise ValueError("`order` must be >=0 (got %s)" % order)
 
     if scale is not None and scale <= 0:
         raise ValueError(f"`scale` must be positive (got {scale})")

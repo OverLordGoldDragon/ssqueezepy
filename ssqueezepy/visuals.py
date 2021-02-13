@@ -598,6 +598,54 @@ def wavelet_filterbank(wavelet, N=1024, scales='log', skips=0, title_append=None
         return Psih
 
 
+def viz_cwt_higher_order(Wx_k, scales=None, wavelet=None, **imshow_kw):
+    if wavelet is not None:
+        wavelet = Wavelet._init_if_not_isinstance(wavelet)
+        title_append = " | " + wavelet._desc(show_N=False)
+    else:
+        title_append = ''
+    yticks = scales.squeeze() if (scales is not None) else None
+    imshow_kw['yticks'] = imshow_kw.get('yticks', yticks)
+
+    if isinstance(Wx_k, list):
+        for k, Wx in enumerate(Wx_k):
+            title = "abs(CWT), order={}{}".format(k, title_append)
+            imshow(Wx, abs=1, title=title, **imshow_kw)
+
+        Wx_ka = np.mean(np.vstack([Wx_k]), axis=0)
+        order_str = ','.join(map(str, range(len(Wx_k))))
+        title = "abs(CWT), orders {} avg{}".format(order_str, title_append)
+        imshow(Wx_ka, abs=1, title=title, **imshow_kw)
+
+    else:
+        title = "abs(CWT), higher-order avg{}".format(title_append)
+        imshow(Wx_k, abs=1, title=title, **imshow_kw)
+
+
+def viz_gmw_orders(N=1024, n_orders=3, scale=5, gamma=3, beta=60,
+                   norm='bandpass'):
+    wavs = []
+    for k in range(n_orders):
+        wav = Wavelet(('gmw', dict(gamma=gamma, beta=beta, norm=norm, order=k)))
+        wavs.append(wav)
+
+    psihs = [wav(scale=scale)[:N//2 + 1] for wav in wavs]
+    psis  = [wav.psifn(scale=scale)      for wav in wavs]
+    w = np.linspace(0, np.pi, N//2 + 1, endpoint=True)
+
+    desc = wavs[0]._desc(show_N=False)
+    orders_str = ','.join(map(str, range(n_orders)))
+
+    for psih in psihs:
+        plot(w, psih, title="Freq-domain, orders=%s | %s" % (orders_str, desc))
+    plot([], show=1)
+
+    for k, psi in enumerate(psis):
+        plot(psi, complex=1)
+        plot(psi, abs=1, color='k', linestyle='--', show=1,
+             title=f"Time-domain, order={k} | {desc}")
+
+
 #### Visual tools ## messy code ##############################################
 def imshow(data, title=None, show=1, cmap=None, norm=None, complex=None, abs=0,
            w=None, h=None, ridge=0, ticks=1, aspect='auto', ax=None, fig=None,

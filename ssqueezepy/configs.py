@@ -18,7 +18,11 @@ WARN = lambda msg: logging.warning("WARNING: %s" % msg)
 path = os.path.join(os.path.dirname(__file__), 'configs.ini')
 
 
-def gdefaults(module_and_obj=None, get_all=False, as_dict=None, **kw):
+def gdefaults(module_and_obj=None, get_all=False, as_dict=None,
+              default_order=False, **kw):
+    """Fetches default arguments from `ssqueezepy/configs.ini` and fills them
+    in `kw` where they're None (or always if `get_all=True`). See code comments.
+    """
     if as_dict is None:
         as_dict = bool(get_all)
 
@@ -30,26 +34,39 @@ def gdefaults(module_and_obj=None, get_all=False, as_dict=None, **kw):
         module, obj = module_and_obj.split('.')
 
     # fetch latest
-    GDEFAULTS = get_gdefaults()
-    for key, value in kw.items():
-        if value is None:
-            if module not in GDEFAULTS:
-                WARN(f"module {module} not found in GDEFAULTS (see configs.ini)")
-            elif obj not in GDEFAULTS[module]:
-                WARN(f"object {obj} not found in GDEFAULTS['{module}'] "
-                     "(see configs.ini)")
-            else:
-                kw[key] = GDEFAULTS[module][obj].get(key, value)
+    GDEFAULTS = _get_gdefaults()
 
-    if module in GDEFAULTS and obj in GDEFAULTS[module]:
-        # preserve defaults' order
-        defaults = {}
-        for k, v in GDEFAULTS[module][obj].items():
-            if k in kw:
-                defaults[k] = kw[k]
-            elif get_all:
-                defaults[k] = v
-        kw = defaults
+    # if `module` & `obj` are found in `GDEFAULTS`, proceed to write values
+    # from `GDEFAULTS` onto `kw` if `kw`'s are `None`
+    # if `get_all=True`, load values from `GDEFAULTS` even if they're not in
+    # `kw`, but don't overwrite those that are in `kw`.
+    # if `default_order=True`, will return `kw` with keys sorted as in
+    # `configs.ini`, for e.g. plotting purposes
+    if module not in GDEFAULTS:
+        WARN(f"module {module} not found in GDEFAULTS (see configs.ini)")
+    elif obj not in GDEFAULTS[module]:
+        WARN(f"object {obj} not found in GDEFAULTS['{module}'] "
+             "(see configs.ini)")
+    else:
+        DEFAULTS = GDEFAULTS[module][obj]
+        for key, value in kw.items():
+            if value is None:
+                kw[key] = DEFAULTS.get(key, value)
+
+        if get_all:
+            for key, value in DEFAULTS.items():
+                if key not in kw:
+                    kw[key] = value
+        if default_order:
+            # first make a dict with correct order
+            # then overwrite its values with `kw`'s, without changing order
+            # if `kw` has keys that `ordered_kw` doesn't, they're inserted at end
+            ordered_kw = {}
+            for key, value in DEFAULTS.items():
+                if key in kw:  # `get_all` already accounted for
+                    ordered_kw[key] = value
+            ordered_kw.update(**kw)
+            kw = ordered_kw
 
     if as_dict:
         return kw
@@ -57,7 +74,7 @@ def gdefaults(module_and_obj=None, get_all=False, as_dict=None, **kw):
             list(kw.values())[0])
 
 
-def get_gdefaults():
+def _get_gdefaults():
     """Global defaults fetched from configs.ini."""
     def float_if_number(s):
         """If float works, so should int."""
@@ -99,4 +116,4 @@ def get_gdefaults():
     return GDEFAULTS
 
 
-GDEFAULTS = get_gdefaults()
+GDEFAULTS = _get_gdefaults()

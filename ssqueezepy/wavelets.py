@@ -124,6 +124,9 @@ class Wavelet():
                 if k in ('norm', 'centered_scale'):
                     # too long, no real need
                     continue
+                elif k == 'order' and v == 0:
+                    # no need to include base wavelet's order
+                    continue
                 elif isinstance(v, float) and v.is_integer():
                     v = int(v)
                 cfg += "{}={}, ".format(k, v)
@@ -246,7 +249,7 @@ class Wavelet():
             'anim:time-frequency': visuals.wavelet_tf_anim,
         }[name](**kw)
 
-    def _desc(self, N=None, scale=None):
+    def _desc(self, N=None, scale=None, show_N=True):
         """Nicely-formatted parameter summary, used in other methods"""
         if self.config_str != "Default configs":
             ptxt = self.config_str.rstrip(', ') + ', '
@@ -259,6 +262,9 @@ class Wavelet():
         else:
             title = "{} wavelet | {}scale={:.2f}, N={}".format(
                 self.name, ptxt, scale, N)
+
+        if not show_N:
+            title = title[:title.find(f"N={N}")].rstrip(', ')
         return title
 
     #### Init ################################################################
@@ -292,12 +298,8 @@ class Wavelet():
         if isinstance(wavelet, str):
             wavelet = wavelet.lower()
             module = 'wavelets' if wavelet != 'gmw' else '_gmw'
-            defaults = gdefaults(f"{module}.{wavelet}", get_all=True,
-                                 as_dict=True)
-
-            for k, v in defaults.items():
-                defaults[k] = wavopts.get(k, v)
-            wavopts = defaults.copy()
+            wavopts = gdefaults(f"{module}.{wavelet}", get_all=True,
+                                as_dict=True, default_order=True, **wavopts)
 
         if wavelet == 'gmw':
             self.fn = gmw(**wavopts)

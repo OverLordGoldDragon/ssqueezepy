@@ -36,7 +36,8 @@ from ssqueezepy._cwt import _icwt_norm
 from ssqueezepy._stft import get_window
 from ssqueezepy._ssq_stft import issq_stft
 from ssqueezepy.visuals import hist, plot, plots, scat, plotscat, imshow
-from ssqueezepy.visuals import wavelet_tf
+from ssqueezepy.visuals import wavelet_tf, viz_cwt_higher_order
+from ssqueezepy.visuals import viz_gmw_orders
 from ssqueezepy.toolkit import lin_band, cos_f, sin_f, mad_rms, amax
 from ssqueezepy._test_signals import TestSignals
 from ssqueezepy.configs import gdefaults
@@ -301,6 +302,30 @@ def test_test_signals():
     tsigs.default_args.update(backup)
 
 
+def test_cwt_higher_order():
+    N = 256
+
+    tsigs = TestSignals()
+    x, t = tsigs.par_lchirp(N=N)
+    x += x[::-1]
+
+    for noise in (False, True):
+        if noise:
+            x += np.random.randn(len(x))
+        Wx_k, scales = cwt(x, 'gmw', order=2, average=False)
+
+        viz_cwt_higher_order(Wx_k, scales, 'gmw')
+        print("=" * 80)
+
+
+def test_viz_gmw_orders():
+    N = 256
+    gamma, beta, norm = 3, 60, 'bandpass'
+    n_orders = 3
+    scale = 5
+    viz_gmw_orders(N, n_orders, scale, gamma, beta, norm)
+
+
 def test_configs():
     pass_on_error(gdefaults, None)
 
@@ -324,19 +349,21 @@ if __name__ == '__main__':
         test_get_window()
         test_windows()
         test_morse_utils()
-        test_test_signals
+        test_test_signals()
+        test_cwt_higher_order()
+        test_viz_gmw_orders()
         test_configs()
     else:
         pytest.main([__file__, "-s"])
 
-        # restore original in case it matters for future testing
-        reload(numba)
-        numba.njit = njit_orig
-        numba.jit  = jit_orig
-        reload(ssqueezepy)
-        for name in dir(ssqueezepy):
-            obj = getattr(ssqueezepy, name)
-            if isinstance(obj, ModuleType):
-                reload(obj)
-        print("numba.njit is no longer monke")
-        print("numba.jit  is no longer monke")
+    # restore original in case it matters for future testing
+    reload(numba)
+    numba.njit = njit_orig
+    numba.jit  = jit_orig
+    reload(ssqueezepy)
+    for name in dir(ssqueezepy):
+        obj = getattr(ssqueezepy, name)
+        if isinstance(obj, ModuleType):
+            reload(obj)
+    print("numba.njit is no longer monke")
+    print("numba.jit  is no longer monke")

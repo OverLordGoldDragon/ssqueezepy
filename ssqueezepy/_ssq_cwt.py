@@ -8,7 +8,7 @@ from ._cwt import cwt
 
 def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
             ssq_freqs=None, padtype='reflect', squeezing='sum', maprange='peak',
-            difftype='direct', difforder=None, gamma=None, vectorized=True, # TODO
+            difftype='direct', difforder=None, gamma=None, vectorized=True,
             preserve_transform=True):
     """Synchrosqueezed Continuous Wavelet Transform.
     Implements the algorithm described in Sec. III of [1].
@@ -89,6 +89,10 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
             This is used to zero `Wx` where `w=0` in computing `Tx` to ignore
             contributions from points with indeterminate phase.
             Default = sqrt(machine epsilon) = np.sqrt(np.finfo(np.float64).eps)
+
+        vectorized: bool (default True)
+            Whether to vectorize CWT, i.e. compute quantities for all scales at
+            once, which is faster but uses more memory.
 
         preserve_transform: bool (default True)
             Whether to return `Wx` as directly output from `cwt` (it might be

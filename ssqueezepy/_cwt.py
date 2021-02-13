@@ -9,7 +9,7 @@ from .wavelets import Wavelet
 
 def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
         l1_norm=True, derivative=False, padtype='reflect', rpadded=False,
-        vectorized=True):
+        vectorized=True, order=0, average=None):
     """Continuous Wavelet Transform, discretized, as described in
     Sec. 4.3.3 of [1] and Sec. IIIA of [2]. Uses a form of discretized
     convolution theorem via wavelets in the Fourier domain and FFT of input.
@@ -82,6 +82,13 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
         vectorized: bool (default True)
             Whether to compute quantities for all scales at once, which is
             faster but uses more memory.
+
+        order: int (default 0)
+            > 0 computes multiple `cwt`s with higher-order GMWs.
+            See `help(_cwt.cwt_higher_order)`.
+
+        average: bool / None
+            Only used for `order > 0`; see `help(_cwt.cwt_higher_order)`.
 
     # Returns:
         Wx: [na x n] np.ndarray (na = number of scales; n = len(x))
@@ -157,6 +164,12 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
         N = x.shape[-1]
         dt, *_ = _process_fs_and_t(fs, t, N=N)
         return N, nv, dt
+
+    if order > 0:
+        kw = dict(scales=scales, fs=fs, t=t, nv=nv, l1_norm=l1_norm,
+                  derivative=derivative, padtype=padtype, rpadded=rpadded,
+                  vectorized=vectorized)
+        return cwt_higher_order(x, wavelet, order=order, average=average, **kw)
 
     N, nv, dt = _process_args(x, scales, nv, fs, t)
 
@@ -374,3 +387,57 @@ def _process_gmw_wavelet(wavelet, l1_norm):
         elif wavelet.name == 'GMW L1' and not l1_norm:
             raise ValueError("using GMW L1 wavelet with `l1_norm=False`")
     return wavelet
+
+
+def cwt_higher_order(x, wavelet='gmw', order=1, average=True, **kw):
+    """Compute `cwt` with GMW wavelets of order 0 to `order`. See `help(cwt)`.
+
+    Yields lower variance and more noise robust representation. See ref[1].
+
+    Will take arithmetic mean of resulting `Wx` (and `dWx` if `derivative=True`),
+    else return as list. Note for phase transform, one should compute derivative
+    of averaged `Wx` rather than take average of individual `dWx`s.
+
+    If `scales` is string, will reuse zeroth-order's.
+
+    # References
+        [1] Generalized Morse Wavelets. S. C. Olhede, A. T. Walden. 2002.
+        https://spiral.imperial.ac.uk/bitstream/10044/1/1150/1/
+        OlhedeWaldenGenMorse.pdf
+    """
+    def _process_wavelet(wavelet):
+        wavelet = Wavelet._init_if_not_isinstance(wavelet)
+        if not wavelet.name.lower().startswith('gmw'):
+            raise ValueError("`wavelet` must be GMW for higher-order transforms "
+                             "(got %s)" % wavelet.name)
+
+        wavopts = wavelet.config.copy()
+        wavopts.pop('order')
+        wavelets = [Wavelet(('gmw', dict(order=k, **wavopts)))
+                    for k in range(order + 1)]
+        return wavelets
+
+    Wx_all = []
+    derivative = kw['derivative']
+    if derivative:
+        dWx_all = []
+
+    wavelets = _process_wavelet(wavelet)
+
+    # take the CWTs
+    for k in range(order + 1):
+        out = cwt(x, wavelets[k], order=0, **kw)
+        Wx_all.append(out[0])
+        if derivative:
+            dWx_all.append(out[-1])
+
+        if isinstance(kw['scales'], str):
+            kw['scales'] = out[1]
+
+    if average or average is None:
+        Wx_all = np.mean(np.vstack([Wx_all]), axis=0)
+        if derivative:
+            dWx_all = np.mean(np.vstack([dWx_all]), axis=0)
+
+    return ((Wx_all, kw['scales'], dWx_all) if derivative else
+            (Wx_all, kw['scales']))
