@@ -143,20 +143,25 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
     else:
         cwt_scaletype, nv = None, None
 
+    # handle `ssq_freqs` & `ssq_scaletype`
     if not isinstance(ssq_freqs, np.ndarray):
         if isinstance(ssq_freqs, str):
             ssq_scaletype = ssq_freqs
         else:
             # default to same scheme used by `scales`
             ssq_scaletype = cwt_scaletype
+
+        if ((maprange == 'maximal' or isinstance(maprange, tuple)) and
+                ssq_scaletype == 'log-piecewise'):
+            raise ValueError("can't have `ssq_scaletype = log-piecewise` or "
+                             "tuple with `maprange = 'maximal'` "
+                             "(got %s)" % str(maprange))
         ssq_freqs = _compute_associated_frequencies(
             dt, na, N, transform, ssq_scaletype, maprange, wavelet, scales)
     else:
         ssq_scaletype = _infer_scaletype(ssq_freqs)
-    if ssq_scaletype == 'log-piecewise' and maprange == 'maximal':
-        raise ValueError("can't have `ssq_scaletype = 'log-piecewise'` with "
-                         "`maprange = 'maximal'`")
 
+    # transform `Wx` if needed
     if isinstance(squeezing, FunctionType):
         Wx = squeezing(Wx)
     elif squeezing == 'lebesgue':  # from reference [3]

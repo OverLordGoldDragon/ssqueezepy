@@ -130,7 +130,7 @@ def compute_gmw(N, scale, gamma=3, beta=60, time=False, norm='bandpass',
         time: bool (default False)
             Whether to compute the time-domain wavelet, `psi`.
 
-        centered_scale: bool (default True)
+        centered_scale: bool (default False)
             See `help(_gmw.gmw)`.
 
         norm_scale: bool (default True)
@@ -203,6 +203,42 @@ def _gmw_l2(w, gamma, beta, wc, r, rgamma, w_negs):
     return np.sqrt(2.*pi * gamma * 2.**r / rgamma
                    ) * w**beta * np.exp(-w**gamma) * (~w_negs)
 
+
+def gmw_l1_k(gamma=3., beta=60., k=1, centered_scale=False):
+    _check_args(gamma=gamma, beta=beta, allow_zerobeta=False)
+    wc = morsefreq(gamma, beta)
+
+    r = (2 * beta + 1) / gamma
+    c = r - 1
+
+    L_consts = np.zeros(k + 1)
+    for m in range(k + 1):
+        fact = np.exp(gammaln_fn(k + c + 1) - gammaln_fn(c + m + 1) -
+                      gammaln_fn(k - m + 1))
+        L_consts[m] = (-1)**m * fact / gamma_fn(m + 1)
+
+    coeff = np.sqrt(np.exp(gammaln_fn(r) + gammaln_fn(k + 1) -
+                           gammaln_fn(k + r)))
+    print(coeff, k)
+    print(L_consts)
+
+    if centered_scale:
+        return lambda w: _gmw_l1_k(np.atleast_1d(w * wc), gamma, beta, wc, w < 0,
+                                   L_consts, coeff)
+    else:
+        return lambda w: _gmw_l1_k(np.atleast_1d(w), gamma, beta, wc, w < 0,
+                                   L_consts, coeff)
+
+@jit(nopython=True, cache=True)
+def _gmw_l1_k(w, gamma, beta, wc, w_negs, L_consts, coeff):
+    w *= ~w_negs  # zero negative `w` to avoid nans
+
+    L = np.zeros(len(w))
+    for m in range(len(L_consts)):
+        L += L_consts[m] * (2*w**gamma)**m
+
+    return 2*coeff*L* np.exp(- beta * np.log(wc) + wc**gamma
+                             + beta * np.log(w)  - w**gamma) * (~w_negs)
 
 #### General order wavelets (any `K`) ########################################
 def morsewave(N, freqs, gamma=3, beta=60, K=1, norm='bandpass'):

@@ -456,7 +456,7 @@ def center_frequency(wavelet, scale=10, N=1024, kind='energy', force_int=None,
         NOTE("`force_int` ignored with `kind=='peak'`")
     elif kind not in ('energy', 'peak'):
         raise ValueError("`kind` must be one of: 'energy', 'peak' "
-                         "(got %s)" % kind)
+                         "(got %s)" % str(kind))
 
     wavelet = Wavelet._init_if_not_isinstance(wavelet)
     if kind == 'energy':

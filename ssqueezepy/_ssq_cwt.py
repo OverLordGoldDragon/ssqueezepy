@@ -8,7 +8,7 @@ from ._cwt import cwt
 
 def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
             ssq_freqs=None, padtype='reflect', squeezing='sum', maprange='peak',
-            difftype='direct', difforder=None, gamma=None,
+            difftype='direct', difforder=None, gamma=None, vectorized=True, # TODO
             preserve_transform=True):
     """Synchrosqueezed Continuous Wavelet Transform.
     Implements the algorithm described in Sec. III of [1].
@@ -24,7 +24,7 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
             CWT scales. See `help(cwt)`.
 
         nv: int / None
-            Number of voices. Suggested >= 32 (default=32).
+            Number of voices (wavelets per octave). Suggested >= 16.
 
         fs, t
             See `help(_cwt.cwt)`.
@@ -184,7 +184,8 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
     # same anyway since we're inverting CWT over time-frequency plane
     rpadded = (difftype == 'numeric')
     Wx, scales, dWx = cwt(x, wavelet, scales=scales, fs=fs, nv=nv, l1_norm=True,
-                          derivative=True, padtype=padtype, rpadded=rpadded)
+                          derivative=True, padtype=padtype, rpadded=rpadded,
+                          vectorized=vectorized)
     _Wx = Wx.copy() if preserve_transform else Wx
 
     gamma = gamma or np.sqrt(EPS)

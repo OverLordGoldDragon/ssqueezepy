@@ -81,7 +81,10 @@ def test_ssq_cwt():
     for name in params:
         for value in params[name]:
             try:
-                _ = ssq_cwt(**kw, **{name: value})
+                if name == 'maprange' and value in ('maximal', (1, 32)):
+                    _ = ssq_cwt(**kw, **{name: value}, scales='log')
+                else:
+                    _ = ssq_cwt(**kw, **{name: value})
             except Exception as e:
                 raise Exception(f"{name}={value} failed with:\n{e}")
 
@@ -335,5 +338,5 @@ if __name__ == '__main__':
             obj = getattr(ssqueezepy, name)
             if isinstance(obj, ModuleType):
                 reload(obj)
-        print("numba.njit is no longer monkey")
-        print("numba.jit  is no longer monkey")
+        print("numba.njit is no longer monke")
+        print("numba.jit  is no longer monke")

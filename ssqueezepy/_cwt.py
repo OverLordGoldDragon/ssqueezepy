@@ -26,10 +26,15 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
                 - `wavelets.Wavelet` instance. Can use for custom wavelet.
                   See `help(wavelets.Wavelet)`.
 
-        scales: str['log', 'linear', 'log:maximal', ...] / np.ndarray
+        scales: str['log', 'log-piecewise', 'linear', 'log:maximal', ...]
+                / np.ndarray
             CWT scales.
                 - 'log': exponentially distributed scales, as pow of 2:
                          `[2^(1/nv), 2^(2/nv), ...]`
+                - 'log-piecewise': 'log' except very high `scales` are downsampled
+                to prevent redundancy. This is recommended. See
+                https://github.com/OverLordGoldDragon/ssqueezepy/issues/
+                29#issuecomment-776792726
                 - 'linear': linearly distributed scales.
                   !!! EXPERIMENTAL; default scheme for len(x)>2048 performs
                   poorly (and there may not be a good non-piecewise scheme).
@@ -39,12 +44,13 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
             See `preset` in `help(utils.cwt_scalebounds)`.
 
         nv: int
-            Number of voices. Suggested >= 32.
+            Number of voices (wavelets per octave). Suggested >= 16.
 
         fs: float / None
-            Sampling frequency of `x`. Defaults to 1, which makes ssq
-            frequencies range from 1/dT to 0.5*fs, i.e. as fraction of reference
-            sampling rate up to Nyquist limit; dT = total duration (N/fs).
+            Sampling frequency of `x`. Defaults to 1, which for
+            `maprange='maximal'` makes ssq frequencies range from 1/dT to 0.5*fs,
+            i.e. as fraction of reference sampling rate up to Nyquist limit;
+            dT = total duration (N/fs).
             Used to compute `dt`, which is only used if `derivative=True`.
             Overridden by `t`, if provided.
             Relevant on `t` and `dT`: https://dsp.stackexchange.com/a/71580/50076
