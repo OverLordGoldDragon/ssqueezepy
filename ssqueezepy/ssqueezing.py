@@ -3,7 +3,7 @@ import numpy as np
 from types import FunctionType
 from .algos import find_closest, indexed_sum, replace_at_inf
 from .utils import process_scales, _infer_scaletype, _process_fs_and_t
-from .utils import NOTE, pi, logscale_transition_idx
+from .utils import NOTE, pi, logscale_transition_idx, assert_is_one_of
 from .wavelets import center_frequency
 
 
@@ -247,13 +247,11 @@ def _get_center_frequency(wavelet, N, maprange, dt, scale):
 
 def _check_ssqueezing_args(squeezing, maprange=None, wavelet=None,
                            transform='cwt'):
-    supported = ('sum', 'lebesgue', 'abs')
     if not isinstance(squeezing, (str, FunctionType)):
         raise TypeError("`squeezing` must be string or function "
                         "(got %s)" % type(squeezing))
-    elif isinstance(squeezing, str) and squeezing not in supported:
-        raise ValueError("`squeezing` must be one of: {} (got {})".format(
-            ', '.join(supported), squeezing))
+    elif isinstance(squeezing, str):
+        assert_is_one_of(squeezing, 'squeezing', ('sum', 'lebesgue', 'abs'))
 
     if maprange is None:
         return
@@ -261,10 +259,7 @@ def _check_ssqueezing_args(squeezing, maprange=None, wavelet=None,
         if not all(isinstance(m, (float, int)) for m in maprange):
             raise ValueError("all elements of `maprange` must be float or int")
     elif isinstance(maprange, str):
-        supported = ('maximal', 'peak', 'energy')
-        if maprange not in supported:
-            raise ValueError("`maprange` must be one of {} (got {})".format(
-                ', '.join(supported), maprange))
+        assert_is_one_of(maprange, 'maprange', ('maximal', 'peak', 'energy'))
     else:
         raise TypeError("`maprange` must be str, tuple, or list "
                         "(got %s)" % type(maprange))

@@ -17,7 +17,7 @@ x += x[::-1]
 for noise in (False, True):
     if noise:
         x += np.random.randn(len(x))
-    Wx_k, scales = cwt(x, 'gmw', order=order, average=False)
+    Wx_k, scales = cwt(x, 'gmw', order=range(order + 1), average=False)
 
     viz_cwt_higher_order(Wx_k, scales, 'gmw')
     print("=" * 80)

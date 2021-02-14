@@ -25,7 +25,7 @@ def wavelet_tf(wavelet, N=2048, scale=None, notext=False, width=1.1, height=1):
         from .wavelets import time_resolution
         st_min, st_max = 65 * (N / 2048), 75 * (N / 2048)
         max_iters = 100
-        scale = 60
+        scale = wavelet.scalec_ct
         # generous `min_decay` since we don't care about initial bad cases
         kw = dict(wavelet=wavelet, N=N, min_decay=1, nondim=False)
         std_t = time_resolution(scale=scale, **kw)
@@ -53,7 +53,7 @@ def wavelet_tf(wavelet, N=2048, scale=None, notext=False, width=1.1, height=1):
     apsi = np.abs(psi)
     t = np.arange(-N/2, N/2, step=1)
 
-    w = aifftshift(_xifn(1, N))[N//2-1:]
+    w = _xifn(1, N)[:N//2 + 1]
     psih = wavelet(scale * w)
 
     #### Compute stdevs & respective indices #################################
@@ -184,7 +184,7 @@ def wavelet_tf_anim(wavelet, N=2048, scales=None, width=1.1, height=1,
     aPsi = np.abs(Psi)
     t = np.arange(-N/2, N/2, step=1)
 
-    w = aifftshift(_xifn(1, N))[N//2-1:]
+    w = _xifn(1, N)[:N//2 + 1]
     Psih = wavelet(scales * w)
 
     #### Compute stdevs & respective indices #################################
@@ -313,7 +313,7 @@ def wavelet_heatmap(wavelet, scales='log', N=2048):
     #### Compute time- & freq-domain wavelets for all scales #################
     Psi = wavelet.psifn(scale=scales, N=N)
 
-    w = aifftshift(_xifn(1, N))[N//2-1:]
+    w = _xifn(1, N)[:N//2 + 1]
     Psih = wavelet(scales * w)
 
     #### Plot ################################################################
@@ -323,12 +323,14 @@ def wavelet_heatmap(wavelet, scales='log', N=2048):
     kw = dict(ylabel="scales", xlabel="samples")
     imshow(Psi.real,   norm=(-mx, mx), yticks=scales,
            title=title0 + " | Time-domain; real part", **kw)
-    imshow(Psi, abs=1, norm=(0, mx), yticks=scales,
+
+    imshow(Psi, abs=1, cmap='bone', norm=(0, mx), yticks=scales,
            title=title0 + " | Time-domain; abs-val", **kw)
+
     kw['xlabel'] = "radians"
     imshow(Psih, abs=1, cmap='jet', yticks=scales,
            xticks=np.linspace(0, np.pi, N//2),
-           title=title0 + "| Freq-domain; abs-val", **kw)
+           title=title0 + " | Freq-domain; abs-val", **kw)
 
 
 def sweep_std_t(wavelet, N, scales='log', get=False, **kw):
@@ -605,7 +607,8 @@ def viz_cwt_higher_order(Wx_k, scales=None, wavelet=None, **imshow_kw):
     else:
         title_append = ''
     yticks = scales.squeeze() if (scales is not None) else None
-    imshow_kw['yticks'] = imshow_kw.get('yticks', yticks)
+    if imshow_kw.get('ticks', 1):
+        imshow_kw['yticks'] = imshow_kw.get('yticks', yticks)
 
     if isinstance(Wx_k, list):
         for k, Wx in enumerate(Wx_k):
@@ -952,5 +955,5 @@ def _annotate(txt, xy=(.85, .9), weight='bold', fontsize=16):
 
 
 #############################################################################
-from .wavelets import Wavelet, _xifn, aifftshift
+from .wavelets import Wavelet, _xifn
 from .wavelets import center_frequency, freq_resolution, time_resolution

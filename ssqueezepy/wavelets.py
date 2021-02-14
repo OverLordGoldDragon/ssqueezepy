@@ -5,6 +5,7 @@ from numpy.fft import ifft, fftshift, ifftshift
 from numba import jit
 from types import FunctionType
 from scipy import integrate
+from .algos import find_maximum
 from .configs import gdefaults
 
 pi = np.pi
@@ -137,22 +138,47 @@ class Wavelet():
 
     @property
     def wc(self):
-        """Center frequency at scale=10 [(radians*cycles)/samples]
+        """Energy center frequency at scale=scalec_ct [(radians*cycles)/samples]
 
-        Ideally we'd compute at scale=1, but that's trouble for 'energy' center
-        frequency; see help(wavelets.center_frequency). Away from scale
+        Ideally we'd compute at `scale=1`, but that's trouble for 'energy' center
+        frequency; see `help(wavelets.center_frequency)`. Away from scale
         extrema, 'energy' and 'peak' are same for bell-like |wavelet(w)|^2.
+
+        Reported as "dimensional" in `info()` since it's tied to same `scale`
+        used for computing `std_t_d` & `std_t_w`
         """
         if getattr(self, '_wc', None) is None:
-            self._wc = center_frequency(self, scale=10, N=self.N)
+            self._wc = center_frequency(self, scale=self.scalec_ct, N=self.N,
+                                        kind='energy')
         return self._wc
+
+    @property
+    def wc_ct(self):
+        """'True' radian peak center frequency, i.e. `w` which maximizes the
+        underlying continuous-time function. Can be used to find `scale`
+        that centers the wavelet anywhere from 0 to pi in discrete space.
+
+        Reported as "nondimensional" in `info()` since it's scale-decoupled.
+        """
+        if getattr(self, '_wc_ct', None) is None:
+            self._wc_ct = center_frequency(self, kind='peak-ct')
+        return self._wc_ct
+
+    @property
+    def scalec_ct(self):
+        """'Center scale' in sense of `wc_ct`, making wavelet peak at pi/4.
+        See `help(Wavelet.wc_ct)`.
+        """
+        if getattr(self, '_scalec_ct', None) is None:
+            self._scalec_ct = (4/pi) * self.wc_ct
+        return self._scalec_ct
 
     @property
     def std_t(self):
         """Non-dimensional time resolution"""
         if getattr(self, '_std_t', None) is None:
             # scale=10 arbitrarily chosen to yield good compute-accurary
-            self._std_t = time_resolution(self, scale=10, N=self.N,
+            self._std_t = time_resolution(self, scale=self.scalec_ct, N=self.N,
                                           nondim=True)
         return self._std_t
 
@@ -160,7 +186,7 @@ class Wavelet():
     def std_w(self):
         """Non-dimensional frequency resolution (radian)"""
         if getattr(self, '_std_w', None) is None:
-            self._std_w = freq_resolution(self, scale=10, N=self.N,
+            self._std_w = freq_resolution(self, scale=self.scalec_ct, N=self.N,
                                           nondim=True)
         return self._std_w
 
@@ -178,7 +204,7 @@ class Wavelet():
     def std_t_d(self):
         """Dimensional time resolution [samples/(cycles*radians)]"""
         if getattr(self, '_std_t_d', None) is None:
-            self._std_t_d = time_resolution(self, scale=10, N=self.N,
+            self._std_t_d = time_resolution(self, scale=self.scalec_ct, N=self.N,
                                             nondim=False)
         return self._std_t_d
 
@@ -186,7 +212,7 @@ class Wavelet():
     def std_w_d(self):
         """Dimensional frequency resolution [(cycles*radians)/samples]"""
         if getattr(self, '_std_w_d', None) is None:
-            self._std_w_d = freq_resolution(self, scale=10, N=self.N,
+            self._std_w_d = freq_resolution(self, scale=self.scalec_ct, N=self.N,
                                             nondim=False)
         return self._std_w_d
 
@@ -199,28 +225,34 @@ class Wavelet():
     def info(self, nondim=True):
         """Prints time & frequency resolution quantities. Refer to pertinent
         methods' docstrings on how each quantity is computed, and to
-        tests/props_test.py on various dependences (eg std_t on N).
+        tests/props_test.py on various dependences (e.g. `std_t` on `N`).
+
+        See `help(Wavelet.x)`, x: `std_t, std_w, wc, wc_ct, scalec_ct`.
+
         Detailed overview: https://dsp.stackexchange.com/q/72042/50076
         """
         if nondim:
             cfg = self.config_str
             dim_t = dim_w = "non-dimensional"
             std_t, std_w = self.std_t, self.std_w
+            wc_txt = "wc_ct, (cycles*radians)"
+            wc = self.wc_ct
         else:
-            cfg = self.config_str + " -- scale=10"
+            cfg = self.config_str + " -- scale=%.2f" % self.scalec_ct
             dim_t = "samples/(cycles*radians)"
             dim_w = "(cycles*radians)/samples"
             std_t, std_w = self.std_t_d, self.std_w_d
+            wc_txt = "wc,    (cycles*radians)/samples; %.2f" % self.scalec_ct
+            wc = self.wc
         harea = std_t * std_w
 
         print(("{} wavelet\n"
                "\t{}\n"
-               "\tCenter frequency: {:<10.6f} [wc,    (cycles*radians)/samples; "
-               "scale=10]\n"
+               "\tCenter frequency: {:<10.6f} [{}]\n"
                "\tTime resolution:  {:<10.6f} [std_t, {}]\n"
                "\tFreq resolution:  {:<10.6f} [std_w, {}]\n"
                "\tHeisenberg area:  {:.12f}"
-               ).format(self.name, cfg, self.wc,
+               ).format(self.name, cfg, wc, wc_txt,
                         std_t, dim_t, std_w, dim_w, harea))
 
     def viz(self, name='overview', **kw):
@@ -392,18 +424,50 @@ def _hhhat(_w):
 
 
 #### Wavelet properties ######################################################
-def center_frequency(wavelet, scale=10, N=1024, kind='energy', force_int=None,
+def center_frequency(wavelet, scale=None, N=1024, kind='energy', force_int=None,
                      viz=False):
-    """Energy center frequency (radian); Eq 4.52 of [1]:
-        wc_1     = int w |wavelet(w)|^2 dw  0..inf
-        wc_scale = int (scale*w) |wavelet(scale*w)|^2 dw 0..inf = wc_1 / scale
+    """Center frequency (radian) of `wavelet`, either 'energy', 'peak',
+    or 'peak-ct'.
 
-    `force_int` (relevant only if kind='energy', defaults to True) can be set to
-    False to compute via formula - i.e. first integrate at a "well-behaved" scale,
-    then rescale. For intermediate scales, not much difference either way. For
-    extremes, it matches the continuous-time result closer - but this isn't
-    recommended, as it overlooks limitations imposed by discretization
-    (trimmed/few-sample bell).
+    Detailed overview: https://dsp.stackexchange.com/q/72042/50076
+
+    # Arguments
+        wavelet: wavelets.Wavelet
+
+        scale: float / None
+            Scale at which to compute `wc`; ignored if `kind='peak-ct'`.
+
+        N: int
+            Length of wavelet.
+
+        kind: str['energy', 'peak', 'peak-ct']
+            - 'energy': weighted mean of wavelet energy, or energy expectation;
+              Eq 4.52 of [1]:
+                wc_1     = int w |wavelet(w)|^2 dw  0..inf
+                wc_scale = int (scale*w) |wavelet(scale*w)|^2 dw 0..inf
+                         = wc_1 / scale
+            - 'peak': value of `w` at which `wavelet` at `scale` peaks
+              (is maximum) in discrete time, i.e. constrained 0 to pi.
+            - 'peak-ct': value of `w` at which `wavelet` peaks (without `scale`,
+              i.e. `scale=1`), i.e. peak location of the continuous-time function.
+              Can be used to find `scale` at which `wavelet` is most well-behaved,
+              e.g. at eighth of sampling frequency (centered between 0 and fs/4).
+            - 'energy' == 'peak' for wavelets exactly even-symmetric about mode
+              (peak location)
+
+        force_int: bool / None
+            Relevant only if `kind='energy'`, then defaulting to True. Set to
+            False to compute via formula - i.e. first integrate at a
+            "well-behaved" scale, then rescale. For intermediate scales, this
+            won't yield much difference. For extremes, it matches the
+            continuous-time results closer - but this isn't recommended, as it
+            overlooks limitations imposed by discretization (trimmed/undersampled
+            freq-domain bell).
+
+        viz: bool (default False)
+            Whether to visualize obtained center frequency.
+
+    **Misc**
 
     For very high scales, 'energy' w/ `force_int=True` will match 'peak'; for
     very low scales, 'energy' will always be less than 'peak'.
@@ -422,6 +486,7 @@ def center_frequency(wavelet, scale=10, N=1024, kind='energy', force_int=None,
         w, psih, apsih2 = params
         _w = w[N//2-1:]; _psih = psih[N//2-1:]; _apsih2 = apsih2[N//2-1:]
 
+        wc = wc if (kind != 'peak-ct') else pi/4
         vline = (wc, dict(color='tab:red', linestyle='--'))
         plot(_w, _psih, show=1, vlines=vline,
              title="psih(w)+ (frequency-domain wavelet, pos half)")
@@ -439,7 +504,8 @@ def center_frequency(wavelet, scale=10, N=1024, kind='energy', force_int=None,
         use_formula = not force_int
         if use_formula:
             scale_orig = scale
-            scale = 10
+            wc_ct = _peak_ct_wc(wavelet, N)[0]
+            scale = (4/pi) * wc_ct
 
         w, psih, apsih2 = _params(wavelet, scale, N)
         wc = (integrate.trapz(apsih2 * w) /
@@ -454,11 +520,28 @@ def center_frequency(wavelet, scale=10, N=1024, kind='energy', force_int=None,
         wc = w[np.argmax(apsih2)]
         return float(wc), (w, psih, apsih2)
 
-    if force_int and kind == 'peak':
-        NOTE("`force_int` ignored with `kind=='peak'`")
-    elif kind not in ('energy', 'peak'):
-        raise ValueError("`kind` must be one of: 'energy', 'peak' "
-                         "(got %s)" % str(kind))
+    def _peak_ct_wc(wavelet, N):
+        wc, _ = find_maximum(wavelet.fn)
+        # need `scale` such that `wavelet` peaks at `scale * xi.max()/4`
+        # thus: `wc = scale * (pi/2)` --> `scale = (4/pi)*wc`
+        scale = (4/pi) * wc
+        w, psih, apsih2 = _params(wavelet, scale, N)
+        return float(wc), (w, psih, apsih2)
+
+    # TODO make `utils/`
+    from .utils import assert_is_one_of
+
+    if force_int and 'peak' in kind:
+        NOTE("`force_int` ignored with 'peak' in `kind`")
+    assert_is_one_of(kind, 'kind', ('energy', 'peak', 'peak-ct'))
+
+    if kind == 'peak-ct' and scale is not None:
+        NOTE("`scale` ignored with `peak = 'peak-ct'`")
+
+    if scale is None and kind != 'peak-ct':
+        # see _peak_ct_wc
+        wc, _ = find_maximum(wavelet.fn)
+        scale = (4/pi) * wc
 
     wavelet = Wavelet._init_if_not_isinstance(wavelet)
     if kind == 'energy':
@@ -466,6 +549,8 @@ def center_frequency(wavelet, scale=10, N=1024, kind='energy', force_int=None,
         wc, params = _energy_wc(wavelet, scale, N, force_int)
     elif kind == 'peak':
         wc, params = _peak_wc(wavelet, scale, N)
+    elif kind == 'peak-ct':
+        wc, params = _peak_ct_wc(wavelet, N)
 
     if viz:
         _viz(wc, params)
@@ -478,7 +563,7 @@ def freq_resolution(wavelet, scale=10, N=1024, nondim=True, force_int=True,
     -> less discretization error, but same N as in application should suffice.
 
     Eq 22 in [1], Sec 4.3.2 in [2].
-
+    Detailed overview: https://dsp.stackexchange.com/q/72042/50076
     See tests/props_test.py for further info.
 
     # References
@@ -507,7 +592,7 @@ def freq_resolution(wavelet, scale=10, N=1024, nondim=True, force_int=True,
     use_formula = ((scale < 4 or scale > N / 5) and not force_int)
     if use_formula:
         scale_orig = scale
-        scale = 10
+        scale = (4/pi) * wavelet.wc_ct
 
     w = aifftshift(_xifn(1, N))
     psih = wavelet(scale * w)
@@ -535,6 +620,7 @@ def time_resolution(wavelet, scale=10, N=1024, min_decay=1e3, max_mult=2,
     -> less discretization error, but same N as in application should suffice.
 
     Eq 21 in [1], Sec 4.3.2 in [2].
+    Detailed overview: https://dsp.stackexchange.com/q/72042/50076
 
     Interpreted as time-span of 68% of wavelet's energy (1 stdev for Gauss-shaped
     |psi(t)|^2). Inversely-proportional with `N`, i.e. same `scale` spans half
@@ -612,7 +698,7 @@ def time_resolution(wavelet, scale=10, N=1024, min_decay=1e3, max_mult=2,
     use_formula = ((scale < 4 or scale > N / 5) and not force_int)
     if use_formula:
         scale_orig = scale
-        scale = 10
+        scale = (4/pi) * wavelet.wc_ct
 
     t = _make_integration_t(wavelet, scale, N, min_decay, max_mult, min_mult)
     Nt = len(t)

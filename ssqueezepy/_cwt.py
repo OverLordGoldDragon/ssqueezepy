@@ -83,12 +83,12 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
             Whether to compute quantities for all scales at once, which is
             faster but uses more memory.
 
-        order: int (default 0)
-            > 0 computes multiple `cwt`s with higher-order GMWs.
-            See `help(_cwt.cwt_higher_order)`.
+        order: int (default 0) / tuple[int] / range
+            > 0 computes `cwt` with higher-order GMWs. If tuple, computes
+            `cwt` at each specified order. See `help(_cwt.cwt_higher_order)`.
 
         average: bool / None
-            Only used for `order > 0`; see `help(_cwt.cwt_higher_order)`.
+            Only used for tuple `order`; see `help(_cwt.cwt_higher_order)`.
 
     # Returns:
         Wx: [na x n] np.ndarray (na = number of scales; n = len(x))
@@ -165,11 +165,11 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
         dt, *_ = _process_fs_and_t(fs, t, N=N)
         return N, nv, dt
 
-    if order > 0:
-        kw = dict(scales=scales, fs=fs, t=t, nv=nv, l1_norm=l1_norm,
-                  derivative=derivative, padtype=padtype, rpadded=rpadded,
-                  vectorized=vectorized)
-        return cwt_higher_order(x, wavelet, order=order, average=average, **kw)
+    if isinstance(order, (tuple, list, range)) or order > 0:
+        kw = dict(wavelet=wavelet, scales=scales, fs=fs, t=t, nv=nv,
+                  l1_norm=l1_norm, derivative=derivative, padtype=padtype,
+                  rpadded=rpadded, vectorized=vectorized)
+        return cwt_higher_order(x, order=order, average=average, **kw)
 
     N, nv, dt = _process_args(x, scales, nv, fs, t)
 
@@ -389,23 +389,39 @@ def _process_gmw_wavelet(wavelet, l1_norm):
     return wavelet
 
 
-def cwt_higher_order(x, wavelet='gmw', order=1, average=True, **kw):
+def cwt_higher_order(x, wavelet='gmw', order=1, average=None, **kw):
     """Compute `cwt` with GMW wavelets of order 0 to `order`. See `help(cwt)`.
 
     Yields lower variance and more noise robust representation. See ref[1].
 
-    Will take arithmetic mean of resulting `Wx` (and `dWx` if `derivative=True`),
-    else return as list. Note for phase transform, one should compute derivative
-    of averaged `Wx` rather than take average of individual `dWx`s.
+    # Arguments:
+        x: np.ndarray
+            Input, 1D.
 
-    If `scales` is string, will reuse zeroth-order's.
+        wavelet: str / wavelets.Wavelet
+
+        order: int / tuple[int] / range
+            Order of GMW to use for CWT. If tuple, will compute for each
+            order specified in tuple, subject to `average`.
+
+        average: bool (default True if `order` is tuple)
+            If True, will take arithmetic mean of resulting `Wx` (and `dWx`
+            if `derivative=True`), else return as list. Note for phase transform,
+            one should compute derivative of averaged `Wx` rather than take
+            average of individual `dWx`s.
+            Ignored with non-tuple `order.
+
+        kw: dict / kwargs
+            Arguments to `cwt`.
+            If `scales` is string, will reuse zeroth-order's; zeroth order
+            isn't included in `order`, will set from wavelet at `order=0`.
 
     # References
         [1] Generalized Morse Wavelets. S. C. Olhede, A. T. Walden. 2002.
         https://spiral.imperial.ac.uk/bitstream/10044/1/1150/1/
         OlhedeWaldenGenMorse.pdf
     """
-    def _process_wavelet(wavelet):
+    def _process_wavelet(wavelet, order):
         wavelet = Wavelet._init_if_not_isinstance(wavelet)
         if not wavelet.name.lower().startswith('gmw'):
             raise ValueError("`wavelet` must be GMW for higher-order transforms "
@@ -413,31 +429,52 @@ def cwt_higher_order(x, wavelet='gmw', order=1, average=True, **kw):
 
         wavopts = wavelet.config.copy()
         wavopts.pop('order')
-        wavelets = [Wavelet(('gmw', dict(order=k, **wavopts)))
-                    for k in range(order + 1)]
-        return wavelets
+        wavelets = [Wavelet(('gmw', dict(order=k, **wavopts))) for k in order]
+        return wavelets, wavopts
+
+    def _process_args(wavelet, order, average, kw):
+        if isinstance(order, (list, range)):
+            order = tuple(order)
+        if not isinstance(order, (list, tuple)):
+            order = [order]
+        if len(order) == 1 and average:
+            WARN("`average` ignored with single `order`")
+            average = False
+
+        wavelets, wavopts = _process_wavelet(wavelet, order)
+
+        scales = kw.get('scales', 'log-piecewise')
+        if isinstance(scales, str) and order[0] != 0:
+            wav = Wavelet(('gmw', dict(order=0, **wavopts)))
+            scales = process_scales(scales, len(x), wavelet=wav,
+                                    nv=kw.get('nv', 32))
+        kw['scales'] = scales
+
+        return wavelets, order, average, scales
+
+    wavelets, order, average, scales = _process_args(wavelet, order, average, kw)
 
     Wx_all = []
-    derivative = kw['derivative']
+    derivative = kw.get('derivative', False)
     if derivative:
         dWx_all = []
 
-    wavelets = _process_wavelet(wavelet)
-
     # take the CWTs
-    for k in range(order + 1):
+    for k in range(len(order)):
         out = cwt(x, wavelets[k], order=0, **kw)
         Wx_all.append(out[0])
         if derivative:
             dWx_all.append(out[-1])
 
-        if isinstance(kw['scales'], str):
-            kw['scales'] = out[1]
-
-    if average or average is None:
+    # handle averaging; strip `Wx_all` of list container if only one array
+    if average or (average is None and isinstance(order, tuple)):
         Wx_all = np.mean(np.vstack([Wx_all]), axis=0)
         if derivative:
             dWx_all = np.mean(np.vstack([dWx_all]), axis=0)
+    elif len(Wx_all) == 1:
+        Wx_all = Wx_all[0]
+        if derivative:
+            dWx_all = dWx_all[0]
 
     return ((Wx_all, kw['scales'], dWx_all) if derivative else
             (Wx_all, kw['scales']))

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 import logging
-from numpy.fft import fft, fftshift
+from numpy.fft import fft, ifft, fftshift, ifftshift
 from scipy import integrate
 from numba import jit
 from textwrap import wrap
@@ -114,11 +114,8 @@ def padsignal(x, padtype='reflect', padlength=None, get_params=False):
         6-lifting%20wavelet%20and%20filterbank.pdf
     """
     def _process_args(x, padtype):
-        # TODO: padlength -> padded_len ?
-        supported = ('reflect', 'symmetric', 'replicate', 'wrap', 'zero')
-        if padtype not in supported:
-            raise ValueError(("Unsupported `padtype` {}; must be one of: {}"
-                              ).format(padtype, ", ".join(supported)))
+        assert_is_one_of(padtype, 'padtype',
+                         ('reflect', 'symmetric', 'replicate', 'wrap', 'zero'))
         if not isinstance(x, np.ndarray):
             raise TypeError("`x` must be a numpy array (got %s)" % type(x))
         elif x.ndim not in (1, 2):
@@ -168,6 +165,33 @@ def padsignal(x, padtype='reflect', padlength=None, get_params=False):
     _ = (Npad, n_up, n1, N, n2)
     assert (Npad == n_up == n1 + N + n2), "%s ?= %s ?= %s + %s + %s" % _
     return (xp, n_up, n1, n2) if get_params else xp
+
+
+def trigdiff(A, fs=1, padtype=None, rpadded=None, N=None, n1=None):
+    """Trigonometric / frequency-domain differentiation; see `difftype` in
+    `help(ssq_cwt)`. Used internally by `ssq_cwt` with `order > 0`.
+    """
+    from .wavelets import _xifn
+
+    assert isinstance(A, np.ndarray)
+    assert A.ndim == 2
+
+    rpadded = rpadded or False
+    padtype = padtype or ('reflect' if not rpadded else None)
+    if rpadded and (n1 is None or N is None):
+        raise ValueError("must pass `n1` and `N` if `rpadded`")
+
+    if padtype is not None:
+        A, _, n1, *_ = padsignal(A, padtype, get_params=True)
+
+    xi = _xifn(1, A.shape[-1])[None]
+
+    A_freqdom = fft(fftshift(A, axes=-1), axis=-1)
+    A_diff = ifftshift(ifft(A_freqdom * 1j * xi * fs, axis=-1), axes=-1)
+
+    if rpadded:
+        A_diff = A_diff[:, n1:n1+N]
+    return A_diff
 
 
 #### CWT utils ################################################################
@@ -358,11 +382,9 @@ def cwt_scalebounds(wavelet, N, preset=None, min_cutoff=None, max_cutoff=None,
             if any((min_cutoff, max_cutoff, cutoff)):
                 WARN("`preset` will override `min_cutoff, max_cutoff, cutoff`")
 
-            supported = ('maximal', 'minimal', 'minimal-low', 'naive')
-            if preset not in supported:
-                raise ValueError("`preset` must be one of: {} (got {})".format(
-                    ', '.join(supported), preset))
-            elif preset == 'naive':
+            assert_is_one_of(preset, 'preset',
+                             ('maximal', 'minimal', 'minimal-low', 'naive'))
+            if preset == 'naive':
                 pass  # handle later
             else:
                 min_cutoff, max_cutoff, cutoff = defaults[preset].values()
@@ -435,10 +457,8 @@ def process_scales(scales, len_x, wavelet=None, nv=None, get_params=False,
             if ':' in scales:
                 scales, preset = scales.split(':')
 
-            supported = ('log', 'log-piecewise', 'linear')
-            if scales not in supported:
-                raise ValueError("`scales`, if string, must be one of: "
-                                 "%s (got %s)" % (', '.join(supported), scales))
+            assert_is_one_of(scales, 'scales',
+                             ('log', 'log-piecewise', 'linear'))
             if nv is None:
                 nv = 32
             if wavelet is None:
@@ -641,7 +661,8 @@ def make_scales(N, min_scale=None, max_scale=None, nv=32, scaletype='log',
 def find_downsampling_scale(wavelet, scales, span=5, tol=3, method='sum',
                             nonzero_th=.02, nonzero_tol=4., viz=False,
                             viz_last=False):
-    """
+    """Find `scale` past which freq-domain wavelets are "excessively redundant",
+    redundancy determined by `span, tol, method, nonzero_th, nonzero_tol`.
 
     # Arguments
         wavelet: np.ndarray / wavelets.Wavelet
@@ -709,10 +730,7 @@ def find_downsampling_scale(wavelet, scales, span=5, tol=3, method='sum',
         print("(idx, peak distances from joint peak, joint peak) = "
               "({}, {}, {})".format(i, distances, joint_peak), flush=True)
 
-    supported = ('any', 'all', 'sum')
-    if method not in supported:
-        raise ValueError("`method` must be one of {} (got {})".format(
-            ', '.join(supported), method))
+    assert_is_one_of(method, 'method', ('any', 'all', 'sum'))
     if not isinstance(wavelet, np.ndarray):
         wavelet = Wavelet._init_if_not_isinstance(wavelet)
 
@@ -929,6 +947,12 @@ def _integrate_analytic(int_fn, nowarn=False):
     int_nz = _integrate_near_zero()
     arr, t = _find_convergent_array()
     return integrate.trapz(arr, t) + int_nz
+
+
+def assert_is_one_of(x, name, supported, e=ValueError):
+    if x not in supported:
+        raise e("`{}` must be one of: {} (got {})".format(
+            name, ', '.join(supported), x))
 
 
 def _textwrap(txt, wrap_len=50):

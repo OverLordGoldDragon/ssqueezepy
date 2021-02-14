@@ -50,7 +50,7 @@ def high_freqs(N):
 
 #### Tests ###################################################################
 test_fns = (echirp, lchirp, fast_transitions, low_freqs, high_freqs)
-wavelet = ('morlet', {'mu': 5})
+wavelet = ('gmw', {'beta': 8})
 th = .1
 
 
@@ -99,6 +99,21 @@ def test_cwt():
     print("\ncwt PASSED\nerrs:", ', '.join(map(str, errs)))
 
 
+def test_cwt_log_piecewise():
+    x, ts = echirp(1024)
+
+    wavelet = 'gmw'
+    Tx, Wx, ssq_freqs, scales, *_ = ssq_cwt(x, wavelet, scales='log-piecewise',
+                                            t=ts, preserve_transform=True)
+    xrec_ssq_cwt = issq_cwt(Tx, 'gmw')
+    xrec_cwt = icwt(Wx, wavelet, scales=scales)
+
+    err_ssq_cwt = round(mad_rms(x, xrec_ssq_cwt), 5)
+    err_cwt = round(mad_rms(x, xrec_cwt), 5)
+    assert err_ssq_cwt < .02, err_ssq_cwt
+    assert err_cwt < .02, err_cwt
+
+
 def test_component_inversion():
     def echirp(N):
         t = np.linspace(0, 10, N, False)
@@ -113,7 +128,7 @@ def test_component_inversion():
     np.random.seed(4)
     x += np.sqrt(noise_var) * np.random.randn(len(x))
 
-    wavelet = ('morlet', {'mu': 4.5})
+    wavelet = ('gmw', {'beta': 6})
     Tx, *_ = ssq_cwt(x, wavelet, scales='log:maximal', nv=32, t=ts)
 
     # hand-coded, subject to failure
@@ -227,6 +242,7 @@ if __name__ == '__main__':
         from ssqueezepy.visuals import plot, imshow
         test_ssq_cwt()
         test_cwt()
+        test_cwt_log_piecewise()
         test_component_inversion()
         test_stft()
         test_ssq_stft()

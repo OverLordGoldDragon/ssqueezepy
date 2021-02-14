@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import numpy as np
-from .utils import WARN, EPS, pi, p2up, adm_ssq, process_scales, _process_fs_and_t
+from .utils import WARN, EPS, pi, p2up, adm_ssq, process_scales
+from .utils import trigdiff, _process_fs_and_t
 from .ssqueezing import ssqueeze, _check_ssqueezing_args
 from .wavelets import Wavelet
 from ._cwt import cwt
@@ -9,7 +10,7 @@ from ._cwt import cwt
 def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
             ssq_freqs=None, padtype='reflect', squeezing='sum', maprange='peak',
             difftype='direct', difforder=None, gamma=None, vectorized=True,
-            preserve_transform=True):
+            preserve_transform=True, order=0):
     """Synchrosqueezed Continuous Wavelet Transform.
     Implements the algorithm described in Sec. III of [1].
 
@@ -99,6 +100,11 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
             altered by `ssqueeze` or `phase_transform`). Uses more memory
             per storing extra copy of `Wx`.
 
+        order: int (default 0) / tuple[int]
+            `order > 0` computes ssq of `cwt` taken with higher-order GMWs.
+            If tuple, computes ssq of average of `cwt`s taken at each specified
+            order. See `help(_cwt.cwt_higher_order)`.
+
     # Returns:
         Tx: np.ndarray [nf x n]
             Synchrosqueezed CWT of `x`. (rows=~frequencies, cols=timeshifts)
@@ -179,19 +185,34 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
     N = len(x)
     dt, fs, difforder, nv = _process_args(N, scales, fs, t, nv, difftype,
                                           difforder, squeezing, maprange, wavelet)
-
     wavelet = Wavelet._init_if_not_isinstance(wavelet, N=N)
+
+    # CWT with higher-order GMWs
+    if isinstance(order, (tuple, list, range)) or order > 0:
+        # keep padding for `trigdiff`
+        kw = dict(wavelet=wavelet, scales=scales, fs=fs, t=t, nv=nv, l1_norm=True,
+                  derivative=False, padtype=padtype, rpadded=True,
+                  vectorized=vectorized)
+        _, n1, _ = p2up(N)
+        average = isinstance(order, (tuple, list, range))
+
+        Wx, scales = cwt(x, order=order, average=average, **kw)
+        dWx = trigdiff(Wx, fs, rpadded=True, N=N, n1=n1)
+        Wx = Wx[:, n1:n1 + N]
+
     scales, cwt_scaletype, *_ = process_scales(scales, N, wavelet, nv=nv,
                                                get_params=True)
 
-    # l1_norm=True to spare a multiplication; for SSQ_CWT L1 & L2 are exactly
-    # same anyway since we're inverting CWT over time-frequency plane
-    rpadded = (difftype == 'numeric')
-    Wx, scales, dWx = cwt(x, wavelet, scales=scales, fs=fs, nv=nv, l1_norm=True,
-                          derivative=True, padtype=padtype, rpadded=rpadded,
-                          vectorized=vectorized)
-    _Wx = Wx.copy() if preserve_transform else Wx
+    # regular CWT
+    if order == 0:
+        # l1_norm=True to spare a multiplication; for SSQ_CWT L1 & L2 are exactly
+        # same anyway since we're inverting CWT over time-frequency plane
+        rpadded = (difftype == 'numeric')
+        Wx, scales, dWx = cwt(x, wavelet, scales=scales, fs=fs, nv=nv,
+                              l1_norm=True, derivative=True, padtype=padtype,
+                              rpadded=rpadded, vectorized=vectorized)
 
+    _Wx = Wx.copy() if preserve_transform else Wx
     gamma = gamma or np.sqrt(EPS)
     _Wx, w = _phase_transform(_Wx, dWx, N, dt, gamma, difftype, difforder)
 
@@ -324,7 +345,7 @@ def phase_cwt(Wx, dWx, difftype='direct', gamma=None):
 
     # Arguments:
         Wx: np.ndarray
-            CWT of `x` (see `cwt`).
+            CWT of `x` (see `help(cwt)`).
 
         dWx: np.ndarray.
             Time-derivative of `Wx`, computed via frequency-domain differentiation
