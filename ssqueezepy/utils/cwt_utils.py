@@ -640,5 +640,6 @@ def integrate_analytic(int_fn, nowarn=False):
     arr, t = _find_convergent_array()
     return integrate.trapz(arr, t) + int_nz
 
+
 from ..wavelets import Wavelet
 from ..visuals import plot, scat, _viz_cwt_scalebounds, wavelet_waveforms

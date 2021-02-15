@@ -17,14 +17,14 @@ Synchrosqueezing is a powerful _reassignment method_ that focuses time-frequency
   - Short-Time Fourier Transform (STFT), forward & inverse, and its Synchrosqueezing
   - Wavelet visualizations and testing suite
   - Generalized Morse Wavelets
-
-### Coming soon
   - Ridge extraction
+
 
 ## Installation
 `pip install ssqueezepy`. Or, for latest version (most likely stable): 
 
 `pip install git+https://github.com/OverLordGoldDragon/ssqueezepy`
+
 
 ## Examples
 
@@ -48,6 +48,7 @@ Synchrosqueezing is a powerful _reassignment method_ that focuses time-frequency
 
 [More examples](https://overlordgolddragon.github.io/test-signals/)
 
+
 ## Introspection
 
 `ssqueezepy` is equipped with a visualization toolkit, useful for exploring wavelet behavior across scales and configurations. (Also see [explanations and code](https://dsp.stackexchange.com/a/72044/50076))
@@ -61,6 +62,7 @@ Synchrosqueezing is a powerful _reassignment method_ that focuses time-frequency
 
 <br>
 <hr>
+
 
 ## Minimal example
 
@@ -100,6 +102,7 @@ Tsx, Sx, *_ = ssq_stft(x)
 viz(x, Tsx, np.flipud(Sx))
 ```
 
+
 ## Learning resources
 
  1. [Continuous Wavelet Transform, & vs STFT](https://ccrma.stanford.edu/~unjung/mylec/WTpart1.html)
@@ -111,6 +114,12 @@ viz(x, Tsx, np.flipud(Sx))
 **DSP fundamentals**: I recommend starting with 3b1b's [Fourier Transform](https://youtu.be/spUNpyF58BY), then proceeding with [DSP Guide](https://www.dspguide.com/CH7.PDF) chapters 7-11.
 The Discrete Fourier Transform lays the foundation of signal processing with real data. Deeper on DFT coefficients [here](https://dsp.stackexchange.com/a/70395/50076), also [3b1b](https://youtu.be/g8RkArhtCc4).
 
+
+## Contributors (noteworthy)
+
+ - [David Bondesson](https://github.com/DavidBondesson): ridge extraction (`ridge_extraction.py`, `examples/extracting_ridges.py`)
+ 
+ 
 ## References
 
 `ssqueezepy` was originally ported from MATLAB's [Synchrosqueezing Toolbox](https://github.com/ebrevdo/synchrosqueezing), authored by E. Brevdo and G. Thakur [1]. Synchrosqueezed Wavelet Transform was introduced by I. Daubechies and S. Maes [2], which was followed-up in [3], and adapted to STFT in [4]. Many implementation details draw from [5].
@@ -120,6 +129,7 @@ The Discrete Fourier Transform lays the foundation of signal processing with rea
   3. I. Daubechies, J. Lu, H.T. Wu. ["Synchrosqueezed Wavelet Transforms: a Tool for Empirical Mode Decomposition"](https://arxiv.org/pdf/0912.2437.pdf), Applied and Computational Harmonic Analysis 30(2):243-261, 2011.
   4. G. Thakur, H.T. Wu. ["Synchrosqueezing-based Recovery of Instantaneous Frequency from Nonuniform Samples"](https://arxiv.org/abs/1006.2533), SIAM Journal on Mathematical Analysis, 43(5):2078-2095, 2011.
   5. Mallat, S. ["Wavelet Tour of Signal Processing 3rd ed"](https://www.di.ens.fr/~mallat/papiers/WaveletTourChap1-2-3.pdf).
+
 
 ## License
 
