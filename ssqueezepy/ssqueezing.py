@@ -2,7 +2,7 @@
 import numpy as np
 from types import FunctionType
 from .algos import find_closest, indexed_sum, replace_at_inf
-from .utils import process_scales, _infer_scaletype, _process_fs_and_t
+from .utils import process_scales, infer_scaletype, _process_fs_and_t
 from .utils import NOTE, pi, logscale_transition_idx, assert_is_one_of
 from .wavelets import center_frequency
 
@@ -159,7 +159,7 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
         ssq_freqs = _compute_associated_frequencies(
             dt, na, N, transform, ssq_scaletype, maprange, wavelet, scales)
     else:
-        ssq_scaletype = _infer_scaletype(ssq_freqs)
+        ssq_scaletype = infer_scaletype(ssq_freqs)
 
     # transform `Wx` if needed
     if isinstance(squeezing, FunctionType):

@@ -196,6 +196,11 @@ def test_utils():
     utils.unbuffer(g, xh, 1, n_fft=len(xh), N=None, win_exp=0)
     utils.unbuffer(g, xh, 1, n_fft=len(xh), N=g.shape[1], win_exp=2)
 
+    scales = utils.process_scales('log', 1024, Wavelet())
+    _ = utils.find_downsampling_scale(Wavelet(), scales, method='any',
+                                      viz_last=1)
+    _ = utils.find_downsampling_scale(Wavelet(), scales, method='all')
+
     #### errors / warnings ###################################################
     pass_on_error(utils.find_max_scale, 1, 1, -1, -1)
 
@@ -206,9 +211,9 @@ def test_utils():
 
     pass_on_error(utils._assert_positive_integer, -1, 'w')
 
-    pass_on_error(utils._infer_scaletype, 1)
-    pass_on_error(utils._infer_scaletype, np.array([1]))
-    pass_on_error(utils._infer_scaletype, np.array([1., 2., 5.]))
+    pass_on_error(utils.infer_scaletype, 1)
+    pass_on_error(utils.infer_scaletype, np.array([1]))
+    pass_on_error(utils.infer_scaletype, np.array([1., 2., 5.]))
 
     pass_on_error(utils._process_fs_and_t, 1, np.array([1]), 2)
     pass_on_error(utils._process_fs_and_t, 1, np.array([1., 2, 4]), 3)
@@ -299,12 +304,12 @@ def test_cwt_higher_order():
     for noise in (False, True):
         if noise:
             x += np.random.randn(len(x))
-        Wx_k, scales = cwt(x, 'gmw', order=2, average=False)
+        Wx_k, scales = cwt(x, 'gmw', order=range(3), average=False)
 
         visuals.viz_cwt_higher_order(Wx_k, scales, 'gmw')
         print("=" * 80)
 
-    _ = cwt(x, ('gmw', {'norm': 'energy'}), order=1, average=True,
+    _ = cwt(x, ('gmw', {'norm': 'energy'}), order=(0, 1), average=True,
             l1_norm=False)
 
 

@@ -444,7 +444,7 @@ def cwt_higher_order(x, wavelet='gmw', order=1, average=None, **kw):
         wavelets, wavopts = _process_wavelet(wavelet, order)
 
         scales = kw.get('scales', 'log-piecewise')
-        if isinstance(scales, str) and order[0] != 0:
+        if isinstance(scales, str):
             wav = Wavelet(('gmw', dict(order=0, **wavopts)))
             scales = process_scales(scales, len(x), wavelet=wav,
                                     nv=kw.get('nv', 32))

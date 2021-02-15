@@ -268,7 +268,6 @@ class Wavelet():
             self._viz(name, **kw)
 
     def _viz(self, name, **kw):
-        from . import visuals
         kw['wavelet'] = kw.get('wavelet', self)
         {
             'heatmap':    visuals.wavelet_heatmap,
@@ -528,9 +527,6 @@ def center_frequency(wavelet, scale=None, N=1024, kind='energy', force_int=None,
         w, psih, apsih2 = _params(wavelet, scale, N)
         return float(wc), (w, psih, apsih2)
 
-    # TODO make `utils/`
-    from .utils import assert_is_one_of
-
     if force_int and 'peak' in kind:
         NOTE("`force_int` ignored with 'peak' in `kind`")
     assert_is_one_of(kind, 'kind', ('energy', 'peak', 'peak-ct'))
@@ -655,8 +651,6 @@ def time_resolution(wavelet, scale=10, N=1024, min_decay=1e3, max_mult=2,
         https://www.di.ens.fr/~mallat/papiers/WaveletTourChap1-2-3.pdf
     """
     def _viz():
-        from .visuals import _viz_cwt_scalebounds
-
         _w    = aifftshift(xi)[Nt//2-1:]
         _psih = aifftshift(psih)[Nt//2-1:]
 
@@ -782,4 +776,6 @@ def isinstance_by_name(obj, ref):
 
 ##############################################################################
 from ._gmw import gmw
-from .visuals import plot
+from . import visuals
+from .visuals import plot, _viz_cwt_scalebounds
+from .utils.common import assert_is_one_of

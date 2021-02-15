@@ -1,200 +1,26 @@
 # -*- coding: utf-8 -*-
 import numpy as np
-import logging
-from numpy.fft import fft, ifft, fftshift, ifftshift
 from scipy import integrate
-from numba import jit
-from textwrap import wrap
-from .algos import _min_neglect_idx, find_maximum, find_first_occurrence
-from .wavelets import Wavelet
+from .common import WARN, NOTE, assert_is_one_of
+from ..algos import _min_neglect_idx, find_maximum, find_first_occurrence
 
-logging.basicConfig(format='')
-WARN = lambda msg: logging.warning("WARNING: %s" % msg)
-NOTE = lambda msg: logging.warning("NOTE: %s" % msg)  # else it's mostly ignored
-pi = np.pi
-EPS = np.finfo(np.float64).eps  # machine epsilon for float64  # TODO float32?
-
-
-def mad(data, axis=None):
-    """Mean absolute deviation"""
-    return np.mean(np.abs(data - np.mean(data, axis)), axis)
-
-
-def est_riskshrink_thresh(Wx, nv):
-    """Estimate the RiskShrink hard thresholding level, based on [1].
-    This has a denoising effect, but risks losing much of the signal; it's larger
-    the more high-frequency content there is, even if not noise.
-
-    # Arguments:
-        Wx: np.ndarray
-            CWT of a signal (see `cwt`).
-        nv: int
-            Number of voices used in CWT (see `cwt`).
-
-    # Returns:
-        gamma: float
-            The RiskShrink hard thresholding estimate.
-
-    # References:
-        1. The Synchrosqueezing algorithm for time-varying spectral analysis:
-        robustness properties and new paleoclimate applications.
-        G. Thakur, E. Brevdo, N.-S. Fučkar, and H.-T. Wu.
-        https://arxiv.org/abs/1105.0010
-
-        2. Synchrosqueezing Toolbox, (C) 2014--present. E. Brevdo, G. Thakur.
-        https://github.com/ebrevdo/synchrosqueezing/blob/master/synchrosqueezing/
-        est_riskshrink_thresh.m
-    """
-    N = Wx.shape[1]
-    Wx_fine = np.abs(Wx[:nv])
-    gamma = 1.4826 * np.sqrt(2 * np.log(N)) * mad(Wx_fine)
-    return gamma
+__all__ = [
+    "adm_ssq",
+    "adm_cwt",
+    "find_min_scale",
+    "find_max_scale",
+    "cwt_scalebounds",
+    "process_scales",
+    "logscale_transition_idx",
+    "make_scales",
+    "find_downsampling_scale",
+    "infer_scaletype",
+    "integrate_analytic",
+    "_process_fs_and_t",
+    "_assert_positive_integer",
+]
 
 
-def p2up(n):
-    """Calculates next power of 2, and left/right padding to center
-    the original `n` locations.
-
-    # Arguments:
-        n: int
-            Length of original (unpadded) signal.
-
-    # Returns:
-        n_up: int
-            Next power of 2.
-        n1: int
-            Left  pad length.
-        n2: int
-            Right pad length.
-    """
-    eps = np.finfo(np.float64).eps  # machine epsilon for float64
-    up = 2 ** (1 + np.round(np.log2(n + eps)))
-
-    n2 = np.floor((up - n) / 2)
-    n1 = n2 + n % 2           # if n is odd, left-pad by (n2 + 1), else n1=n2
-    assert n1 + n + n2 == up  # [left_pad, original, right_pad]
-    return int(up), int(n1), int(n2)
-
-
-def padsignal(x, padtype='reflect', padlength=None, get_params=False):
-    """Pads signal and returns trim indices to recover original.
-
-    # Arguments:
-        x: np.ndarray
-            Input vector, 1D or 2D. 2D has time in dim1, e.g. `(n_signals, time)`.
-
-        padtype: str
-            Pad scheme to apply on input. One of:
-                ('reflect', 'symmetric', 'replicate', 'wrap', 'zero').
-            'zero' is most naive, while 'reflect' (default) partly mitigates
-            boundary effects. See [1] & [2].
-
-        padlength: int / None
-            Number of samples to pad input to (i.e. len(x_padded) == padlength).
-            Even: left = right, Odd: left = right + 1.
-            Defaults to next highest power of 2 w.r.t. `len(x)`.
-
-    # Returns:
-        xp: np.ndarray
-            Padded signal.
-        n_up: int
-            Next power of 2, or `padlength` if provided.
-        n1: int
-            Left  pad length.
-        n2: int
-            Right pad length.
-
-    # References:
-        1. Signal extension modes. PyWavelets contributors
-        https://pywavelets.readthedocs.io/en/latest/ref/
-        signal-extension-modes.html
-
-        2. Wavelet Bases and Lifting Wavelets. H. Xiong.
-        http://min.sjtu.edu.cn/files/wavelet/
-        6-lifting%20wavelet%20and%20filterbank.pdf
-    """
-    def _process_args(x, padtype):
-        assert_is_one_of(padtype, 'padtype',
-                         ('reflect', 'symmetric', 'replicate', 'wrap', 'zero'))
-        if not isinstance(x, np.ndarray):
-            raise TypeError("`x` must be a numpy array (got %s)" % type(x))
-        elif x.ndim not in (1, 2):
-            raise ValueError("`x` must be 1D or 2D (got x.ndim == %s)" % x.ndim)
-
-    _process_args(x, padtype)
-    N = x.shape[-1]
-
-    if padlength is None:
-        # pad up to the nearest power of 2
-        n_up, n1, n2 = p2up(N)
-    else:
-        n_up = padlength
-        if abs(padlength - N) % 2 == 0:
-            n1 = n2 = (n_up - N) // 2
-        else:
-            n2 = (n_up - N) // 2
-            n1 = n2 + 1
-    n_up, n1, n2 = int(n_up), int(n1), int(n2)
-
-    if x.ndim == 1:
-        pad_width = (n1, n2)
-    elif x.ndim == 2:
-        pad_width = [(0, 0), (n1, n2)]
-
-    # comments use (n=4, n1=4, n2=3) as example, but this combination can't occur
-    if padtype == 'zero':
-        # [1,2,3,4] -> [0,0,0,0, 1,2,3,4, 0,0,0]
-        xp = np.pad(x, pad_width)
-    elif padtype == 'reflect':
-        # [1,2,3,4] -> [3,4,3,2, 1,2,3,4, 3,2,1]
-        xp = np.pad(x, pad_width, mode='reflect')
-    elif padtype == 'replicate':
-        # [1,2,3,4] -> [1,1,1,1, 1,2,3,4, 4,4,4]
-        xp = np.pad(x, pad_width, mode='edge')
-    elif padtype == 'wrap':
-        # [1,2,3,4] -> [1,2,3,4, 1,2,3,4, 1,2,3]
-        xp = np.pad(x, pad_width, mode='wrap')
-    elif padtype == 'symmetric':
-        # [1,2,3,4] -> [4,3,2,1, 1,2,3,4, 4,3,2]
-        if x.ndim == 1:
-            xp = np.hstack([x[::-1][-n1:], x, x[::-1][:n2]])
-        elif x.ndim == 2:
-            xp = np.hstack([x[:, ::-1][:, -n1:], x, x[:, ::-1][:, :n2]])
-
-    Npad = xp.shape[-1]
-    _ = (Npad, n_up, n1, N, n2)
-    assert (Npad == n_up == n1 + N + n2), "%s ?= %s ?= %s + %s + %s" % _
-    return (xp, n_up, n1, n2) if get_params else xp
-
-
-def trigdiff(A, fs=1, padtype=None, rpadded=None, N=None, n1=None):
-    """Trigonometric / frequency-domain differentiation; see `difftype` in
-    `help(ssq_cwt)`. Used internally by `ssq_cwt` with `order > 0`.
-    """
-    from .wavelets import _xifn
-
-    assert isinstance(A, np.ndarray)
-    assert A.ndim == 2
-
-    rpadded = rpadded or False
-    padtype = padtype or ('reflect' if not rpadded else None)
-    if rpadded and (n1 is None or N is None):
-        raise ValueError("must pass `n1` and `N` if `rpadded`")
-
-    if padtype is not None:
-        A, _, n1, *_ = padsignal(A, padtype, get_params=True)
-
-    xi = _xifn(1, A.shape[-1])[None]
-
-    A_freqdom = fft(fftshift(A, axes=-1), axis=-1)
-    A_diff = ifftshift(ifft(A_freqdom * 1j * xi * fs, axis=-1), axes=-1)
-
-    if rpadded:
-        A_diff = A_diff[:, n1:n1+N]
-    return A_diff
-
-
-#### CWT utils ################################################################
 def adm_ssq(wavelet):
     """Calculates the synchrosqueezing admissibility constant, the term
     R_psi in Eq 15 of [1] (also see Eq 2.5 of [2]). Uses numeric intergration.
@@ -212,7 +38,7 @@ def adm_ssq(wavelet):
         https://arxiv.org/pdf/0912.2437.pdf
     """
     wavelet = Wavelet._init_if_not_isinstance(wavelet).fn
-    Css = _integrate_analytic(lambda w: np.conj(wavelet(w)) / w)
+    Css = integrate_analytic(lambda w: np.conj(wavelet(w)) / w)
     Css = Css.real if abs(Css.imag) < 1e-15 else Css
     return Css
 
@@ -227,14 +53,13 @@ def adm_cwt(wavelet):
     https://www.di.ens.fr/~mallat/papiers/WaveletTourChap1-2-3.pdf
     """
     wavelet = Wavelet._init_if_not_isinstance(wavelet).fn
-    Cpsi = _integrate_analytic(lambda w: np.conj(wavelet(w)) * wavelet(w) / w)
+    Cpsi = integrate_analytic(lambda w: np.conj(wavelet(w)) * wavelet(w) / w)
     Cpsi = Cpsi.real if abs(Cpsi.imag) < 1e-15 else Cpsi
     return Cpsi
 
 
 def find_min_scale(wavelet, cutoff=1):
-    """
-    Design the wavelet in frequency domain. `scale` is found to yield
+    """Design the wavelet in frequency domain. `scale` is found to yield
     `scale * xi(scale=1)` such that its last (largest) positive value evaluates
     `wavelet` to `cutoff * max(psih)`. If cutoff > 0, it lands to right of peak,
     else to left (i.e. peak excluded).
@@ -409,15 +234,13 @@ def cwt_scalebounds(wavelet, N, preset=None, min_cutoff=None, max_cutoff=None,
         return min_cutoff, max_cutoff, cutoff
 
     def _viz():
-        from .visuals import _viz_cwt_scalebounds, wavelet_waveforms
-
         _viz_cwt_scalebounds(wavelet, N, min_scale=min_scale,
                              max_scale=max_scale, cutoff=cutoff)
         if viz >= 2:
             wavelet_waveforms(wavelet, M, min_scale)
             wavelet_waveforms(wavelet, M, max_scale)
         if viz == 3:
-            from .visuals import sweep_harea
+            from ..visuals import sweep_harea
             scales = make_scales(M, min_scale, max_scale)
             sweep_harea(wavelet, M, scales)
 
@@ -469,7 +292,7 @@ def process_scales(scales, len_x, wavelet=None, nv=None, get_params=False,
             if scales.squeeze().ndim != 1:
                 raise ValueError("`scales`, if array, must be 1D "
                                  "(got shape %s)" % str(scales.shape))
-            scaletype, _nv = _infer_scaletype(scales)
+            scaletype, _nv = infer_scaletype(scales)
             if scaletype == 'log':
                 if nv is not None and _nv != nv:
                     raise Exception("`nv` used in `scales` differs from "
@@ -505,7 +328,7 @@ def process_scales(scales, len_x, wavelet=None, nv=None, get_params=False,
             (scales, scaletype, na, nv))
 
 
-def _infer_scaletype(scales):
+def infer_scaletype(scales):
     """Infer whether `scales` is linearly or exponentially distributed (if latter,
     also infers `nv`). Used internally on `scales` and `ssq_freqs`.
 
@@ -718,8 +541,6 @@ def find_downsampling_scale(wavelet, scales, span=5, tol=3, method='sum',
         return too_dense
 
     def _viz(psihs, psihs_peaks, joint_peak, psihs_nonzeros, i):
-        from .visuals import plot, scat
-
         max_nonzero_idx = np.where(psihs_nonzeros)[1].max()
 
         plot(psihs.T[:max_nonzero_idx + 3], color='tab:blue',
@@ -773,136 +594,7 @@ def find_downsampling_scale(wavelet, scales, span=5, tol=3, method='sum',
     return i if (i < n_groups - 1) else None
 
 
-#### STFT utils ###############################################################
-def buffer(x, seg_len, n_overlap):
-    """Build 2D array where each column is a successive slice of `x` of length
-    `seg_len` and overlapping by `n_overlap` (or equivalently incrementing
-    starting index of each slice by `hop_len = seg_len - n_overlap`).
-
-    Mimics MATLAB's `buffer`, with less functionality.
-
-    Ex:
-        x = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-        xb = buffer(x, seg_len=5, n_overlap=3)
-        xb == [[0, 1, 2, 3, 4],
-               [2, 3, 4, 5, 6],
-               [4, 5, 6, 7, 8]].T
-    """
-    hop_len = seg_len - n_overlap
-    n_segs = (len(x) - seg_len) // hop_len + 1
-    out = np.zeros((seg_len, n_segs))
-
-    for i in range(n_segs):
-        start = i * hop_len
-        end   = start + seg_len
-        out[:, i] = x[start:end]
-    return out
-
-
-def unbuffer(xbuf, window, hop_len, n_fft, N, win_exp=1):
-    """Undoes `buffer`, per padding logic used in `stft`:
-        (N, n_fft) : logic
-         even, even: left = right + 1
-             (N, n_fft, len(xp), pl, pr) -> (128, 120, 247, 60, 59)
-          odd,  odd: left = right
-             (N, n_fft, len(xp), pl, pr) -> (129, 121, 249, 60, 60)
-         even,  odd: left = right
-             (N, n_fft, len(xp), pl, pr) -> (128, 121, 248, 60, 60)
-          odd, even: left = right + 1
-             (N, n_fft, len(xp), pl, pr) -> (129, 120, 248, 60, 59)
-    """
-    if N is None:
-        # assume greatest possible len(x) (unpadded)
-        N = xbuf.shape[1] * hop_len + len(window) - 1
-    if len(window) != n_fft:
-        raise ValueError("Must have `len(window) == n_fft` "
-                         "(got %s != %s)" % (len(window), n_fft))
-    if win_exp == 0:
-        window = 1
-    elif win_exp != 1:
-        window = window ** win_exp
-    x = np.zeros(N + n_fft - 1)
-
-    _overlap_add(x, xbuf, window, hop_len, n_fft)
-    x = x[n_fft//2 : -((n_fft - 1)//2)]
-    return x
-
-
-def window_norm(window, hop_len, n_fft, N, win_exp=1):
-    """Computes window modulation array for use in `stft` and `istft`."""
-    wn = np.zeros(N + n_fft - 1)
-
-    _window_norm(wn, window, hop_len, n_fft, win_exp)
-    return wn[n_fft//2 : -((n_fft - 1)//2)]
-
-
-@jit(nopython=True, cache=True)
-def _overlap_add(x, xbuf, window, hop_len, n_fft):
-    for i in range(xbuf.shape[1]):
-        n = i * hop_len
-        x[n:n + n_fft] += xbuf[:, i] * window
-
-
-@jit(nopython=True, cache=True)
-def _window_norm(wn, window, hop_len, n_fft, win_exp=1):
-    max_hops = (len(wn) - n_fft) // hop_len + 1
-    wpow = window ** (win_exp + 1)
-
-    for i in range(max_hops):
-        n = i * hop_len
-        wn[n:n + n_fft] += wpow
-
-
-def window_resolution(window):
-    """Minimal function to compute a window's time & frequency widths, assuming
-    Fourier spectrum centered about dc (else use `ssqueezepy.wavelets` methods).
-
-    Returns std_w, std_t, harea. `window` must be np.ndarray and >=0.
-    """
-    from .wavelets import _xifn
-    assert window.min() >= 0, "`window` must be >= 0 (got min=%s)" % window.min()
-    N = len(window)
-
-    t  = np.arange(-N/2, N/2, step=1)
-    ws = fftshift(_xifn(1, N))
-
-    psihs   = fftshift(fft(window))
-    apsi2   = np.abs(window)**2
-    apsih2s = np.abs(psihs)**2
-
-    var_w = integrate.trapz(ws**2 * apsih2s, ws) / integrate.trapz(apsih2s, ws)
-    var_t = integrate.trapz(t**2  * apsi2, t)    / integrate.trapz(apsi2, t)
-
-    std_w, std_t = np.sqrt(var_w), np.sqrt(var_t)
-    harea = std_w * std_t
-    return std_w, std_t, harea
-
-
-def window_area(window, time=True, frequency=False):
-    """Minimal function to compute a window's time or frequency 'area' as area
-    under curve of `abs(window)**2`. `window` must be np.ndarray.
-    """
-    from .wavelets import _xifn
-    if not time and not frequency:
-        raise ValueError("must compute something")
-
-    if time:
-        t = np.arange(-len(window)/2, len(window)/2, step=1)
-        at = integrate.trapz(np.abs(window)**2, t)
-    if frequency:
-        ws = fftshift(_xifn(1, len(window)))
-        apsih2s = np.abs(fftshift(fft(window)))**2
-        aw = integrate.trapz(apsih2s, ws)
-
-    if time and frequency:
-        return at, aw
-    elif time:
-        return at
-    return aw
-
-
-#### misc utils ###############################################################
-def _integrate_analytic(int_fn, nowarn=False):
+def integrate_analytic(int_fn, nowarn=False):
     """Assumes function that's zero for negative inputs (e.g. analytic wavelet),
     decays toward right, and is unimodal: int_fn(t<0)=0, int_fn(t->inf)->0.
     Integrates using trapezoidal rule, from 0 to inf (equivalently).
@@ -948,15 +640,5 @@ def _integrate_analytic(int_fn, nowarn=False):
     arr, t = _find_convergent_array()
     return integrate.trapz(arr, t) + int_nz
 
-
-def assert_is_one_of(x, name, supported, e=ValueError):
-    if x not in supported:
-        raise e("`{}` must be one of: {} (got {})".format(
-            name, ', '.join(supported), x))
-
-
-def _textwrap(txt, wrap_len=50):
-    """Preserves line breaks and includes `'\n'.join()` step."""
-    return '\n'.join(['\n'.join(
-        wrap(line, wrap_len, break_long_words=False, replace_whitespace=False))
-        for line in txt.splitlines() if line.strip() != ''])
+from ..wavelets import Wavelet
+from ..visuals import plot, scat, _viz_cwt_scalebounds, wavelet_waveforms

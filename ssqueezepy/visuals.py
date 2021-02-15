@@ -22,7 +22,6 @@ def wavelet_tf(wavelet, N=2048, scale=None, notext=False, width=1.1, height=1):
     """
     def pick_scale(wavelet, N):
         """Pick scale such that both time- & freq-domain wavelets look nice."""
-        from .wavelets import time_resolution
         st_min, st_max = 65 * (N / 2048), 75 * (N / 2048)
         max_iters = 100
         scale = wavelet.scalec_ct
@@ -170,7 +169,6 @@ def wavelet_tf_anim(wavelet, N=2048, scales=None, width=1.1, height=1,
         scales  = scales.reshape(-1, 1)
         return scales
 
-    from .utils import NOTE, process_scales, cwt_scalebounds, make_scales
     from matplotlib.animation import FuncAnimation
     import matplotlib
     matplotlib.use("Agg")
@@ -307,7 +305,6 @@ def wavelet_tf_anim(wavelet, N=2048, scales=None, width=1.1, height=1,
 def wavelet_heatmap(wavelet, scales='log', N=2048):
     wavelet = Wavelet._init_if_not_isinstance(wavelet)
     if not isinstance(scales, np.ndarray):
-        from .utils import process_scales
         scales = process_scales(scales, N, wavelet, double_N=False)
 
     #### Compute time- & freq-domain wavelets for all scales #################
@@ -334,8 +331,6 @@ def wavelet_heatmap(wavelet, scales='log', N=2048):
 
 
 def sweep_std_t(wavelet, N, scales='log', get=False, **kw):
-    from .utils import process_scales
-
     def _process_kw(kw):
         kw = kw.copy()  # don't change external dict
         defaults = dict(min_decay=1, max_mult=2, min_mult=2,
@@ -367,8 +362,6 @@ def sweep_std_t(wavelet, N, scales='log', get=False, **kw):
 
 
 def sweep_std_w(wavelet, N, scales='log', get=False, **kw):
-    from .utils import process_scales
-
     def _process_kw(kw):
         kw = kw.copy()  # don't change external dict
         defaults = dict(nondim=False, force_int=True)
@@ -406,8 +399,6 @@ def sweep_harea(wavelet, N, scales='log', get=False, kw_w=None, kw_t=None):
     and limited bin discretization integrating unreliably (yet largely
     meaningfully; the unreliable-ness appears emergent from discretization).
     """
-    from .utils import process_scales
-
     kw_w, kw_t = (kw_w or {}), (kw_t or {})
     wavelet = Wavelet._init_if_not_isinstance(wavelet)
     scales = process_scales(scales, N, wavelet)
@@ -429,8 +420,6 @@ def sweep_harea(wavelet, N, scales='log', get=False, kw_w=None, kw_t=None):
 
 
 def wavelet_waveforms(wavelet, N, scale, zoom=True):
-    from .utils import find_maximum
-
     wavelet = Wavelet._init_if_not_isinstance(wavelet)
     ## Freq-domain sampled #######################
     w_peak, _ = find_maximum(wavelet.fn)
@@ -488,8 +477,6 @@ def _viz_cwt_scalebounds(wavelet, N, min_scale=None, max_scale=None,
     `max_scale` the time-domain one.
     """
     def _viz_max(wavelet, N, max_scale, std_t, stdevs, Nt):
-        from .wavelets import time_resolution
-
         Nt = Nt or 2*N  # assume single extension
         if Nt is None:
             Nt = 2*N
@@ -550,15 +537,13 @@ def wavelet_filterbank(wavelet, N=1024, scales='log', skips=0, title_append=None
     `get=True` to return the filter bank (ignores `skip`).
     """
     def _title():
-        scaletype = _infer_scaletype(scales)[0]
+        scaletype = infer_scaletype(scales)[0]
         desc = wavelet._desc(N=N)
         desc = desc.replace(" |", " filterbank |")
 
         title = "{}, scaletype={}{}".format(desc, scaletype, title_append or '')
         title = _textwrap(title, wrap_len=72)
         return title
-
-    from .utils import process_scales, _infer_scaletype, _textwrap
 
     # process `scales` & prepare freq-domain wavelets
     scales = process_scales(scales, N, wavelet)
@@ -654,7 +639,6 @@ def imshow(data, title=None, show=1, cmap=None, norm=None, complex=None, abs=0,
            w=None, h=None, ridge=0, ticks=1, aspect='auto', ax=None, fig=None,
            yticks=None, xticks=None, xlabel=None, ylabel=None, **kw):
     if (ax or fig) and complex:
-        from .utils import NOTE
         NOTE("`ax` and `fig` ignored if `complex`")
     ax  = ax  or plt.gca()
     fig = fig or plt.gcf()
@@ -957,3 +941,6 @@ def _annotate(txt, xy=(.85, .9), weight='bold', fontsize=16):
 #############################################################################
 from .wavelets import Wavelet, _xifn
 from .wavelets import center_frequency, freq_resolution, time_resolution
+from .utils.common import NOTE, _textwrap
+from .utils.cwt_utils import process_scales, cwt_scalebounds, make_scales
+from .utils.cwt_utils import infer_scaletype

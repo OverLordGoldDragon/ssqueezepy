@@ -126,7 +126,7 @@ def _replace_at_value(x, ref, value=0., replacement=0.):
 #### misc (short) ############################################################
 @njit
 def _min_neglect_idx(arr, th=1e-12):
-    """Used in utils._integrate_analytic and ._integrate_bounded."""
+    """Used in utils.integrate_analytic and ._integrate_bounded."""
     for i, x in enumerate(arr):
         if x < th:
             return i
