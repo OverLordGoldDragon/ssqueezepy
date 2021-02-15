@@ -1,5 +1,11 @@
 # -*- coding: utf-8 -*-
-"""Generalized Morse Wavelets"""
+"""Generalized Morse Wavelets.
+
+Tests:
+    - Implementations are `Wavelet`-compatible
+    - Consistency of `Wavelet`-compatible implems with that of full `morsewave`
+    - GMW L1 & L2 norms work as expected
+"""
 import pytest
 import numpy as np
 from ssqueezepy.wavelets import Wavelet
@@ -9,7 +15,7 @@ from ssqueezepy._gmw import compute_gmw, morsewave
 VIZ = 0
 
 
-def test_simplified_vs_full():
+def test_api_vs_full():
     for gamma, beta in [(3, 60), (4, 80)]:
       for norm in ('bandpass', 'energy'):
         for scale in (1, 2):
@@ -19,13 +25,31 @@ def test_simplified_vs_full():
                        norm_scale=True)
             psih_s, psi_s = compute_gmw(**kw, **kw2)
             psih_f, psi_f = morsewave(**kw, freqs=1 / scale)
-            # print(np.sum(np.abs(psih_s)**2), kw, scale, flush=True)
-            # print(np.sum(np.abs(psi_s)), kw, scale, flush=True)
 
             mad_t = np.mean(np.abs(psi_s - psi_f))
             mad_f = np.mean(np.abs(psih_s - psih_f))
             assert np.allclose(psi_s, psi_f),   errmsg(mad_t, **kw, **kw2)
             assert np.allclose(psih_s, psih_f), errmsg(mad_f, **kw, **kw2)
+
+
+def test_api_vs_full_higher_order():
+    for gamma, beta in [(3, 60), (4, 80)]:
+      for order in (1, 2):
+        for norm in ('bandpass', 'energy'):
+          for scale in (1, 2):
+            for N in (512, 513):
+              kw = dict(N=N, gamma=gamma, beta=beta, norm=norm)
+              kw2 = dict(scale=scale, time=True, centered_scale=True,
+                         norm_scale=True)
+              psih_s, psi_s = compute_gmw(**kw, **kw2, order=order)
+              psih_f, psi_f = morsewave(**kw, freqs=1/scale, K=order + 1)
+
+              psih_f, psi_f = psih_f[:, -1], psi_f[:, -1]
+
+              mad_t = np.mean(np.abs(psi_s - psi_f))
+              mad_f = np.mean(np.abs(psih_s - psih_f))
+              assert np.allclose(psi_s, psi_f),   errmsg(mad_t, **kw, **kw2)
+              assert np.allclose(psih_s, psih_f), errmsg(mad_f, **kw, **kw2)
 
 
 def test_norm():
@@ -71,7 +95,8 @@ def errmsg(err, scale, gamma, beta, N, norm, centered_scale, **other):
 
 if __name__ == '__main__':
     if VIZ:
-        test_simplified_vs_full()
+        test_api_vs_full()
+        test_api_vs_full_higher_order()
         test_norm()
         test_wavelet()
     else:
