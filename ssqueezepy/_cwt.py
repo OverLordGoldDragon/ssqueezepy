@@ -36,8 +36,7 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
                 https://github.com/OverLordGoldDragon/ssqueezepy/issues/
                 29#issuecomment-776792726
                 - 'linear': linearly distributed scales.
-                  !!! EXPERIMENTAL; default scheme for len(x)>2048 performs
-                  poorly (and there may not be a good non-piecewise scheme).
+                  !!! this scheme is not recommended; use with caution
 
             str assumes default `preset='minimal-low'`, which can be changed via
             e.g. 'log:maximal', 'linear:minimal'.
@@ -450,9 +449,9 @@ def cwt_higher_order(x, wavelet='gmw', order=1, average=None, **kw):
                                     nv=kw.get('nv', 32))
         kw['scales'] = scales
 
-        return wavelets, order, average, scales
+        return wavelets, order, average
 
-    wavelets, order, average, scales = _process_args(wavelet, order, average, kw)
+    wavelets, order, average = _process_args(wavelet, order, average, kw)
 
     Wx_all = []
     derivative = kw.get('derivative', False)

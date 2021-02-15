@@ -583,7 +583,7 @@ def find_downsampling_scale(wavelet, scales, span=5, tol=3, method='sum',
             break
 
         if viz:
-            _viz(psihs, psihs_peaks, joint_peak, i)
+            _viz(psihs, psihs_peaks, joint_peak, psihs_nonzeros, i)
 
     if (viz or viz_last) and psihs_peaks is not None:
         print(("Failing scale: (idx, scale) = ({}, {:.2f})\n"

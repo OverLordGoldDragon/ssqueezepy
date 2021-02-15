@@ -353,7 +353,7 @@ def morsewave(N, freqs, gamma=3, beta=60, K=1, norm='bandpass'):
 
     PSI=MORSEWAVE(N,K,GAMMA,BETA,FS) with a fifth numerical argument K
     returns an N x LENGTH(FS) x K array PSI which contains time-domain
-    versions of the first K orthogonal generalized Morse wavelets. # TODO
+    versions of the first K orthogonal generalized Morse wavelets.
 
     These K different orthogonal wavelets have been employed in
     multiwavelet polarization analysis, see Olhede and Walden (2003a,b).

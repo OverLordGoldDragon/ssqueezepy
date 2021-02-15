@@ -311,6 +311,7 @@ def test_cwt_higher_order():
 
     _ = cwt(x, ('gmw', {'norm': 'energy'}), order=(0, 1), average=True,
             l1_norm=False)
+    _ = cwt(x, 'gmw', order=1, average=False, derivative=True)
 
 
 def test_viz_gmw_orders():

@@ -62,7 +62,7 @@ def test_ssq_cwt():
             if fn.__name__ == 'low_freqs':
                 if scales in ('linear', 'log-piecewise'):
                     # 'linear' default can't handle low frequencies for large N
-                    # 'log-piecewise' maps it too sparsely # TODO verify this
+                    # 'log-piecewise' maps it too sparsely
                     continue
                 scales = f'{scales}:maximal'
 
