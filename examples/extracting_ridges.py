@@ -8,13 +8,8 @@ import scipy.signal as sig
 from ssqueezepy import ssq_cwt, ssq_stft, extract_ridges, TestSignals
 from ssqueezepy.visuals import plot, imshow
 
-import matplotlib
-matplotlib.use('template')  # suppress plots when Spyder unit-testing
-
 #%%## Visual methods #########################################################
 def viz(x, Tf, ridge_idxs, yticks=None, ssq=False, transform='cwt', show_x=True):
-    return
-
     if show_x:
         plot(x, title="x(t)", show=1,
              xlabel="Time [samples]", ylabel="Signal Amplitude [A.U.]")
@@ -68,7 +63,7 @@ print('ridge follows indexes:', ridge_idxs)
 assert np.allclose(ridge_idxs, np.array([[2, 2, 2]]))
 
 #%%# sin + cos ###############################################################
-N, f1, f2 = 257, 5, 20
+N, f1, f2 = 513, 5, 20
 padtype = 'wrap'
 penalty = 20
 
@@ -80,11 +75,11 @@ x = x1 + x2
 tf_transforms(x, t, padtype=padtype, penalty=penalty)
 
 #%%# Linear + quadratic chirp ################################################
-N = 257
-penalty = 0.5
+N = 513
+penalty = 20
 padtype = 'reflect'
 
-t  = np.linspace(0, 10, N, endpoint=True)
+t  = np.linspace(0, 20, N, endpoint=True)
 x1 = sig.chirp(t, f0=2,  f1=8, t1=20, method='linear')
 x2 = sig.chirp(t, f0=.4, f1=4, t1=20, method='quadratic')
 x = x1 + x2
@@ -94,24 +89,29 @@ tf_transforms(x, t, padtype=padtype, stft_bw=4, penalty=penalty)
 #%%# Cubic polynomial frequency variation + pure tone ########################
 N, f = 257, 0.5
 padtype = 'wrap'
-penalty = 2.0
+penalty = 20
 
 t  = np.linspace(0, 10, N, endpoint=True)
 p1 = np.poly1d([0.025, -0.36, 1.25, 2.0])
+p3 = np.poly1d([0.01, -0.25, 1.5, 4.0])
 x1 = sig.sweep_poly(t, p1)
+x3 = sig.sweep_poly(t, p3)
 x2 = np.sin(2*np.pi * f * t)
-x = x1 + x2
+x = x1 + x2 + x3
+# x += np.sqrt(1) * np.random.randn(len(x))
 
-tf_transforms(x, t, padtype=padtype, stft_bw=4, penalty=penalty)
+tf_transforms(x, t, n_ridges=3, padtype=padtype, stft_bw=4, ssq_stft_bw=4,
+              penalty=penalty)
 
 #%%# Reflect-added linear chirps #############################################
 N = 512
+penalty = 2
 
 tsigs = TestSignals(N)
 x, t = tsigs.lchirp(N)
 x += x[::-1]
 
-tf_transforms(x, t, cwt_bw=20)
+tf_transforms(x, t, penalty=penalty, cwt_bw=10)
 
 #%%# Parallel F.M. linear chirps  ############################################
 N = 512
