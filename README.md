@@ -42,9 +42,10 @@ Synchrosqueezing is a powerful _reassignment method_ that focuses time-frequency
 
 <img src="https://user-images.githubusercontent.com/16495490/107452011-e7ce7880-6b61-11eb-972f-8aa5ea093dc8.png">
 
-### 4. Testing suite: GMW high time vs frequency localization, parallel hyperbolic chirp
 
-<img src="https://user-images.githubusercontent.com/16495490/107451949-c40b3280-6b61-11eb-8c4a-2fb58422f1f7.png">
+### 4. Testing suite: GMW vs Morlet, reflect-added hyperbolic chirp (extreme time-loc)
+
+<img src="https://user-images.githubusercontent.com/16495490/107903903-d9b69880-6f63-11eb-9478-8ead016cf6f8.png">
 
 [More examples](https://overlordgolddragon.github.io/test-signals/)
 
