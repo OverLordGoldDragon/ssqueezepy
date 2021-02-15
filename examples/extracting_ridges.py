@@ -115,8 +115,9 @@ tf_transforms(x, t, penalty=penalty, cwt_bw=10)
 
 #%%# Parallel F.M. linear chirps  ############################################
 N = 512
+penalty = 2
 
 tsigs = TestSignals(N)
 x, t = tsigs.par_lchirp(N)
 
-tf_transforms(x, t)
+tf_transforms(x, t, penalty=penalty)

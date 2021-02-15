@@ -42,19 +42,19 @@ Synchrosqueezing is a powerful _reassignment method_ that focuses time-frequency
 
 <img src="https://user-images.githubusercontent.com/16495490/107452011-e7ce7880-6b61-11eb-972f-8aa5ea093dc8.png">
 
-### 4. Ridge extraction: cubic polynomials + pure tone; noiseless & 1.69dB SNR
+### 4. Ridge extraction: cubic polynom. F.M. + pure tone; noiseless & 1.69dB SNR
 
 <img src="https://user-images.githubusercontent.com/16495490/107919540-f4e5d000-6f84-11eb-9f86-dbfd34733084.png">
 
-### 5. Testing suite: GMW vs Morlet, reflect-added hyperbolic chirp (extreme time-loc)
+### 5. Testing suite: GMW vs Morlet, reflect-added hyperbolic chirp (extreme time-loc.)
 
 <img src="https://user-images.githubusercontent.com/16495490/107903903-d9b69880-6f63-11eb-9478-8ead016cf6f8.png">
 
-[More examples](https://overlordgolddragon.github.io/test-signals/)
-
 ### 6. Higher-order GMW CWT, reflect-added parallel linear chirp, 3.06dB SNR
 
-<img src="https://user-images.githubusercontent.com/16495490/107915336-bef11d80-6f7d-11eb-99cb-56baea5b8baf.png">
+<img src="https://user-images.githubusercontent.com/16495490/107921072-66bf1900-6f87-11eb-9bf5-afd0a6bbbc4d.png">
+
+[More examples](https://overlordgolddragon.github.io/test-signals/)
 
 
 ## Introspection
