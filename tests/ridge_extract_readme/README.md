@@ -128,10 +128,11 @@ viz(x, Wx, ridge_idxs)
 
 ## 1. Ridge extraction on ssq_cwt
 
-The idea of a syncrosqueezed time-frequency representation is to improve upon the localization process and more accurately recover the frequency components compared to inverting the CWT over the entire time-scale plan [1]. However, whether ridge extraction is improved on a syncrosqueezed transform is still uncertain and may require further considerations [2] and expertise from the users on appropriate parameter tuning for stable and improved results.  
+The idea of a syncrosqueezed time-frequency representation is to improve upon the localization process and more accurately recover the frequency components compared to inverting the CWT over the entire time-scale plane [2]. However, whether ridge extraction is improved on a syncrosqueezed transform is still uncertain and may require further considerations [1] and expertise from the users on appropriate parameter tuning for stable and improved results.  
 
-[1] The Synchrosqueezing algorithm for time-varying spectral analysis: robustness properties and new paleoclimate applications. Gaurav Thakur, Eugene Brevdo, Neven S. Fuˇckar, and Hau-Tieng Wu. https://arxiv.org/pdf/1105.0010.pdf <br>
-[2] On the extraction of instantaneous frequencies fromridges in time-frequency representations of signals. D. Iatsenko, P. V. E. McClintock, A. Stefanovska. https://arxiv.org/pdf/1310.7276.pdf
+
+[1] On the extraction of instantaneous frequencies fromridges in time-frequency representations of signals. D. Iatsenko, P. V. E. McClintock, A. Stefanovska. https://arxiv.org/pdf/1310.7276.pdf <br>
+[2] The Synchrosqueezing algorithm for time-varying spectral analysis: robustness properties and new paleoclimate applications. Gaurav Thakur, Eugene Brevdo, Neven S. Fuˇckar, and Hau-Tieng Wu. https://arxiv.org/pdf/1105.0010.pdf
 
 Example 1 particularly highlights how edge-effects may make ridge extraction on the syncrosqueezed transform more unstable. 
 
