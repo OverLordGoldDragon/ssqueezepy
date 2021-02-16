@@ -33,4 +33,4 @@ show_last = 20
 
 Sample output:
 
-<img src="https://user-images.githubusercontent.com/16495490/108126103-ddacfc80-70c2-11eb-8c1b-c3bc37256e1f.png">
+<img src="https://user-images.githubusercontent.com/16495490/108127210-59f40f80-70c4-11eb-838e-735c35346144.png">

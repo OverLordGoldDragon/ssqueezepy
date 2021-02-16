@@ -179,6 +179,8 @@ def cwt_scalebounds(wavelet, N, preset=None, min_cutoff=None, max_cutoff=None,
                              ('maximal', 'minimal', 'naive'))
             if preset in ('naive', 'maximal'):
                 min_cutoff, max_cutoff = None, None
+                if preset == 'maximal':
+                    cutoff = -.5
             else:
                 min_cutoff, max_cutoff, cutoff = defaults.values()
         else:
@@ -250,6 +252,8 @@ def process_scales(scales, N, wavelet=None, nv=None, get_params=False,
         if isinstance(scales, str):
             if ':' in scales:
                 scales, preset = scales.split(':')
+            elif scales == 'log-piecewise':
+                preset = 'maximal'
 
             assert_is_one_of(scales, 'scales',
                              ('log', 'log-piecewise', 'linear'))

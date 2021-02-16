@@ -6,7 +6,7 @@ from ssqueezepy import cwt, icwt, stft, istft
 from ssqueezepy._stft import get_window
 from ssqueezepy.toolkit import lin_band
 
-VIZ = 0  # set to 1 to enable various visuals and run without pytest
+VIZ = 1  # set to 1 to enable various visuals and run without pytest
 
 
 #### Helper methods ##########################################################
@@ -38,14 +38,14 @@ def _freqs(N, freqs):
     return x, ts
 
 def fast_transitions(N):
-    return _freqs(N, np.array([N/100, N/200, N/2, N/20,
-                               N/2-1, N/50, N/3, N/150]) / 8)
+    return _freqs(N, np.array([N/100, N/200, N/3, N/20,
+                               N/3-1, N/50, N/4, N/150]) / 8)
 
 def low_freqs(N):
     return _freqs(N, [.3, .3, 1, 1, 2, 2])
 
 def high_freqs(N):
-    return _freqs(N, np.array([N/2, N/2-1, N/20, N/4]) / 4)
+    return _freqs(N, np.array([N/2, N/2-1, N/4, N/3]) / 4)
 
 
 #### Tests ###################################################################
@@ -59,12 +59,9 @@ def test_ssq_cwt():
     for fn in test_fns:
         x, ts = fn(2048)
         for scales in ('log', 'log-piecewise', 'linear'):
-            if fn.__name__ == 'low_freqs':
-                if scales in ('linear', 'log-piecewise'):
-                    # 'linear' default can't handle low frequencies for large N
-                    # 'log-piecewise' maps it too sparsely
-                    continue
-                scales = f'{scales}:maximal'
+            scales = _handle_scales(fn, scales)
+            if scales == "skip":
+                continue
 
             Tx, *_ = ssq_cwt(x, wavelet, scales=scales, nv=32, t=ts)
             xrec = issq_cwt(Tx, wavelet)
@@ -82,8 +79,8 @@ def test_cwt():
     for fn in test_fns:
         x, ts = fn(2048)
         for l1_norm in (True, False):
-            scales = ('log:maximal' if fn.__name__ == 'low_freqs' else
-                      'log')
+            scales = ('log:maximal' if fn.__name__ in ('low_freqs', 'high_freqs')
+                      else 'log')
             # 'linear' default can't handle low frequencies for large N
             kw = dict(wavelet=wavelet, scales=scales, l1_norm=l1_norm, nv=32)
 
@@ -220,6 +217,24 @@ def test_stft_vs_librosa():
                      lSx = lSx[:, :-1]
              mae = np.mean(np.abs(Sx - lSx))
              assert mae < 1e-15, "MAE: %s" % mae
+
+
+def _handle_scales(fn, scales):
+    if fn.__name__ == 'low_freqs':
+        if scales == 'linear':
+            # 'linear' default can't handle low frequencies for large N
+            # 'log-piecewise' maps it too sparsely
+            scales = "skip"
+        else:
+            scales = f'{scales}:maximal'
+
+    elif scales == 'linear' and fn.__name__ == 'fast_transitions':
+        scales = 'linear:maximal'
+
+    elif fn.__name__ == 'high_freqs':
+        if scales != 'log-piecewise':
+            scales = f'{scales}:maximal'
+    return scales
 
 
 def _maybe_viz(Wx, xo, xrec, title, err):

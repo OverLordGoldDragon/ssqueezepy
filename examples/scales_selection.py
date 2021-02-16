@@ -62,6 +62,7 @@ scales = make_scales(N, min_scale, max_scale, nv=nv, scaletype=scaletype,
 
 #%%# Visualize scales ########################################################
 viz(wavelet, scales, scaletype, show_last, nv)
+wavelet.viz('filterbank', scales=scales)
 
 #%%# Show applied ############################################################
 Tx, Wx, ssq_freqs, scales, *_ = ssq_cwt(x, wavelet, scales=scales,
