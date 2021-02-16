@@ -1,5 +1,6 @@
-# Frequency_ridge_extraction
-Extracts the N (user selected integer) most prominent frequency ridges from a time-frequency representation. 
+# Ridge extraction
+
+Extracts the `n_ridges` (user selected integer) most prominent frequency ridges from a time-frequency representation. 
 
 The method is based on a forward-backward greedy path optimization algorithm that penalises frequency jumps similar to the MATLAB function 'tfridge' (https://de.mathworks.com/help/signal/ref/tfridge.html). 
 
@@ -11,32 +12,26 @@ Further information about the particular algorithm (version of eq. III.4 in publ
 
 ## 1: Two constant frequency signals (ssq_cwt instability)
 
-```python
+```python   
+"""Sine + cosine."""
+N, f1, f2 = 500, 0.5, 2.0
+padtype = 'wrap'
+penalty = 20
 
-    
-    """Sine + cosine."""
-    sig_len, f1, f2 = 500, 0.5, 2.0
-    padtype = 'wrap'
-    penalty = 20
+t = np.linspace(0, 10, N, endpoint=True)
+x1 = np.sin(2*np.pi * f1 * t)
+x2 = np.cos(2*np.pi * f2 * t)
+x = x1 + x2
 
-    t_vec = np.linspace(0, 10, sig_len, endpoint=True)
-    x1 = np.sin(2*np.pi * f1 * t_vec)
-    x2 = np.cos(2*np.pi * f2 * t_vec)
-    x = x1 + x2
+Tx, ssq_freqs, Wx, scales = ssq_cwt(x, t=t, padtype=padtype)
 
-    Tx, ssq_freqs, Wx, scales, _ = ssq_cwt(x, t=t_vec, padtype=padtype)
+# CWT example
+ridge_idxs = extract_ridges(Wx, scales, penalty, n_ridges=2, bw=25)
+viz(x, Wx, ridge_idxs, scales)
 
-    # CWT example
-    ridge_idxs, *_ = extract_ridges(Wx, scales, penalty, n_ridges=2, BW=25)
-    viz(x, Wx, ridge_idxs, scales)
-
-    # SSQ_CWT example
-    ridge_idxs, *_ = extract_ridges(Tx, scales, penalty, n_ridges=2, BW=4)
-    viz(x, Tx, ridge_idxs, ssq_freqs, ssq=True)
-
-
-
-
+# SSQ_CWT example
+ridge_idxs = extract_ridges(Tx, scales, penalty, n_ridges=2, bw=4)
+viz(x, Tx, ridge_idxs, ssq_freqs, ssq=True)
 ```
 
 ![signal_1](/tests/ridge_extract_readme/imgs/signal_1.png)
@@ -46,30 +41,25 @@ Further information about the particular algorithm (version of eq. III.4 in publ
 ## 2: Two chirp signals with linear and quadratic frequency variation
 
 ```python
+"""Linear + quadratic chirp."""
+N = 500
+penalty = 0.5
+padtype = 'reflect'
 
-    
-    """Linear + quadratic chirp."""
-    sig_len = 500
-    penalty = 0.5
-    padtype = 'reflect'
+t = np.linspace(0, 10, N, endpoint=True)
+x1 = sig.chirp(t, f0=2,  f1=8, t1=20, method='linear')
+x2 = sig.chirp(t, f0=.4, f1=4, t1=20, method='quadratic')
+x = x1 + x2
 
-    t_vec = np.linspace(0, 10, sig_len, endpoint=True)
-    x1 = sig.chirp(t_vec, f0=2,  f1=8, t1=20, method='linear')
-    x2 = sig.chirp(t_vec, f0=.4, f1=4, t1=20, method='quadratic')
-    x = x1 + x2
+Tx, ssq_freq, Wx, scales = ssq_cwt(x, t=t, padtype=padtype)
 
-    Tx, ssq_freq, Wx, scales, _ = ssq_cwt(x, t=t_vec, padtype=padtype)
+# CWT example
+ridge_idxs = extract_ridges(Wx, scales, penalty, n_ridges=2, bw=25)
+viz(x, Wx, ridge_idxs)
 
-    # CWT example
-    ridge_idxs, *_ = extract_ridges(Wx, scales, penalty, n_ridges=2, BW=25)
-    viz(x, Wx, ridge_idxs)
-
-    # SSQ_CWT example
-    ridge_idxs, *_ = extract_ridges(Tx, scales, penalty, n_ridges=2, BW=2)
-    viz(x, Tx, ridge_idxs, ssq=True)
-
-
-
+# SSQ_CWT example
+ridge_idxs = extract_ridges(Tx, scales, penalty, n_ridges=2, bw=2)
+viz(x, Tx, ridge_idxs, ssq=True)
 ```
 
 ![signal_2](/tests/ridge_extract_readme/imgs/signal_2.png)
@@ -78,31 +68,27 @@ Further information about the particular algorithm (version of eq. III.4 in publ
 
 ## 3: One sweep signal and one constant frequency signal
 
-```python
+```python    
+"""Cubic polynomial frequency variation + pure tone."""
+N, f = 500, 0.5
+padtype = 'wrap'
 
-    
-    """Cubic polynomial frequency variation + pure tone."""
-    sig_len, f = 500, 0.5
-    padtype = 'wrap'
+t = np.linspace(0, 10, N, endpoint=True)
+p1 = np.poly1d([0.025, -0.36, 1.25, 2.0])
+x1 = sig.sweep_poly(t, p1)
+x2 = np.sin(2*np.pi * f * t)
+x = x1 + x2
 
-    t_vec = np.linspace(0, 10, sig_len, endpoint=True)
-    p1 = np.poly1d([0.025, -0.36, 1.25, 2.0])
-    x1 = sig.sweep_poly(t_vec, p1)
-    x2 = np.sin(2*np.pi * f * t_vec)
-    x = x1 + x2
+Tx, ssq_freq, Wx, scales = ssq_cwt(x, t=t, padtype=padtype)
 
-    Tx, ssq_freq, Wx, scales, _ = ssq_cwt(x, t=t_vec, padtype=padtype)
+# CWT example
+penalty = 2.0
+ridge_idxs = extract_ridges(Wx, scales, penalty, n_ridges=2, bw=25)
+viz(x, Wx, ridge_idxs)
 
-    # CWT example
-    penalty = 2.0
-    ridge_idxs, *_ = extract_ridges(Wx, scales, penalty, n_ridges=2, BW=25)
-    viz(x, Wx, ridge_idxs)
-
-    # SSQ_CWT example
-    ridge_idxs, *_ = extract_ridges(Tx, scales, penalty, n_ridges=2, BW=2)
-    viz(x, Tx, ridge_idxs, ssq=True)
-
-
+# SSQ_CWT example
+ridge_idxs = extract_ridges(Tx, scales, penalty, n_ridges=2, bw=2)
+viz(x, Tx, ridge_idxs, ssq=True)
 ```
 
 ![signal_3](/tests/ridge_extract_readme/imgs/signal_3.png)
@@ -113,29 +99,24 @@ Further information about the particular algorithm (version of eq. III.4 in publ
 
 
 ```python
+"""Linear + quadratic chirp."""
+N = 600
+padtype = 'symmetric'
+t = np.linspace(0, 3, N, endpoint=True)
 
+x1 = sig.chirp(t-1.5, f0=30, t1=1.1, f1=40, method='quadratic')
+x2 = sig.chirp(t-1.5, f0=10, t1=1.1, f1=5,  method='quadratic')
+x = x1 + x2
 
-    """Linear + quadratic chirp."""
-    sig_len = 600
-    padtype = 'symmetric'
-    t_vec = np.linspace(0, 3, sig_len, endpoint=True)
-  
-    x1 = sig.chirp(t_vec-1.5, f0=30,  t1=1.1,f1=40,  method='quadratic')
-    x2 = sig.chirp(t_vec-1.5,f0=10,  t1=1.1,f1=5, method='quadratic')
-    x = x1 + x2
+Tx, ssq_freq, Wx, scales = ssq_cwt(x, t=t, padtype=padtype)
 
-    Tx, ssq_freq, Wx, scales, _ = ssq_cwt(x, t=t_vec, padtype=padtype)
+# CWT example no penalty
+ridge_idxs = extract_ridges(Wx, scales, penalty=0.0, n_ridges=2, bw=25)
+viz(x, Wx, ridge_idxs)
 
-    # CWT example no penalty
-    ridge_idxs, *_ = extract_ridges(Wx, scales, penalty=0.0, n_ridges=2, BW=25)
-    viz(x, Wx, ridge_idxs)
-
-    # CWT example with penalty
-    ridge_idxs, *_ = extract_ridges(Wx, scales, penalty=0.5, n_ridges=2, BW=25)
-    viz(x, Wx, ridge_idxs)
-
-
-
+# CWT example with penalty
+ridge_idxs = extract_ridges(Wx, scales, penalty=0.5, n_ridges=2, bw=25)
+viz(x, Wx, ridge_idxs)
 ```
 
 ![signal_failed_wsst](/tests/ridge_extract_readme/imgs/signal_failed_wsst.png)
