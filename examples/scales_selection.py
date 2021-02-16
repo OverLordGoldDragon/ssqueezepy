@@ -41,6 +41,8 @@ wavelet = 'gmw'
 padtype = 'reflect'
 
 # one of: 'log', 'log-piecewise', 'linear'
+# 'log-piecewise' lowers low-frequency redundancy; see
+# https://github.com/OverLordGoldDragon/ssqueezepy/issues/29#issuecomment-778526900
 scaletype = 'log-piecewise'
 # one of: 'minimal', 'maximal', 'naive' (not recommended)
 preset = 'maximal'

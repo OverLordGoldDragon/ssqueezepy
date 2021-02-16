@@ -210,8 +210,8 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
             (Wx, scales))
 
 
-def icwt(Wx, wavelet='gmw', scales='log', nv=None, one_int=True, x_len=None,
-         x_mean=0, padtype='zero', rpadded=False, l1_norm=True):
+def icwt(Wx, wavelet='gmw', scales='log-piecewise', nv=None, one_int=True,
+         x_len=None, x_mean=0, padtype='zero', rpadded=False, l1_norm=True):
     """The inverse Continuous Wavelet Transform of `Wx`, via double or
     single integral.
 

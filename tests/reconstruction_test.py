@@ -6,7 +6,7 @@ from ssqueezepy import cwt, icwt, stft, istft
 from ssqueezepy._stft import get_window
 from ssqueezepy.toolkit import lin_band
 
-VIZ = 1  # set to 1 to enable various visuals and run without pytest
+VIZ = 0  # set to 1 to enable various visuals and run without pytest
 
 
 #### Helper methods ##########################################################
