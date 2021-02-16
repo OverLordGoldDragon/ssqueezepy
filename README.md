@@ -89,7 +89,7 @@ def viz(x, Tx, Wx):
 N = 2048
 t = np.linspace(0, 10, N, endpoint=False)
 xo = np.cos(2 * np.pi * 2 * (np.exp(t / 2.2) - 1))
-xo += xo[::-1]  # superimpose reflected
+xo += xo[::-1]  # add self reflected
 x = xo + np.sqrt(2) * np.random.randn(N)  # add noise
 
 plt.plot(xo); plt.show()
@@ -125,7 +125,7 @@ The Discrete Fourier Transform lays the foundation of signal processing with rea
 
 ## Contributors (noteworthy)
 
- - [David Bondesson](https://github.com/DavidBondesson): ridge extraction (`ridge_extraction.py`, `examples/extracting_ridges.py`)
+ - [David Bondesson](https://github.com/DavidBondesson): ridge extraction (`ridge_extraction.py`; `examples/`: `extracting_ridges.py`, `README.md`)
  
  
 ## References

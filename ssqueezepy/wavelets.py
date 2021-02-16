@@ -161,7 +161,7 @@ class Wavelet():
         Reported as "nondimensional" in `info()` since it's scale-decoupled.
         """
         if getattr(self, '_wc_ct', None) is None:
-            self._wc_ct = center_frequency(self, kind='peak-ct')
+            self._wc_ct = center_frequency(self, kind='peak-ct', N=self.N)
         return self._wc_ct
 
     @property
@@ -269,6 +269,7 @@ class Wavelet():
 
     def _viz(self, name, **kw):
         kw['wavelet'] = kw.get('wavelet', self)
+        kw['N'] = kw.get('N', self.N)
         {
             'heatmap':    visuals.wavelet_heatmap,
             'waveforms':  visuals.wavelet_waveforms,

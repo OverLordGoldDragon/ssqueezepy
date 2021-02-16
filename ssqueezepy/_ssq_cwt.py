@@ -202,7 +202,6 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
 
     scales, cwt_scaletype, *_ = process_scales(scales, N, wavelet, nv=nv,
                                                get_params=True)
-
     # regular CWT
     if order == 0:
         # l1_norm=True to spare a multiplication; for SSQ_CWT L1 & L2 are exactly

@@ -143,10 +143,10 @@ def wavelet_tf_anim(wavelet, N=2048, scales=None, width=1.1, height=1,
         if scales is None:
             scales = 'log:minimal'
             mn, mx = cwt_scalebounds(wavelet, N=N, preset='maximal',
-                                     double_N=False)
+                                     use_padded_N=False)
             scales = make_scales(N, 0.90*mn, 0.25*mx, scaletype='log')
         else:
-            scales = process_scales(scales, N, wavelet, double_N=False)
+            scales = process_scales(scales, N, wavelet, use_padded_N=False)
 
         # compute early and late scales more densely as they capture more
         # interesting behavior, so animation will slow down smoothly near ends
@@ -305,7 +305,7 @@ def wavelet_tf_anim(wavelet, N=2048, scales=None, width=1.1, height=1,
 def wavelet_heatmap(wavelet, scales='log', N=2048):
     wavelet = Wavelet._init_if_not_isinstance(wavelet)
     if not isinstance(scales, np.ndarray):
-        scales = process_scales(scales, N, wavelet, double_N=False)
+        scales = process_scales(scales, N, wavelet, use_padded_N=False)
 
     #### Compute time- & freq-domain wavelets for all scales #################
     Psi = wavelet.psifn(scale=scales, N=N)
@@ -424,7 +424,7 @@ def wavelet_waveforms(wavelet, N, scale, zoom=True):
     ## Freq-domain sampled #######################
     w_peak, _ = find_maximum(wavelet.fn)
 
-    w_ct = np.linspace(0, w_peak*2, max(4096, 2*N))  # 'continuous-time'
+    w_ct = np.linspace(0, w_peak*2, max(4096, p2up(N)[0]))  # 'continuous-time'
     w_dt = np.linspace(0, np.pi, N//2) * scale  # sampling pts at `scale`
     psih_ct = wavelet(w_ct)
     psih_dt = wavelet(w_dt)
@@ -477,9 +477,8 @@ def _viz_cwt_scalebounds(wavelet, N, min_scale=None, max_scale=None,
     `max_scale` the time-domain one.
     """
     def _viz_max(wavelet, N, max_scale, std_t, stdevs, Nt):
-        Nt = Nt or 2*N  # assume single extension
         if Nt is None:
-            Nt = 2*N
+            Nt = p2up(N)[0]
         if std_t is None:
             # permissive max_mult to not crash visual
             std_t = time_resolution(wavelet, max_scale, N, nondim=False,
@@ -797,7 +796,8 @@ def plots(X, Y=None, nrows=None, ncols=None, tight=True, sharex=False,
 
 def scat(x, y=None, title=None, show=0, ax_equal=False, s=18, w=None, h=None,
          xlims=None, ylims=None, dx1=False, vlines=None, hlines=None, ticks=1,
-         complex=False, xlabel=None, ylabel=None, ax=None, fig=None, **kw):
+         complex=False, abs=False, xlabel=None, ylabel=None, ax=None, fig=None,
+         **kw):
     ax  = ax  or plt.gca()
     fig = fig or plt.gcf()
 
@@ -813,6 +813,8 @@ def scat(x, y=None, title=None, show=0, ax_equal=False, s=18, w=None, h=None,
         ax.scatter(x, y.real, s=s, **kw)
         ax.scatter(x, y.imag, s=s, **kw)
     else:
+        if abs:
+            y = np.abs(y)
         ax.scatter(x, y, s=s, **kw)
     if not ticks:
         ax.set_xticks([])
@@ -941,6 +943,6 @@ def _annotate(txt, xy=(.85, .9), weight='bold', fontsize=16):
 #############################################################################
 from .wavelets import Wavelet, _xifn
 from .wavelets import center_frequency, freq_resolution, time_resolution
-from .utils.common import NOTE, _textwrap
+from .utils.common import NOTE, _textwrap, p2up
 from .utils.cwt_utils import process_scales, cwt_scalebounds, make_scales
 from .utils.cwt_utils import infer_scaletype

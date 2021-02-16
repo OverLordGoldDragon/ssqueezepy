@@ -1,14 +1,17 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 from scipy import integrate
-from .common import WARN, NOTE, assert_is_one_of
+from .common import WARN, assert_is_one_of, p2up
 from ..algos import _min_neglect_idx, find_maximum, find_first_occurrence
+
+pi = np.pi
 
 __all__ = [
     "adm_ssq",
     "adm_cwt",
     "find_min_scale",
     "find_max_scale",
+    "find_max_scale_alt",
     "cwt_scalebounds",
     "process_scales",
     "logscale_transition_idx",
@@ -80,179 +83,147 @@ def find_min_scale(wavelet, cutoff=1):
     return min_scale
 
 
-def find_max_scale(wavelet, N, min_cutoff=.1, max_cutoff=.8):
+def find_max_scale(wavelet, N, bin_loc=1, bin_amp=1):
+    """Finds `scale` such that freq-domain wavelet's amplitude is `bin_amp`
+    of maximum at `bin_loc` bin. Set `bin_loc=1` to ensure no lower frequencies
+    are lost, but likewise mind redundancy (see `make_scales`).
     """
-    Design the wavelet in frequency domain. `scale` is found to yield
-    `scale * xi(scale=1)` such that two of its consecutive values land
-    symmetrically about the peak of `psih` (i.e. none *at* peak), while
-    still yielding `wavelet(w)` to fall between `min_cutoff`* and `max_cutoff`*
-    `max(psih)`. `scale` is selected such that the symmetry is attained
-    using smallest possible bins (closest to dc). Steps:
-
-        1. Find `w` (input value to `wavelet`) for which `wavelet` is maximized
-        (i.e. peak of `psih`).
-        2. Find two `w` such that `wavelet` attains `min_cutoff` and `max_cutoff`
-        times its maximum value, using `w` in previous step as upper bound.
-        3. Find `div_size` such that `xi` lands at both points of symmetry;
-        `div_size` == increment between successive values of
-        `xi = scale * xi(scale=1)`.
-            - `xi` begins at zero; along the cutoff bounds, and us selecting
-            the smallest number of divisions/increments to reach points of
-            symmetry, we guarantee a unique `scale`.
-
-    This yields a max `scale` that'll generally lie in 'nicely-behaved' region
-    of std_t; value can be used to fine-tune further.
-    See `visuals.sweep_std_t`.
-    """
-    if max_cutoff <= 0 or min_cutoff <= 0:
-        raise ValueError("`max_cutoff` and `min_cutoff` must be positive "
-                         "(got %s, %s)" % (max_cutoff, min_cutoff))
-    elif max_cutoff <= min_cutoff:
-        raise ValueError("must have `max_cutoff > min_cutoff` "
-                         "(got %s, %s)" % (max_cutoff, min_cutoff))
-
     wavelet = Wavelet._init_if_not_isinstance(wavelet)
-    w_peak, peak = find_maximum(wavelet.fn)
 
-    # we solve the inverse problem; instead of looking for spacing of xi
-    # that'd land symmetrically about psih's peak, we pick such points
-    # above a set ratio of peak's value and ensure they divide the line
-    # from left symmetry point to zero an integer number of times
+    # get scale at which full freq-domain wavelet is likely to fit
+    wc_ct = center_frequency(wavelet, kind='peak-ct', N=N)
+    scalec_ct = (4/pi) * wc_ct
 
-    # define all points of wavelet from cutoff to peak, left half
-    w_cutoff, _ = find_first_occurrence(wavelet.fn, value=min_cutoff * peak,
-                                        step_start=0, step_limit=w_peak)
+    # get freq_domain wavelet, positive half (asm. analytic)
+    psih = wavelet(scale=scalec_ct, N=N)[:N//2 + 1]
+    # get (radian) frequencies at which it was sampled
+    xi = wavelet.xifn(scalec_ct, N)
+    # get index of psih's peak
+    midx = np.argmax(psih)
+    # get index where `psih` attains `bin1_amp` of its max value, to left of peak
+    w_bin = xi[np.where(psih[:midx] < psih.max()*bin_amp)[0][-1]]
 
-    w_ltp = np.arange(w_cutoff, w_peak, step=1/N)  # left-to-peak
-
-    # consider every point on wavelet(w_ltp) (except peak) as candidate cutoff
-    # point, and pick earliest one that yields integer number of increments
-    # from left point of symmetry to origin
-    div_size = (w_peak - w_ltp[:-1]) * 2  # doubled so peak is skipped
-    n_divs = w_ltp[:-1] / div_size
-    # diff of modulus; first drop in n_divs is like [.98, .99, 0, .01], so at 0
-    # we've hit an integer, and n_divs grows ~linearly so behavior guaranteed
-    # -.8 arbitrary to be ~1 but <1
-    try:
-        idx = np.where(np.diff(n_divs % 1) < -.8)[0][0]
-    except:
-        raise Exception("Failed to find suffciently-integer xi divisions; try "
-                        "widening (min_cutoff, max_cutoff)")
-    # the div to base the scale on (angular bin spacing of scale*xi)
-    div_scale = div_size[idx + 1]
-
-    # div size of scale=1 (spacing between angular bins at scale=1)
-    w_1div = np.pi / (N / 2)
-
-    max_scale = div_scale / w_1div
+    # find scale such that wavelet amplitude is `bin_amp` of max at `bin_loc` bin
+    max_scale = scalec_ct * (w_bin / xi[bin_loc])
     return max_scale
 
 
 def cwt_scalebounds(wavelet, N, preset=None, min_cutoff=None, max_cutoff=None,
-                    cutoff=None, double_N=True, viz=False):
-    """`min_cutoff, max_cutoff` used to find max scale, `cutoff` to find min.
-    viz==2 for more visuals, ==3 for even more.
+                    cutoff=None, bin_loc=None, bin_amp=None, use_padded_N=True,
+                    viz=False):
+    """Finds range of scales for which `wavelet` is "well-behaved", as
+    determined by `preset`.
 
-      - Lesser  `cutoff`     -> lesser `min_scale`, always
-      - Greater `min_cutoff` -> lesser `max_scale`, generally
+    `min_scale`: found such that freq-domain wavelet takes on `cutoff` of its max
+    value on the greatest bin.
+      - Lesser `cutoff` -> lesser `min_scale`, always
+
+    `max_scale`: search determined by `preset`:
+        - 'maximal': found such that freq-domain takes `bin_amp` of its max value
+          on the `bin_loc`-th (non-dc) bin
+          - Greater `bin_loc` or lesser `bin_amp` -> lesser `max_scale`, always
+
+        - 'minimal': found more intricately independent of precise bin location,
+          but is likely to omit first several bins entirely; see
+          `help(utils.find_max_scale_alt)`.
+          - Greater `min_cutoff` -> lesser `max_scale`, generally
+
+    `viz==2` for more visuals, `viz==3` for even more.
 
     # Arguments:
         wavelet: `wavelets.Wavelet`
-            Wavelet sampled in Fourier frequency domain. See help(cwt).
+            Wavelet sampled in Fourier frequency domain. See `help(cwt)`.
 
         N: int
             Length of wavelet to use.
 
         min_cutoff, max_cutoff: float > 0 / None
-            Used to find max scale. See help(utils.find_max_scale)
+            Used to find max scale with `preset='minimal'`.
+            See `help(utils.find_max_scale_alt)`
 
         cutoff: float / None
-            Used to find min scale. See help(utils.find_min_scale)
+            Used to find min scale. See `help(utils.find_min_scale)`
 
         preset: str['maximal', 'minimal', 'naive'] / None
             - 'maximal': yields a larger max and smaller min.
             - 'minimal': strives to keep wavelet in "well-behaved" range of std_t
             and std_w, but very high or very low frequencies' energies will be
             under-represented. Is closer to MATLAB's default `cwtfreqbounds`.
-            - 'minimal-low': `'minimal'`s lower bound, `'maximal'`'s upper
             - 'naive': returns (1, N), which is per original MATLAB Toolbox,
             but a poor choice for most wavelet options.
             - None: will use `min_cutoff, max_cutoff, cutoff` values, else
-            override all of them. If it and they are all None, will default to
-            `preset='minimal-low'`.
+            override all of them with those of `preset='minimal'`:
+                (min_cutoff, max_cutoff, cutoff) = (0.6, 0.8, 1)
 
-            preset: (min_cutoff, max_cutoff, cutoff)
-                - 'maximal':     0.001, 0.8, -0.5
-                - 'minimal':     0.6,   0.8, 1
-                - 'minimal-low': 0.6,   0.8, -0.5
+        use_padded_N: bool (default True)
+            Whether to use `N=p2up(N)` in computations. Typically `N == len(x)`,
+            but CWT pads to next power of 2, which is the actual wavelet length
+            used, which typically behaves significantly differently at scale
+            extrema, thus recommended default True. Differs from passing
+            `N=p2up(N)[0]` and False only for first visual if `viz`, see code.
 
-        double_N: bool (default True)
-            Whether to use 2*N in computations. Typically `N == len(x)`,
-            but CWT pads to 2*N, which is the actual wavelet length used,
-            which typically behaves significantly differently at scale extrema,
-            thus recommended default True. Differs from passing N=2*N and False
-            only for first visual if `viz`, see code.
-
+    # Returns:
+        min_scale, max_scale: float, float
+            Minimum & maximum scales.
     """
-    def _process_args(preset, min_cutoff, max_cutoff, cutoff):
-        defaults = {'minimal': dict(min_cutoff=.6,   max_cutoff=.8, cutoff=1),
-                    'maximal': dict(min_cutoff=1e-5, max_cutoff=.8, cutoff=-.5)}
-        defaults['minimal-low'] = {k: defaults[d][k] for d, k in
-                                   [('minimal', 'min_cutoff'),
-                                    ('minimal', 'max_cutoff'),
-                                    ('maximal', 'cutoff')]}
-        none_default = 'minimal-low'
+    def _process_args(preset, min_cutoff, max_cutoff, cutoff, bin_loc, bin_amp):
+        defaults = dict(min_cutoff=.6, max_cutoff=.8, cutoff=1)
 
         if preset is not None:
             if any((min_cutoff, max_cutoff, cutoff)):
                 WARN("`preset` will override `min_cutoff, max_cutoff, cutoff`")
+            elif preset == 'minimal' and any((bin_amp, bin_loc)):
+                WARN("`preset='minimal'` ignores `bin_amp` & `bin_loc`")
 
             assert_is_one_of(preset, 'preset',
-                             ('maximal', 'minimal', 'minimal-low', 'naive'))
-            if preset == 'naive':
-                pass  # handle later
+                             ('maximal', 'minimal', 'naive'))
+            if preset in ('naive', 'maximal'):
+                min_cutoff, max_cutoff = None, None
             else:
-                min_cutoff, max_cutoff, cutoff = defaults[preset].values()
+                min_cutoff, max_cutoff, cutoff = defaults.values()
         else:
             if min_cutoff is None:
-                min_cutoff = defaults[none_default]['min_cutoff']
+                min_cutoff = defaults['min_cutoff']
             elif min_cutoff <= 0:
                 raise ValueError("`min_cutoff` must be >0 (got %s)" % min_cutoff)
 
             if max_cutoff is None:
-                max_cutoff = defaults[none_default]['max_cutoff']
+                max_cutoff = defaults['max_cutoff']
             elif max_cutoff < min_cutoff:
                 raise ValueError("must have `max_cutoff > min_cutoff` "
                                  "(got %s, %s)" % (max_cutoff, min_cutoff))
 
-            if cutoff is None:
-                cutoff = defaults[none_default]['cutoff']
-            elif cutoff == 0:
-                NOTE("`cutoff==0` might never be attained; setting to 1e-14")
-                cutoff = 1e-14
+        bin_loc = bin_loc or (1 if preset == 'maximal' else None)
+        bin_amp = bin_amp or (1 if preset == 'maximal' else None)
+        cutoff  = cutoff if (cutoff is not None) else defaults['cutoff']
 
-        return min_cutoff, max_cutoff, cutoff
+        return min_cutoff, max_cutoff, cutoff, bin_loc, bin_amp
 
     def _viz():
-        _viz_cwt_scalebounds(wavelet, N, min_scale=min_scale,
+        _viz_cwt_scalebounds(wavelet, N=M, Nt=M, min_scale=min_scale,
                              max_scale=max_scale, cutoff=cutoff)
         if viz >= 2:
             wavelet_waveforms(wavelet, M, min_scale)
             wavelet_waveforms(wavelet, M, max_scale)
         if viz == 3:
-            from ..visuals import sweep_harea
             scales = make_scales(M, min_scale, max_scale)
             sweep_harea(wavelet, M, scales)
 
-    min_cutoff, max_cutoff, cutoff = _process_args(preset, min_cutoff,
-                                                   max_cutoff, cutoff)
+    min_cutoff, max_cutoff, cutoff, bin_loc, bin_amp = _process_args(
+        preset, min_cutoff, max_cutoff, cutoff, bin_loc, bin_amp)
+
     if preset == 'naive':  # still _process_args for the NOTE
         return 1, N
 
-    M = 2*N if double_N else N
+    M = p2up(N)[0] if use_padded_N else N
     min_scale = find_min_scale(wavelet, cutoff=cutoff)
-    max_scale = find_max_scale(wavelet, M, min_cutoff=min_cutoff,
-                               max_cutoff=max_cutoff)
+
+    if preset in ('minimal', None):
+        max_scale = find_max_scale_alt(wavelet, M, min_cutoff=min_cutoff,
+                                       max_cutoff=max_cutoff)
+    elif preset == 'maximal':
+        max_scale = find_max_scale(wavelet, M, bin_loc=bin_loc, bin_amp=bin_amp)
+
     if viz:
         _viz()
     return min_scale, max_scale
@@ -263,8 +234,8 @@ def _assert_positive_integer(g, name=''):
         raise ValueError(f"'{name}' must be a positive integer (got {g})")
 
 
-def process_scales(scales, len_x, wavelet=None, nv=None, get_params=False,
-                   double_N=True):
+def process_scales(scales, N, wavelet=None, nv=None, get_params=False,
+                   use_padded_N=True):
     """Makes scales if `scales` is a string, else validates the array,
     and returns relevant parameters if requested.
 
@@ -318,9 +289,9 @@ def process_scales(scales, len_x, wavelet=None, nv=None, get_params=False,
                 (scales, scaletype, len(scales), nv))
 
     #### Compute scales & params #############################################
-    min_scale, max_scale = cwt_scalebounds(wavelet, N=len_x, preset=preset,
-                                           double_N=double_N)
-    scales = make_scales(len_x, min_scale, max_scale, nv=nv, scaletype=scaletype,
+    min_scale, max_scale = cwt_scalebounds(wavelet, N=N, preset=preset,
+                                           use_padded_N=use_padded_N)
+    scales = make_scales(N, min_scale, max_scale, nv=nv, scaletype=scaletype,
                          wavelet=wavelet)
     na = len(scales)
 
@@ -641,5 +612,74 @@ def integrate_analytic(int_fn, nowarn=False):
     return integrate.trapz(arr, t) + int_nz
 
 
-from ..wavelets import Wavelet
+def find_max_scale_alt(wavelet, N, min_cutoff=.1, max_cutoff=.8):
+    """
+    Design the wavelet in frequency domain. `scale` is found to yield
+    `scale * xi(scale=1)` such that two of its consecutive values land
+    symmetrically about the peak of `psih` (i.e. none *at* peak), while
+    still yielding `wavelet(w)` to fall between `min_cutoff`* and `max_cutoff`*
+    `max(psih)`. `scale` is selected such that the symmetry is attained
+    using smallest possible bins (closest to dc). Steps:
+
+        1. Find `w` (input value to `wavelet`) for which `wavelet` is maximized
+        (i.e. peak of `psih`).
+        2. Find two `w` such that `wavelet` attains `min_cutoff` and `max_cutoff`
+        times its maximum value, using `w` in previous step as upper bound.
+        3. Find `div_size` such that `xi` lands at both points of symmetry;
+        `div_size` == increment between successive values of
+        `xi = scale * xi(scale=1)`.
+            - `xi` begins at zero; along the cutoff bounds, and us selecting
+            the smallest number of divisions/increments to reach points of
+            symmetry, we guarantee a unique `scale`.
+
+    This yields a max `scale` that'll generally lie in 'nicely-behaved' region
+    of std_t; value can be used to fine-tune further.
+    See `visuals.sweep_std_t`.
+    """
+    if max_cutoff <= 0 or min_cutoff <= 0:
+        raise ValueError("`max_cutoff` and `min_cutoff` must be positive "
+                         "(got %s, %s)" % (max_cutoff, min_cutoff))
+    elif max_cutoff <= min_cutoff:
+        raise ValueError("must have `max_cutoff > min_cutoff` "
+                         "(got %s, %s)" % (max_cutoff, min_cutoff))
+
+    wavelet = Wavelet._init_if_not_isinstance(wavelet)
+    w_peak, peak = find_maximum(wavelet.fn)
+
+    # we solve the inverse problem; instead of looking for spacing of xi
+    # that'd land symmetrically about psih's peak, we pick such points
+    # above a set ratio of peak's value and ensure they divide the line
+    # from left symmetry point to zero an integer number of times
+
+    # define all points of wavelet from cutoff to peak, left half
+    w_cutoff, _ = find_first_occurrence(wavelet.fn, value=min_cutoff * peak,
+                                        step_start=0, step_limit=w_peak)
+
+    w_ltp = np.arange(w_cutoff, w_peak, step=1/N)  # left-to-peak
+
+    # consider every point on wavelet(w_ltp) (except peak) as candidate cutoff
+    # point, and pick earliest one that yields integer number of increments
+    # from left point of symmetry to origin
+    div_size = (w_peak - w_ltp[:-1]) * 2  # doubled so peak is skipped
+    n_divs = w_ltp[:-1] / div_size
+    # diff of modulus; first drop in n_divs is like [.98, .99, 0, .01], so at 0
+    # we've hit an integer, and n_divs grows ~linearly so behavior guaranteed
+    # -.8 arbitrary to be ~1 but <1
+    try:
+        idx = np.where(np.diff(n_divs % 1) < -.8)[0][0]
+    except:
+        raise Exception("Failed to find suffciently-integer xi divisions; try "
+                        "widening (min_cutoff, max_cutoff)")
+    # the div to base the scale on (angular bin spacing of scale*xi)
+    div_scale = div_size[idx + 1]
+
+    # div size of scale=1 (spacing between angular bins at scale=1)
+    w_1div = np.pi / (N / 2)
+
+    max_scale = div_scale / w_1div
+    return max_scale
+
+
+from ..wavelets import Wavelet, center_frequency
 from ..visuals import plot, scat, _viz_cwt_scalebounds, wavelet_waveforms
+from ..visuals import sweep_harea
