@@ -336,6 +336,21 @@ def test_trigdiff():
     assert mae < 1e-15, mae
 
 
+def test_logscale_transition_idx():
+    """Ensure the function splits `idx` such that `scales` are split as
+    `[scales[:idx], scales[idx:]]`
+    """
+    scales = np.exp(np.linspace(0, 5, 512))
+    idx = 399
+    for downsample in (2, 3, 4):
+        scales1 = scales[:idx]
+        scales2 = scales[idx + downsample - 1::downsample]
+        scales = np.hstack([scales1, scales2])
+
+        tidx = utils.logscale_transition_idx(scales)
+        assert idx == tidx, "{} != {}".format(idx, tidx)
+
+
 def test_configs():
     pass_on_error(gdefaults, None)
 
@@ -363,6 +378,7 @@ if __name__ == '__main__':
         test_cwt_higher_order()
         test_viz_gmw_orders()
         test_trigdiff()
+        test_logscale_transition_idx()
         test_configs()
     else:
         pytest.main([__file__, "-s"])

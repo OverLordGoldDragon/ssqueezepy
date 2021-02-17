@@ -32,14 +32,14 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
                 - 'log': exponentially distributed scales, as pow of 2:
                          `[2^(1/nv), 2^(2/nv), ...]`
                 - 'log-piecewise': 'log' except very high `scales` are downsampled
-                to prevent redundancy. This is recommended. See
-                https://github.com/OverLordGoldDragon/ssqueezepy/issues/
-                29#issuecomment-776792726
+                  to prevent redundancy. This is recommended. See
+                  https://github.com/OverLordGoldDragon/ssqueezepy/issues/
+                  29#issuecomment-776792726
                 - 'linear': linearly distributed scales.
                   !!! this scheme is not recommended; use with caution
 
-            str assumes default `preset='minimal-low'`, which can be changed via
-            e.g. 'log:maximal', 'linear:minimal'.
+            str assumes default `preset` of `'minimal'` for low scales and
+            `'maximal'` for high, which can be changed via e.g. 'log:maximal'.
             See `preset` in `help(utils.cwt_scalebounds)`.
 
         nv: int
@@ -160,7 +160,7 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
 
         if isinstance(scales, np.ndarray):
             nv = None
-        N = x.shape[-1]
+        N = len(x)
         dt, *_ = _process_fs_and_t(fs, t, N=N)
         return N, nv, dt
 
@@ -185,7 +185,7 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
     wavelet = _process_gmw_wavelet(wavelet, l1_norm)
     wavelet = Wavelet._init_if_not_isinstance(wavelet)
     scales = process_scales(scales, N, wavelet, nv=nv)
-    pn = (-1)**np.arange(xp.shape[-1])
+    pn = (-1)**np.arange(len(xp))
 
     # temporarily adjust `wavlet.N`, take CWT
     wavelet_N_orig = wavelet.N

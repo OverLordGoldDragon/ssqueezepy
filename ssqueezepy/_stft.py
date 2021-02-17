@@ -7,7 +7,7 @@ from .utils import _process_fs_and_t
 from .wavelets import _xifn
 
 
-def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=1., t=None,
+def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=None, t=None,
          padtype='reflect', modulated=True, derivative=False):
     """Short-Time Fourier Transform.
 
@@ -21,8 +21,8 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=1., t=None,
         window: str / np.ndarray / None
             STFT windowing kernel. If string, will fetch per
             `scipy.signal.get_window(window, win_len, fftbins=True)`.
-            Defaults to `scipy.signal.windows.dpss(win_len, 4)`; the DPSS
-            window provides the best time-frequency resolution.
+            Defaults to `scipy.signal.windows.dpss(win_len, win_len//8)`;
+            the DPSS window provides the best time-frequency resolution.
 
             Always padded to `n_fft`, so for accurate filter characteristics
             (side lobe decay, etc), best to pass in pre-designed `window`
@@ -65,7 +65,7 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=1., t=None,
             Recommended to use `True`; see "Modulation" below.
 
         derivative: bool (default False)
-            Whether to compute and return `dSx`. Requires `fs`.
+            Whether to compute and return `dSx`. Uses `fs`.
 
     **Modulation**
         `True` will center DFT cisoids at the window for each shift `u`:
@@ -96,10 +96,6 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=1., t=None,
         1. Synchrosqueezing-based Recovery of Instantaneous Frequency from
         Nonuniform Samples. G. Thakur and H.-T. Wu.
         https://arxiv.org/abs/1006.2533
-
-        2. Synchrosqueezing Toolbox, (C) 2014--present. E. Brevdo, G. Thakur.
-        https://github.com/ebrevdo/synchrosqueezing/blob/master/synchrosqueezing/
-        stft_fw.m
     """
     def _stft(xp, window, diff_window, n_fft, hop_len, fs, modulated, derivative):
         Sx  = buffer(xp, n_fft, n_fft - hop_len)

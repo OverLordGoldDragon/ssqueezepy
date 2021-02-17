@@ -152,8 +152,9 @@ def cwt_scalebounds(wavelet, N, preset=None, min_cutoff=None, max_cutoff=None,
             - 'naive': returns (1, N), which is per original MATLAB Toolbox,
             but a poor choice for most wavelet options.
             - None: will use `min_cutoff, max_cutoff, cutoff` values, else
-            override all of them with those of `preset='minimal'`:
-                (min_cutoff, max_cutoff, cutoff) = (0.6, 0.8, 1)
+            override `min_cutoff, max_cutoff` with those of `preset='minimal'`,
+            and of `cutoff` with that of `preset='maximal'`:
+                (min_cutoff, max_cutoff, cutoff) = (0.6, 0.8, -.5)
 
         use_padded_N: bool (default True)
             Whether to use `N=p2up(N)` in computations. Typically `N == len(x)`,
@@ -167,7 +168,7 @@ def cwt_scalebounds(wavelet, N, preset=None, min_cutoff=None, max_cutoff=None,
             Minimum & maximum scales.
     """
     def _process_args(preset, min_cutoff, max_cutoff, cutoff, bin_loc, bin_amp):
-        defaults = dict(min_cutoff=.6, max_cutoff=.8, cutoff=1)
+        defaults = dict(min_cutoff=.6, max_cutoff=.8, cutoff=-.5)
 
         if preset is not None:
             if any((min_cutoff, max_cutoff, cutoff)):
@@ -464,13 +465,16 @@ def find_downsampling_scale(wavelet, scales, span=5, tol=3, method='sum',
 
     # Arguments
         wavelet: np.ndarray / wavelets.Wavelet
+            CWT wavelet.
+
         scales: np.ndarray
+            CWT scales.
 
         span: int
-            Number of wavelets to cross-correlate at each comparison
+            Number of wavelets to cross-correlate at each comparison.
 
         tol: int
-            Tolerance value, works with `method`
+            Tolerance value, works with `method`.
 
         method: str['any', 'all', 'sum']
             Condition relating `span` and `tol` to determine whether wavelets

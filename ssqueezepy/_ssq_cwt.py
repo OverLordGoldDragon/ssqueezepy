@@ -9,7 +9,7 @@ from ._cwt import cwt
 
 def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
             ssq_freqs=None, padtype='reflect', squeezing='sum', maprange='peak',
-            difftype='direct', difforder=None, gamma=None, vectorized=True,
+            difftype='trig', difforder=None, gamma=None, vectorized=True,
             preserve_transform=True, order=0):
     """Synchrosqueezed Continuous Wavelet Transform.
     Implements the algorithm described in Sec. III of [1].
@@ -68,13 +68,13 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
                 fM (but ~same fM).
                 - tuple: sets `ssq_freqrange` directly.
 
-        difftype: str['direct', 'phase', 'numeric']
-            Method by which to differentiate Wx (default='direct') to obtain
+        difftype: str['trig', 'phase', 'numeric']
+            Method by which to differentiate Wx (default='trig') to obtain
             instantaneous frequencies:
                     w(a,b) = Im( (1/2pi) * (1/Wx(a,b)) * d/db[Wx(a,b)] )
 
-            - 'direct': use `dWx`, obtained via frequency-domain differentiation
-            (see `cwt`, `phase_cwt`).
+            - 'trig': use `dWx`, obtained via trigonometric (frequency-domain
+            interpolant) differentiation (see `cwt`, `phase_cwt`).
             - 'phase': differentiate by taking forward finite-difference of
             unwrapped angle of `Wx` (see `phase_cwt`).
             - 'numeric': first-, second-, or fourth-order (set by `difforder`)
@@ -145,7 +145,7 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
     """
     def _process_args(N, scales, fs, t, nv, difftype, difforder, squeezing,
                       maprange, wavelet):
-        if difftype not in ('direct', 'phase', 'numeric'):
+        if difftype not in ('trig', 'phase', 'numeric'):
             raise ValueError("`difftype` must be one of: direct, phase, numeric"
                              " (got %s)" % difftype)
         if difforder is not None:
@@ -166,7 +166,7 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
         return dt, fs, difforder, nv
 
     def _phase_transform(Wx, dWx, N, dt, gamma, difftype, difforder):
-        if difftype == 'direct':
+        if difftype == 'trig':
             # calculate instantaneous frequency directly from the
             # frequency-domain derivative
             w = phase_cwt(Wx, dWx, difftype, gamma)
@@ -337,7 +337,7 @@ def _process_component_inversion_args(cc, cw):
     return cc, cw, full_inverse
 
 
-def phase_cwt(Wx, dWx, difftype='direct', gamma=None):
+def phase_cwt(Wx, dWx, difftype='trig', gamma=None):
     """Calculate the phase transform at each (scale, time) pair:
           w[a, b] = Im((1/2pi) * d/db (Wx[a,b]) / Wx[a,b])
     See above Eq 20.3 in [1], or Eq 13 in [2].
@@ -350,14 +350,17 @@ def phase_cwt(Wx, dWx, difftype='direct', gamma=None):
             Time-derivative of `Wx`, computed via frequency-domain differentiation
             (effectively, derivative of trigonometric interpolation; see [4]).
 
-        difftype: str['direct', 'phase']
-            Method by which to differentiate Wx (default='direct') to obtain
+        difftype: str['trig', 'phase']
+            Method by which to differentiate Wx (default='trig') to obtain
             instantaneous frequencies:
                     w(a,b) = Im( (1/2pi) * (1/Wx(a,b)) * d/db[Wx(a,b)] )
 
-                - 'direct': using `dWx` (see `dWx`).
+                - 'trig': using `dWx, the time-derivative of the CWT of `x`,
+                computed via frequency-domain differentiation (effectively,
+                derivative of trigonometric interpolation; see [4]). Implements
+                as described in Sec IIIB of [2].
                 - 'phase': differentiate by taking forward finite-difference of
-                unwrapped angle of `Wx` (see `phase_cwt`).
+                unwrapped angle of `Wx`
 
         gamma: float / None
             CWT phase threshold. Sets `w=inf` for small values of `Wx` where
@@ -393,7 +396,7 @@ def phase_cwt(Wx, dWx, difftype='direct', gamma=None):
         https://github.com/ebrevdo/synchrosqueezing/blob/master/synchrosqueezing/
         phase_cwt.m
     """
-    if difftype == 'direct':
+    if difftype == 'trig':
         with np.errstate(divide='ignore', invalid='ignore'):
             w = np.imag(dWx / Wx) / (2*pi)
     elif difftype == 'phase':
@@ -402,7 +405,7 @@ def phase_cwt(Wx, dWx, difftype='direct', gamma=None):
         w = np.vstack([np.diff(u, axis=0), u[-1] - u[0]]).T / (2*pi)
     else:
         raise ValueError(f"unsupported `difftype` '{difftype}'; must be one of "
-                         "'direct', 'phase'.")
+                         "'trig', 'phase'.")
 
     # treat negative phases as positive; these are in small minority, and
     # slightly aid invertibility (as less of `Wx` is zeroed in ssqueezing)

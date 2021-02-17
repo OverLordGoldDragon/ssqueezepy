@@ -51,5 +51,5 @@ print("std_w, std_t, harea\nwavelet: {:.4f}, {:.4f}, {:.8f}"
           wavelet.std_w, wavelet.std_t, wavelet.harea,
           *window_resolution(window)))
 #%%
-tsigs.cwt_vs_stft(wavelet, window, signals='all', N=N, win_len=win_len,
+tsigs.cwt_vs_stft(wavelet, window, signals='all', N=N, win_len=None,
                   n_fft=n_fft, window_name=window_name, config_str=config_str)

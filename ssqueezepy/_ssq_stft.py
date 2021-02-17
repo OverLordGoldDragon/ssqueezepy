@@ -6,13 +6,13 @@ from .utils import WARN, EPS, pi, _process_fs_and_t
 from .ssqueezing import ssqueeze, _check_ssqueezing_args
 
 
-def ssq_stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=1., t=None,
+def ssq_stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=None, t=None,
              modulated=True, ssq_freqs=None, padtype='reflect', squeezing='sum',
              gamma=None, preserve_transform=True):
     """Synchrosqueezed Short-Time Fourier Transform.
     Implements the algorithm described in Sec. III of [1].
 
-    Good MATLAB docs: https://www.mathworks.com/help/signal/ref/fsst.html
+    MATLAB docs: https://www.mathworks.com/help/signal/ref/fsst.html
 
     # Arguments:
         x: np.ndarray
@@ -116,7 +116,7 @@ def issq_stft(Tx, window=None, cc=None, cw=None, n_fft=None, win_len=None,
         window = get_window(window, win_len, n_fft=n_fft)
         _check_NOLA(window, hop_len)
         if abs(np.argmax(window) - len(window)//2) > 1:
-            WARN("`window` maximum not centered; results may be unreliable.")
+            WARN("`window` maximum not centered; results may be inaccurate.")
 
         return window, cc, cw, win_len, hop_len, n_fft, full_inverse
 

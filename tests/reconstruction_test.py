@@ -59,9 +59,13 @@ def test_ssq_cwt():
     for fn in test_fns:
         x, ts = fn(2048)
         for scales in ('log', 'log-piecewise', 'linear'):
-            scales = _handle_scales(fn, scales)
-            if scales == "skip":
-                continue
+            if fn.__name__ == 'low_freqs':
+                if scales == 'linear':
+                    # 'linear' default can't handle low frequencies for large N
+                    # 'log-piecewise' maps it too sparsely
+                    continue
+                else:
+                    scales = f'{scales}:maximal'
 
             Tx, *_ = ssq_cwt(x, wavelet, scales=scales, nv=32, t=ts)
             xrec = issq_cwt(Tx, wavelet)
@@ -217,24 +221,6 @@ def test_stft_vs_librosa():
                      lSx = lSx[:, :-1]
              mae = np.mean(np.abs(Sx - lSx))
              assert mae < 1e-15, "MAE: %s" % mae
-
-
-def _handle_scales(fn, scales):
-    if fn.__name__ == 'low_freqs':
-        if scales == 'linear':
-            # 'linear' default can't handle low frequencies for large N
-            # 'log-piecewise' maps it too sparsely
-            scales = "skip"
-        else:
-            scales = f'{scales}:maximal'
-
-    elif scales == 'linear' and fn.__name__ == 'fast_transitions':
-        scales = 'linear:maximal'
-
-    elif fn.__name__ == 'high_freqs':
-        if scales != 'log-piecewise':
-            scales = f'{scales}:maximal'
-    return scales
 
 
 def _maybe_viz(Wx, xo, xrec, title, err):
