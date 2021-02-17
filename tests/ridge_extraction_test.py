@@ -67,8 +67,8 @@ def tf_transforms(x, t, wavelet='morlet', window=None, padtype='wrap',
                   ssq_cwt_bw=4, ssq_stft_bw=4):
     kw_cwt  = dict(t=t, padtype=padtype)
     kw_stft = dict(fs=1/(t[1] - t[0]), padtype=padtype)
-    Twx, ssq_freqs_c, Wx, scales, *_ = ssq_cwt(x,  wavelet, **kw_cwt)
-    Tsx, ssq_freqs_s, Sx, Sfs, *_    = ssq_stft(x, window,  **kw_stft)
+    Twx, Wx, ssq_freqs_c, scales, *_ = ssq_cwt(x,  wavelet, **kw_cwt)
+    Tsx, Sx, ssq_freqs_s, Sfs, *_    = ssq_stft(x, window,  **kw_stft)
 
     ckw = dict(penalty=penalty, n_ridges=n_ridges, transform='cwt')
     skw = dict(penalty=penalty, n_ridges=n_ridges, transform='stft')
