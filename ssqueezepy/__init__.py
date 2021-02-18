@@ -48,7 +48,6 @@ from . import algos
 from . import experimental
 
 
-
 from .ssqueezing import *
 from ._ssq_cwt import *
 from ._ssq_stft import *
