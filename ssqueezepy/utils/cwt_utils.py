@@ -15,6 +15,7 @@ __all__ = [
     "cwt_scalebounds",
     "process_scales",
     "logscale_transition_idx",
+    "nv_from_scales",
     "make_scales",
     "find_downsampling_scale",
     "infer_scaletype",
@@ -335,12 +336,7 @@ def infer_scaletype(scales):
 
     else:
         scaletype = 'log-piecewise'
-        logdiffs = 1 / np.diff(np.log2(scales), axis=0)
-        nv = np.vstack([logdiffs[:1], logdiffs])
-
-        nv_transition_idx = np.argmax(np.abs(np.diff(nv, axis=0))) + 1
-        idx = logscale_transition_idx(scales)
-        assert nv_transition_idx == idx, "%s != %s" % (nv_transition_idx, idx)
+        nv = nv_from_scales(scales)
 
     return scaletype, nv
 
@@ -362,6 +358,20 @@ def logscale_transition_idx(scales):
         return None
     else:
         return idx
+
+
+def nv_from_scales(scales):
+    """Infers `nv` from `scales` assuming `2**` scales; returns array
+    of length `len(scales)` if `scaletype = 'log-piecewise'`.
+    """
+    logdiffs = 1 / np.diff(np.log2(scales), axis=0)
+    nv = np.vstack([logdiffs[:1], logdiffs])
+
+    idx = logscale_transition_idx(scales)
+    if idx is not None:
+        nv_transition_idx = np.argmax(np.abs(np.diff(nv, axis=0))) + 1
+        assert nv_transition_idx == idx, "%s != %s" % (nv_transition_idx, idx)
+    return nv
 
 
 def _process_fs_and_t(fs, t, N):

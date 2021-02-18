@@ -69,7 +69,7 @@ def gmw(gamma=None, beta=None, norm=None, order=None, centered_scale=None):
     # Usage
         wavelet = gmw(3, 60)
         wavelet = Wavelet('gmw')
-        wavelet = Wavelet(('gmw', {'gamma': 3, 'beta': 60}))
+        wavelet = Wavelet(('gmw', {'beta': 60}))
         Wx, *_  = cwt(x, 'gmw')
 
     # Correspondence with Morlet

@@ -20,8 +20,8 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
 
         wavelet: str / tuple[str, dict] / `wavelets.Wavelet`
             Wavelet sampled in Fourier frequency domain.
-                - str: name of builtin wavelet. `ssqueezepy.wavs()`
-                - tuple[str, dict]: name of builtin wavelet and its configs.
+                - str: name of builtin wavelet. See `ssqueezepy.wavs()`/
+                - tuple: name of builtin wavelet and its configs.
                   E.g. `('morlet', {'mu': 5})`.
                 - `wavelets.Wavelet` instance. Can use for custom wavelet.
                   See `help(wavelets.Wavelet)`.
@@ -137,10 +137,10 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
         if derivative:
             dWx = Wx.copy()
 
-        for i, a in enumerate(scales):
+        for i, scale in enumerate(scales):
             # sample FT of wavelet at scale `a`
             # * pn = freq-domain spectral reversal to center time-domain wavelet
-            psih = wavelet(scale=a, nohalf=False) * pn
+            psih = wavelet(scale=scale, nohalf=False) * pn
             Wx[i] = ifftshift(ifft(psih * xh))
 
             if derivative:
@@ -341,10 +341,10 @@ def _icwt_2int(Wx, scales, scaletype, l1_norm, wavelet, x_len,
     pn = (-1)**np.arange(n_up)
     x = np.zeros(n_up)
 
-    for a, Wxa in zip(scales, Wx):  # TODO vectorize?
-        psih = wavelet(scale=a, N=n_up) * pn
-        xa = ifftshift(ifft(fft(Wxa) * psih))  # convolution theorem
-        x += xa.real / norm(a)
+    for scale, Wx_scale in zip(scales, Wx):  # TODO vectorize?
+        psih = wavelet(scale=scale, N=n_up) * pn
+        xa = ifftshift(ifft(fft(Wx_scale) * psih))  # convolution theorem
+        x += xa.real / norm(scale)
 
     x = x[n1:n1 + x_len]  # keep the unpadded part
     return x
@@ -358,13 +358,13 @@ def _icwt_1int(Wx, scales, scaletype, l1_norm):
 
 def _icwt_norm(scaletype, l1_norm):
     if l1_norm:
-        norm = ((lambda a: 1) if scaletype == 'log' else
-                (lambda a: a))
+        norm = ((lambda scale: 1) if scaletype == 'log' else
+                (lambda scale: scale))
     else:
         if scaletype == 'log':
-            norm = lambda a: a**.5
+            norm = lambda scale: scale**.5
         elif scaletype == 'linear':
-            norm = lambda a: a**1.5
+            norm = lambda scale: scale**1.5
     return norm
 
 

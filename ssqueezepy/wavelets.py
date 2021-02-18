@@ -352,8 +352,9 @@ class Wavelet():
 
 @jit(nopython=True, cache=True)
 def _xifn(scale, N):
-    # N=128: [0, 1, 2, ..., 64, -63, -62, ..., -1] * (2*pi / N) * scale
-    # N=129: [0, 1, 2, ..., 64, -64, -63, ..., -1] * (2*pi / N) * scale
+    """N=128: [0, 1, 2, ..., 64, -63, -62, ..., -1] * (2*pi / N) * scale
+       N=129: [0, 1, 2, ..., 64, -64, -63, ..., -1] * (2*pi / N) * scale
+    """
     xi = np.zeros(N)
     h = scale * (2 * pi) / N
     for i in range(N // 2 + 1):
@@ -557,7 +558,10 @@ def center_frequency(wavelet, scale=None, N=1024, kind='energy', force_int=None,
 def freq_resolution(wavelet, scale=10, N=1024, nondim=True, force_int=True,
                     viz=False):
     """Compute wavelet frequency width (std_w) for a given scale and N; larger N
-    -> less discretization error, but same N as in application should suffice.
+    -> less discretization error, but same N as in application works best
+    (larger will be "too accurate" and misrepresent true discretized values).
+
+    `nondim` will divide by peak center frequency and return unitless quantity.
 
     Eq 22 in [1], Sec 4.3.2 in [2].
     Detailed overview: https://dsp.stackexchange.com/q/72042/50076
@@ -618,6 +622,8 @@ def time_resolution(wavelet, scale=10, N=1024, min_decay=1e3, max_mult=2,
 
     Eq 21 in [1], Sec 4.3.2 in [2].
     Detailed overview: https://dsp.stackexchange.com/q/72042/50076
+
+    `nondim` will multiply by peak center frequency and return unitless quantity.
 
     Interpreted as time-span of 68% of wavelet's energy (1 stdev for Gauss-shaped
     |psi(t)|^2). Inversely-proportional with `N`, i.e. same `scale` spans half

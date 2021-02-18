@@ -35,17 +35,12 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
             mapping is only approximate and wavelet-dependent.
             If None, will infer from and set to same distribution as `scales`.
 
-        padtype: str
-            Pad scheme to apply on input. One of:
-                ('zero', 'reflect', 'symmetric', 'replicate').
-            'zero' is most naive, while 'reflect' (default) partly mitigates
-            boundary effects. See `help(utils.padsignal)`.
+        padtype: str / None
+            Pad scheme to apply on input. See `help(utils.padsignal)`.
+            `None` -> no padding.
 
-        squeezing: str['sum', 'lebesgue']
-                - 'sum' = standard synchrosqueezing using `Wx`.
-                - 'lebesgue' = as in [4], setting `Wx=ones()/len(Wx)`, which is
-                not invertible but has better robustness properties in some cases.
-                Not recommended unless you know what you're doing.
+        squeezing: str['sum', 'lebesgue'] / function
+            See `help(ssqueezing.ssqueeze)`.
 
         maprange: str['maximal', 'peak', 'energy'] / tuple(float, float)
             Kind of frequency mapping used, determining the range of frequencies
@@ -190,8 +185,8 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
     # CWT with higher-order GMWs
     if isinstance(order, (tuple, list, range)) or order > 0:
         # keep padding for `trigdiff`
-        kw = dict(wavelet=wavelet, scales=scales, fs=fs, t=t, nv=nv, l1_norm=True,
-                  derivative=False, padtype=padtype, rpadded=True,
+        kw = dict(wavelet=wavelet, scales=scales, fs=fs, t=t, nv=nv,
+                  l1_norm=True, derivative=False, padtype=padtype, rpadded=True,
                   vectorized=vectorized)
         _, n1, _ = p2up(N)
         average = isinstance(order, (tuple, list, range))
@@ -252,7 +247,7 @@ def issq_cwt(Tx, wavelet='gmw', cc=None, cw=None):
             Curve centerpoints, and curve (vertical) widths (bandwidths),
             together defining the portion of Tx to invert over to extract
             K "components" per Modulation Model:
-                        x_k(t) = A_k(t) cos(phi_k(t)) + res;  k=0,...,K-1
+                x_k(t) = A_k(t) cos(phi_k(t)) + res;  k=0,...,K-1
             where K=len(c)==len(cw), and `res` is residual error (inversion
             over portion leftover/uncovered by cc, cw).
             None = full inversion.
@@ -263,8 +258,8 @@ def issq_cwt(Tx, wavelet='gmw', cc=None, cw=None):
             If cb & cw are None, x.shape == (Tx.shape[1],). See `cb, cw`.
 
     # Example:
-        Tx, *_ = ssq_cwt(x, 'morlet')    # synchrosqueezed CWT
-        x      = issq_cwt(Tx, 'morlet')  # reconstruction
+        Tx, *_ = ssq_cwt(x, 'gmw')    # synchrosqueezed CWT
+        x      = issq_cwt(Tx, 'gmw')  # reconstruction
 
     # References:
         1. The Synchrosqueezing algorithm for time-varying spectral analysis:
@@ -423,9 +418,11 @@ def phase_cwt_num(Wx, dt, difforder=4, gamma=None):
     in [1], or Eq 13 in [2].
 
     # Arguments:
-        Wx: np.ndarray. Wavelet transform of `x` (see `cwt`).
+        Wx: np.ndarray
+            CWT of `x` (see `cwt`).
 
-        dt: int. Sampling period (e.g. t[1] - t[0]).
+        dt: float
+            Sampling period (e.g. t[1] - t[0]).
 
         difforder: int[1, 2, 4]
             Order of differentiation (default=4).

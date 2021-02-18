@@ -159,7 +159,7 @@ def istft(Sx, window=None, n_fft=None, win_len=None, hop_len=1, N=None,
             If None, assumes longest possible `x` given `hop_len`, `Sx.shape[1]`.
 
         win_exp: int >= 0
-            Window power used in inversion per:
+            Window power used in inversion (see [1], [2], or equation above).
 
     # Returns:
         x: np.ndarray, 1D
@@ -195,6 +195,9 @@ def istft(Sx, window=None, n_fft=None, win_len=None, hop_len=1, N=None,
 
 
 def get_window(window, win_len, n_fft=None, derivative=False):
+    """See `window` in `help(stft)`. Will return window of length `n_fft`,
+    regardless of `win_len` (will pad if needed).
+    """
     if n_fft is None:
         pl, pr = 0, 0
     else:
