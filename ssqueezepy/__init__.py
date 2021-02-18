@@ -55,8 +55,8 @@ from ._stft import *
 from ._ssq_cwt import *
 from ._ssq_stft import *
 from ._gmw import *
-from ._test_signals import *
 from .wavelets import *
+from ._test_signals import *
 
 
 def wavs():
