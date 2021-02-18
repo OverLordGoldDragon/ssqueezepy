@@ -55,8 +55,8 @@ from ._ssq_stft import *
 from ._cwt import *
 from ._stft import *
 from .wavelets import *
-from ._extract_ridges import *
-from ._test_signals import *
+from .ridge_extraction import *
+
 
 def wavs():
     return wavelets.Wavelet.SUPPORTED
