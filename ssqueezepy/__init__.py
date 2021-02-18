@@ -40,7 +40,7 @@ from . import _stft
 from . import _ssq_cwt
 from . import _ssq_stft
 from . import wavelets
-from . import _extract_ridges
+from . import ridge_extraction
 from . import utils
 from . import toolkit
 from . import visuals
