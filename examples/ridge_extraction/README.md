@@ -4,7 +4,7 @@ Extracts the `n_ridges` (user selected integer) most prominent frequency ridges 
 
 The method is based on a forward-backward greedy path optimization algorithm that penalises frequency jumps similar to the MATLAB function 'tfridge' (https://de.mathworks.com/help/signal/ref/tfridge.html). 
 
-Further information about the particular algorithm (version of eq. III.4 in publication) as well as limitations and comparisson to other ridge extraction schemes can be found in publication [2] (below):
+Further information about the particular algorithm (version of eq. III.4 ref [1]) as well as limitations and comparisson to other ridge extraction schemes can be found in publication [1] (below).
 
 
 
@@ -128,17 +128,18 @@ viz(x, Wx, ridge_idxs)
 
 ## 1. Ridge extraction on ssq_cwt
 
-The idea of a syncrosqueezed time-frequency representation is to improve upon the localization process and more accurately recover the frequency components compared to inverting the CWT over the entire time-scale plan [1]. However, whether ridge extraction is improved on a syncrosqueezed transform is still uncertain and may require further considerations [2] and expertise from the users on appropriate parameter tuning for stable and improved results.  
+The idea of a syncrosqueezed time-frequency representation is to improve upon the localization process and more accurately recover the frequency components compared to inverting the CWT over the entire time-scale plane [2]. However, whether ridge extraction is improved on a syncrosqueezed transform is still uncertain and may require further considerations [1] and expertise from the users on appropriate parameter tuning for stable and improved results.  
 
-[1] The Synchrosqueezing algorithm for time-varying spectral analysis: robustness properties and new paleoclimate applications. Gaurav Thakur, Eugene Brevdo, Neven S. Fuˇckar, and Hau-Tieng Wu. https://arxiv.org/pdf/1105.0010.pdf <br>
-[2] On the extraction of instantaneous frequencies from ridges in time-frequency representations of signals. D. Iatsenko, P. V. E. McClintock, A. Stefanovska. https://arxiv.org/pdf/1310.7276.pdf
+[1] On the extraction of instantaneous frequencies from ridges in time-frequency representations of signals. D. Iatsenko, P. V. E. McClintock, A. Stefanovska. https://arxiv.org/pdf/1310.7276.pdf <br>
+[2] The Synchrosqueezing algorithm for time-varying spectral analysis: robustness properties and new paleoclimate applications. Gaurav Thakur, Eugene Brevdo, Neven S. Fuˇckar, and Hau-Tieng Wu. https://arxiv.org/pdf/1105.0010.pdf
+
 
 Example 1 particularly highlights how edge-effects may make ridge extraction on the syncrosqueezed transform more unstable. 
 
 ## 2. Signal padding
 
 Particular consideration to choice of wavelet type, signal padding and other input parameters are advised before using the time-frequency ridge extraction. 
-Different padding schems suited to your time signals may be nessecary to handle edge effects in your time frequency maps. Example 2 & 3 highlights an appropriate padding along with usage of wavelet.
+Different padding schems suited to your time signals may be nessecary to handle edge effects in your time frequency maps. Examples 2 & 3 highlight an appropriate padding along with usage of wavelet.
 
 
 ## 3. Penalty term
