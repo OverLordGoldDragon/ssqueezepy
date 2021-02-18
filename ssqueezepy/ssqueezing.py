@@ -13,7 +13,8 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
 
     # Arguments:
         Wx or Sx: np.ndarray
-            CWT or STFT of `x`. `Wx` is assumed L1-normed.
+            CWT or STFT of `x`. CWT is assumed L1-normed, and STFT with
+            `modulated=True`.
 
         w: np.ndarray
             Phase transform of `Wx` or `Sx`. Must be >=0.

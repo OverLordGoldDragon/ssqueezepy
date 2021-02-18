@@ -16,50 +16,14 @@ __all__ = [
     "NOTE",
     "pi",
     "EPS",
-    "mad",
-    "est_riskshrink_thresh",
     "p2up",
     "padsignal",
     "trigdiff",
+    "mad",
+    "est_riskshrink_thresh",
     "assert_is_one_of",
     "_textwrap",
 ]
-
-
-def mad(data, axis=None):
-    """Mean absolute deviation"""
-    return np.mean(np.abs(data - np.mean(data, axis)), axis)
-
-
-def est_riskshrink_thresh(Wx, nv):
-    """Estimate the RiskShrink hard thresholding level, based on [1].
-    This has a denoising effect, but risks losing much of the signal; it's larger
-    the more high-frequency content there is, even if not noise.
-
-    # Arguments:
-        Wx: np.ndarray
-            CWT of a signal (see `cwt`).
-        nv: int
-            Number of voices used in CWT (see `cwt`).
-
-    # Returns:
-        gamma: float
-            The RiskShrink hard thresholding estimate.
-
-    # References:
-        1. The Synchrosqueezing algorithm for time-varying spectral analysis:
-        robustness properties and new paleoclimate applications.
-        G. Thakur, E. Brevdo, N.-S. Fučkar, and H.-T. Wu.
-        https://arxiv.org/abs/1105.0010
-
-        2. Synchrosqueezing Toolbox, (C) 2014--present. E. Brevdo, G. Thakur.
-        https://github.com/ebrevdo/synchrosqueezing/blob/master/synchrosqueezing/
-        est_riskshrink_thresh.m
-    """
-    N = Wx.shape[1]
-    Wx_fine = np.abs(Wx[:nv])
-    gamma = 1.4826 * np.sqrt(2 * np.log(N)) * mad(Wx_fine)
-    return gamma
 
 
 def p2up(n):
@@ -203,6 +167,42 @@ def trigdiff(A, fs=1, padtype=None, rpadded=None, N=None, n1=None):
     if rpadded:
         A_diff = A_diff[:, n1:n1+N]
     return A_diff
+
+
+def est_riskshrink_thresh(Wx, nv):
+    """Estimate the RiskShrink hard thresholding level, based on [1].
+    This has a denoising effect, but risks losing much of the signal; it's larger
+    the more high-frequency content there is, even if not noise.
+
+    # Arguments:
+        Wx: np.ndarray
+            CWT of a signal (see `cwt`).
+        nv: int
+            Number of voices used in CWT (see `cwt`).
+
+    # Returns:
+        gamma: float
+            The RiskShrink hard thresholding estimate.
+
+    # References:
+        1. The Synchrosqueezing algorithm for time-varying spectral analysis:
+        robustness properties and new paleoclimate applications.
+        G. Thakur, E. Brevdo, N.-S. Fučkar, and H.-T. Wu.
+        https://arxiv.org/abs/1105.0010
+
+        2. Synchrosqueezing Toolbox, (C) 2014--present. E. Brevdo, G. Thakur.
+        https://github.com/ebrevdo/synchrosqueezing/blob/master/synchrosqueezing/
+        est_riskshrink_thresh.m
+    """
+    N = Wx.shape[1]
+    Wx_fine = np.abs(Wx[:nv])
+    gamma = 1.4826 * np.sqrt(2 * np.log(N)) * mad(Wx_fine)
+    return gamma
+
+
+def mad(data, axis=None):
+    """Mean absolute deviation"""
+    return np.mean(np.abs(data - np.mean(data, axis)), axis)
 
 
 def assert_is_one_of(x, name, supported, e=ValueError):

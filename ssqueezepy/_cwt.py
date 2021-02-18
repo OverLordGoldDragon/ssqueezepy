@@ -20,7 +20,8 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
 
         wavelet: str / tuple[str, dict] / `wavelets.Wavelet`
             Wavelet sampled in Fourier frequency domain.
-                - str: name of builtin wavelet. See `ssqueezepy.wavs()`/
+                - str: name of builtin wavelet. See `ssqueezepy.wavs()`
+                  or `Wavelet.SUPPORTED`.
                 - tuple: name of builtin wavelet and its configs.
                   E.g. `('morlet', {'mu': 5})`.
                 - `wavelets.Wavelet` instance. Can use for custom wavelet.
@@ -391,13 +392,14 @@ def _process_gmw_wavelet(wavelet, l1_norm):
 def cwt_higher_order(x, wavelet='gmw', order=1, average=None, **kw):
     """Compute `cwt` with GMW wavelets of order 0 to `order`. See `help(cwt)`.
 
-    Yields lower variance and more noise robust representation. See ref[1].
+    Yields lower variance and more noise robust representation. See VI in ref[1].
 
     # Arguments:
         x: np.ndarray
             Input, 1D.
 
         wavelet: str / wavelets.Wavelet
+            CWT wavelet.
 
         order: int / tuple[int] / range
             Order of GMW to use for CWT. If tuple, will compute for each

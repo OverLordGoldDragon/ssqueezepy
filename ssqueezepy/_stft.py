@@ -43,7 +43,7 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=None, t=None,
             windowings. Relates to 'overlap' as `overlap = n_fft - hop_len`.
             Must be 1 for invertible synchrosqueezed STFT.
 
-        fs: float
+        fs: float / None
             Sampling frequency of `x`. Defaults to 1, which makes ssq
             frequencies range from 0 to 0.5*fs, i.e. as fraction of reference
             sampling rate up to Nyquist limit. Used to compute `dSx` and

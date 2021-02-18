@@ -41,6 +41,6 @@ def mad_rms(x, xrec):
     return np.mean(np.abs(x - xrec)) / np.sqrt(np.mean(x**2))
 
 
-def amax(x):
+def where_amax(x):
     """Return N-dimensional indices of where `abs(x) == max(abs(x))`."""
     return np.where(np.abs(x) == np.abs(x).max())

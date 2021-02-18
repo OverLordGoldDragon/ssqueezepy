@@ -145,7 +145,7 @@ def test_toolkit():
 
     _ = toolkit.cos_f([1], N=64)
     _ = toolkit.sin_f([1], N=64)
-    _ = toolkit.amax(Tx)
+    _ = toolkit.where_amax(Tx)
     _ = toolkit.mad_rms(np.random.randn(10), np.random.randn(10))
 
 
@@ -209,7 +209,7 @@ def test_utils():
     pass_on_error(utils.cwt_scalebounds, 1, 1, min_cutoff=.2, max_cutoff=.1)
     pass_on_error(utils.cwt_scalebounds, 1, 1, cutoff=0)
 
-    pass_on_error(utils._assert_positive_integer, -1, 'w')
+    pass_on_error(utils.cwt_utils._assert_positive_integer, -1, 'w')
 
     pass_on_error(utils.infer_scaletype, 1)
     pass_on_error(utils.infer_scaletype, np.array([1]))
