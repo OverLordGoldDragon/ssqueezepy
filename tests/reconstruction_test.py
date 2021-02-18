@@ -38,19 +38,19 @@ def _freqs(N, freqs):
     return x, ts
 
 def fast_transitions(N):
-    return _freqs(N, np.array([N/100, N/200, N/2, N/20,
-                               N/2-1, N/50, N/3, N/150]) / 8)
+    return _freqs(N, np.array([N/100, N/200, N/3, N/20,
+                               N/3-1, N/50, N/4, N/150]) / 8)
 
 def low_freqs(N):
     return _freqs(N, [.3, .3, 1, 1, 2, 2])
 
 def high_freqs(N):
-    return _freqs(N, np.array([N/2, N/2-1, N/20, N/4]) / 4)
+    return _freqs(N, np.array([N/2, N/2-1, N/4, N/3]) / 4)
 
 
 #### Tests ###################################################################
 test_fns = (echirp, lchirp, fast_transitions, low_freqs, high_freqs)
-wavelet = ('morlet', {'mu': 5})
+wavelet = ('gmw', {'beta': 8})
 th = .1
 
 
@@ -58,10 +58,14 @@ def test_ssq_cwt():
     errs = []
     for fn in test_fns:
         x, ts = fn(2048)
-        for scales in ('log', 'linear'):
-            # 'linear' default can't handle low frequencies for large N
-            if scales == 'linear' and fn.__name__ == 'fast_transitions':
-                continue
+        for scales in ('log', 'log-piecewise', 'linear'):
+            if fn.__name__ == 'low_freqs':
+                if scales == 'linear':
+                    # 'linear' default can't handle low frequencies for large N
+                    # 'log-piecewise' maps it too sparsely
+                    continue
+                else:
+                    scales = f'{scales}:maximal'
 
             Tx, *_ = ssq_cwt(x, wavelet, scales=scales, nv=32, t=ts)
             xrec = issq_cwt(Tx, wavelet)
@@ -79,19 +83,36 @@ def test_cwt():
     for fn in test_fns:
         x, ts = fn(2048)
         for l1_norm in (True, False):
+            scales = ('log:maximal' if fn.__name__ in ('low_freqs', 'high_freqs')
+                      else 'log')
             # 'linear' default can't handle low frequencies for large N
-            kw = dict(wavelet=wavelet, scales='log', l1_norm=l1_norm, nv=32)
+            kw = dict(wavelet=wavelet, scales=scales, l1_norm=l1_norm, nv=32)
 
             Wx, *_ = cwt(x, t=ts, **kw)
             xrec = icwt(Wx, one_int=True, **kw)
 
             errs.append(round(mad_rms(x, xrec), 5))
             title = f"abs(CWT) | l1_norm={l1_norm}"
-            title = "abs(SSQ_CWT) | {}, l1_norm={}".format(fn.__qualname__,
-                                                           l1_norm)
+            title = "abs(CWT) | {}, l1_norm={}".format(fn.__qualname__,
+                                                       l1_norm)
             _maybe_viz(Wx, x, xrec, title, errs[-1])
             assert errs[-1] < th, (errs[-1], fn.__name__, f"l1_norm: {l1_norm}")
     print("\ncwt PASSED\nerrs:", ', '.join(map(str, errs)))
+
+
+def test_cwt_log_piecewise():
+    x, ts = echirp(1024)
+
+    wavelet = 'gmw'
+    Tx, Wx, ssq_freqs, scales, *_ = ssq_cwt(x, wavelet, scales='log-piecewise',
+                                            t=ts, preserve_transform=True)
+    xrec_ssq_cwt = issq_cwt(Tx, 'gmw')
+    xrec_cwt = icwt(Wx, wavelet, scales=scales)
+
+    err_ssq_cwt = round(mad_rms(x, xrec_ssq_cwt), 5)
+    err_cwt = round(mad_rms(x, xrec_cwt), 5)
+    assert err_ssq_cwt < .02, err_ssq_cwt
+    assert err_cwt < .02, err_cwt
 
 
 def test_component_inversion():
@@ -108,7 +129,7 @@ def test_component_inversion():
     np.random.seed(4)
     x += np.sqrt(noise_var) * np.random.randn(len(x))
 
-    wavelet = ('morlet', {'mu': 4.5})
+    wavelet = ('gmw', {'beta': 6})
     Tx, *_ = ssq_cwt(x, wavelet, scales='log:maximal', nv=32, t=ts)
 
     # hand-coded, subject to failure
@@ -169,13 +190,37 @@ def test_ssq_stft():
                     window *= window_scaling
 
                 Sx, *_ = ssq_stft(x, window=window, n_fft=n_fft)
-                xr = issq_stft(Sx, window=window, n_fft=n_fft)
+                xr = issq_stft(  Sx, window=window, n_fft=n_fft)
 
                 txt = ("\nSSQ_STFT: (N, n_fft, window_scaling) = ({}, {}, {})"
                        ).format(N, n_fft, window_scaling)
                 assert len(x) == len(xr), "%s != %s %s" % (N, len(xr), txt)
                 mae = np.abs(x - xr).mean()
                 assert mae < th, "MAE = %.2e > %.2e %s" % (mae, th, txt)
+
+
+def test_stft_vs_librosa():
+    from librosa import stft as lstft
+
+    # try all even/odd combos
+    for N in (512, 513):
+      for hop_len in (1, 2, 3):
+        for n_fft in (512, 513):
+          for win_len in (N//8, N//8 - 1):
+             x = np.random.randn(N)
+             Sx  = stft( x, n_fft=n_fft, hop_len=hop_len,    win_len=win_len,
+                         window='hann', modulated=False)
+             lSx = lstft(x, n_fft=n_fft, hop_length=hop_len, win_length=win_len,
+                         window='hann')
+
+             if n_fft % 2 == 0:
+                 if hop_len == 1:
+                     lSx = lSx[:, :-1]
+                 elif (((N % 2 == 0) and hop_len == 2) or
+                       ((N % 2 == 1) and hop_len == 3)):
+                     lSx = lSx[:, :-1]
+             mae = np.mean(np.abs(Sx - lSx))
+             assert mae < 1e-15, "MAE: %s" % mae
 
 
 def _maybe_viz(Wx, xo, xrec, title, err):
@@ -198,5 +243,10 @@ if __name__ == '__main__':
         from ssqueezepy.visuals import plot, imshow
         test_ssq_cwt()
         test_cwt()
+        test_cwt_log_piecewise()
+        test_component_inversion()
+        test_stft()
+        test_ssq_stft()
+        test_stft_vs_librosa()
     else:
         pytest.main([__file__, "-s"])

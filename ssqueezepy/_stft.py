@@ -3,13 +3,16 @@ import numpy as np
 import scipy.signal as sig
 from numpy.fft import fft, ifft, rfft, irfft, fftshift, ifftshift
 from .utils import WARN, padsignal, buffer, unbuffer, window_norm
+from .utils import _process_fs_and_t
 from .wavelets import _xifn
 
 
-def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=1.,
+def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=None, t=None,
          padtype='reflect', modulated=True, derivative=False):
-    """Compute the short-time Fourier transform and modified short-time
-    Fourier transform from [1].
+    """Short-Time Fourier Transform.
+
+    `modulated=True` computes "modified" variant from [1] which is advantageous
+    to reconstruction & synchrosqueezing (see "Modulation" below).
 
     # Arguments:
         x: np.ndarray
@@ -18,8 +21,8 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=1.,
         window: str / np.ndarray / None
             STFT windowing kernel. If string, will fetch per
             `scipy.signal.get_window(window, win_len, fftbins=True)`.
-            Defaults to `scipy.signal.windows.dpss(win_len, 4)`; the DPSS
-            window provides the best time-frequency resolution.
+            Defaults to `scipy.signal.windows.dpss(win_len, win_len//8)`;
+            the DPSS window provides the best time-frequency resolution.
 
             Always padded to `n_fft`, so for accurate filter characteristics
             (side lobe decay, etc), best to pass in pre-designed `window`
@@ -46,6 +49,12 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=1.,
             sampling rate up to Nyquist limit. Used to compute `dSx` and
             `ssq_freqs`.
 
+        t: np.ndarray / None
+            Vector of times at which samples are taken (eg np.linspace(0, 1, n)).
+            Must be uniformly-spaced.
+            Defaults to `np.linspace(0, len(x)/fs, len(x), endpoint=False)`.
+            Overrides `fs` if not None.
+
         padtype: str
             Pad scheme to apply on input. See `help(utils.padsignal)`.
 
@@ -56,9 +65,9 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=1.,
             Recommended to use `True`; see "Modulation" below.
 
         derivative: bool (default False)
-            Whether to compute and return `dSx`. Requires `fs`.
+            Whether to compute and return `dSx`. Uses `fs`.
 
-    **Modulation:**
+    **Modulation**
         `True` will center DFT cisoids at the window for each shift `u`:
             Sm[u, k] = sum_{0}^{N-1} f[n] * g[n - u] * exp(-j*2pi*k*(n - u)/N)
         as opposed to usual STFT:
@@ -83,27 +92,19 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=1.,
             where its (and Sx's) DFTs are taken along columns rather than rows.
             d/dt(window) obtained via freq-domain differentiation (help(cwt)).
 
-    Recommended:
-        - odd win_len with odd n_fft and even with even, not vice versa
-        These make the ('periodic') window's left=right pad len which gives
-        it zero phase, desired in some applications
-
     # References:
         1. Synchrosqueezing-based Recovery of Instantaneous Frequency from
         Nonuniform Samples. G. Thakur and H.-T. Wu.
         https://arxiv.org/abs/1006.2533
-
-        2. Synchrosqueezing Toolbox, (C) 2014--present. E. Brevdo, G. Thakur.
-        https://github.com/ebrevdo/synchrosqueezing/blob/master/synchrosqueezing/
-        stft_fw.m
     """
-    def _stft(xp, window, n_fft, hop_len, fs, modulated, derivative):
+    def _stft(xp, window, diff_window, n_fft, hop_len, fs, modulated, derivative):
         Sx  = buffer(xp, n_fft, n_fft - hop_len)
         dSx = Sx.copy()
         Sx  *= window.reshape(-1, 1)
         dSx *= diff_window.reshape(-1, 1)
 
         if modulated:
+            # TODO this can be made more efficient; buffer(modulated=True)
             # shift windowed slices so they're always DFT-centered (about n=0),
             # thus shifting bases (cisoids) along the window: e^(-j*(w - u))
             Sx = ifftshift(Sx, axes=0)
@@ -116,17 +117,19 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=1.,
             dSx = rfft(dSx, axis=0) * fs
         return (Sx, dSx) if derivative else (Sx, None)
 
+    _, fs, _ = _process_fs_and_t(fs, t, len(x))
     n_fft = n_fft or len(x)
     if win_len is None:
         win_len = (len(window) if isinstance(window, np.ndarray) else
-                   n_fft//8)
+                   n_fft)
     window, diff_window = get_window(window, win_len, n_fft, derivative=True)
     _check_NOLA(window, hop_len)
 
     padlength = len(x) + n_fft - 1  # pad `x` to length `padlength`
     xp = padsignal(x, padtype, padlength=padlength)
 
-    Sx, dSx = _stft(xp, window, n_fft, hop_len, fs, modulated, derivative)
+    Sx, dSx = _stft(xp, window, diff_window, n_fft, hop_len, fs, modulated,
+                    derivative)
 
     return (Sx, dSx) if derivative else Sx
 
@@ -156,7 +159,7 @@ def istft(Sx, window=None, n_fft=None, win_len=None, hop_len=1, N=None,
             If None, assumes longest possible `x` given `hop_len`, `Sx.shape[1]`.
 
         win_exp: int >= 0
-            Window power used in inversion per:
+            Window power used in inversion (see [1], [2], or equation above).
 
     # Returns:
         x: np.ndarray, 1D
@@ -173,7 +176,7 @@ def istft(Sx, window=None, n_fft=None, win_len=None, hop_len=1, N=None,
     """
     ### process args #####################################
     n_fft = n_fft or (Sx.shape[0] - 1) * 2
-    win_len = win_len or n_fft // 8
+    win_len = win_len or n_fft
     N = N or (hop_len * Sx.shape[1] - 1)  # assume largest possible N if not given
 
     window = get_window(window, win_len, n_fft=n_fft)
@@ -192,6 +195,9 @@ def istft(Sx, window=None, n_fft=None, win_len=None, hop_len=1, N=None,
 
 
 def get_window(window, win_len, n_fft=None, derivative=False):
+    """See `window` in `help(stft)`. Will return window of length `n_fft`,
+    regardless of `win_len` (will pad if needed).
+    """
     if n_fft is None:
         pl, pr = 0, 0
     else:
@@ -211,15 +217,15 @@ def get_window(window, win_len, n_fft=None, derivative=False):
         elif isinstance(window, np.ndarray):
             if len(window) != win_len:
                 WARN("len(window) != win_len (%s != %s)" % (len(window), win_len))
-            if len(window) < (win_len + pl + pr):
-                window = np.pad(window, [pl, pr])
 
         else:
             raise ValueError("`window` must be string or np.ndarray "
                              "(got %s)" % window)
     else:
         # sym=False <-> fftbins=True (see above)
-        window = sig.windows.dpss(win_len, 4, sym=False)
+        window = sig.windows.dpss(win_len, max(4, win_len//8), sym=False)
+
+    if len(window) < (win_len + pl + pr):
         window = np.pad(window, [pl, pr])
 
     if derivative:

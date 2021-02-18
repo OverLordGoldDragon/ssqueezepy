@@ -2,23 +2,23 @@
 import numpy as np
 from ._stft import stft, get_window, _check_NOLA
 from ._ssq_cwt import _invert_components, _process_component_inversion_args
-from .utils import WARN, EPS, pi
-from .ssqueezing import ssqueeze, _check_squeezing_arg
+from .utils import WARN, EPS, pi, _process_fs_and_t
+from .ssqueezing import ssqueeze, _check_ssqueezing_args
 
 
-def ssq_stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=1.,
+def ssq_stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=None, t=None,
              modulated=True, ssq_freqs=None, padtype='reflect', squeezing='sum',
-             gamma=None):
+             gamma=None, preserve_transform=True):
     """Synchrosqueezed Short-Time Fourier Transform.
     Implements the algorithm described in Sec. III of [1].
 
-    Good MATLAB docs: https://www.mathworks.com/help/signal/ref/fsst.html
+    MATLAB docs: https://www.mathworks.com/help/signal/ref/fsst.html
 
     # Arguments:
         x: np.ndarray
             Input vector, 1D.
 
-        window, n_fft, win_len, hop_len, fs, padtype, modulated
+        window, n_fft, win_len, hop_len, fs, t, padtype, modulated
             See `help(stft)`.
 
         ssq_freqs, squeezing
@@ -32,40 +32,47 @@ def ssq_stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=1.,
             contributions from points with indeterminate phase.
             Default = sqrt(machine epsilon) = np.sqrt(np.finfo(np.float64).eps)
 
+        preserve_transform: bool (default True)
+            Whether to return `Sx` as directly output from `stft` (it might be
+            altered by `ssqueeze` or `phase_transform`). Uses more memory
+            per storing extra copy of `Sx`.
+
     # Returns:
         Tx: np.ndarray
             Synchrosqueezed STFT of `x`, of same shape as `Sx`.
-        ssq_freqs: np.ndarray
-            Frequencies associated with rows of `Tx`.
         Sx: np.ndarray
             STFT of `x`. See `help(stft)`.
+        ssq_freqs: np.ndarray
+            Frequencies associated with rows of `Tx`.
         Sfs: np.ndarray
             Frequencies associated with rows of `Sx` (by default == `ssq_freqs`).
-        dSx: np.ndarray
-            Time-derivative of STFT of `x`. See `help(stft)`.
         w: np.ndarray
             Phase transform of STFT of `x`. See `help(phase_stft)`.
+        dSx: np.ndarray
+            Time-derivative of STFT of `x`. See `help(stft)`.
 
     # References:
         1. Synchrosqueezing-based Recovery of Instantaneous Frequency from
         Nonuniform Samples. G. Thakur and H.-T. Wu.
         https://arxiv.org/abs/1006.2533
     """
+    _, fs, _ = _process_fs_and_t(fs, t, len(x))
     n_fft = n_fft or len(x)
-    _check_squeezing_arg(squeezing)
+    _check_ssqueezing_args(squeezing)
 
     Sx, dSx = stft(x, window, n_fft=n_fft, win_len=win_len, hop_len=hop_len,
                    fs=fs, padtype=padtype, modulated=modulated, derivative=True)
+    _Sx = Sx.copy() if preserve_transform else Sx
 
     Sfs = np.linspace(0, .5, Sx.shape[0]) * fs
-    w = phase_stft(Sx, dSx, Sfs, gamma)
+    w = phase_stft(_Sx, dSx, Sfs, gamma)
 
     if ssq_freqs is None:
         ssq_freqs = Sfs
-    Tx, ssq_freqs = ssqueeze(Sx, w, transform='stft', squeezing=squeezing,
+    Tx, ssq_freqs = ssqueeze(_Sx, w, transform='stft', squeezing=squeezing,
                              ssq_freqs=ssq_freqs)
 
-    return Tx, ssq_freqs, Sx, Sfs, dSx, w
+    return Tx, Sx, ssq_freqs, Sfs, w, dSx
 
 
 def issq_stft(Tx, window=None, cc=None, cw=None, n_fft=None, win_len=None,
@@ -109,7 +116,7 @@ def issq_stft(Tx, window=None, cc=None, cw=None, n_fft=None, win_len=None,
         window = get_window(window, win_len, n_fft=n_fft)
         _check_NOLA(window, hop_len)
         if abs(np.argmax(window) - len(window)//2) > 1:
-            WARN("`window` maximum not centered; results may be unreliable.")
+            WARN("`window` maximum not centered; results may be inaccurate.")
 
         return window, cc, cw, win_len, hop_len, n_fft, full_inverse
 
@@ -166,7 +173,8 @@ def phase_stft(Sx, dSx, Sfs, gamma=None):
         G. Thakur, E. Brevdo, N.-S. Fučkar, and H.-T. Wu.
         https://arxiv.org/abs/1105.0010
     """
-    w = Sfs.reshape(-1, 1) - np.imag(dSx / Sx) / (2*pi)
+    with np.errstate(divide='ignore', invalid='ignore'):
+        w = Sfs.reshape(-1, 1) - np.imag(dSx / Sx) / (2*pi)
 
     # treat negative phases as positive; these are in small minority, and
     # slightly aid invertibility (as less of `Wx` is zeroed in ssqueezing)

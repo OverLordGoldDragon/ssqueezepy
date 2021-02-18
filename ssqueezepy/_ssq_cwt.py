@@ -1,14 +1,16 @@
 # -*- coding: utf-8 -*-
 import numpy as np
-from .utils import WARN, EPS, pi, p2up, adm_ssq, process_scales, _process_fs_and_t
-from .ssqueezing import ssqueeze, _check_squeezing_arg
+from .utils import WARN, EPS, pi, p2up, adm_ssq, process_scales
+from .utils import trigdiff, _process_fs_and_t
+from .ssqueezing import ssqueeze, _check_ssqueezing_args
 from .wavelets import Wavelet
 from ._cwt import cwt
 
 
-def ssq_cwt(x, wavelet='morlet', scales='log', nv=None, fs=None, t=None,
-            ssq_freqs=None, padtype='reflect', squeezing='sum', mapkind='maximal',
-            difftype='direct', difforder=None, gamma=None):
+def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
+            ssq_freqs=None, padtype='reflect', squeezing='sum', maprange='peak',
+            difftype='trig', difforder=None, gamma=None, vectorized=True,
+            preserve_transform=True, order=0):
     """Synchrosqueezed Continuous Wavelet Transform.
     Implements the algorithm described in Sec. III of [1].
 
@@ -23,39 +25,24 @@ def ssq_cwt(x, wavelet='morlet', scales='log', nv=None, fs=None, t=None,
             CWT scales. See `help(cwt)`.
 
         nv: int / None
-            Number of voices (CWT only). Suggested >= 32 (default=32).
+            Number of voices (wavelets per octave). Suggested >= 16.
 
-        fs: float / None
-            Sampling frequency of `x`. Defaults to 1, which makes ssq
-            frequencies range from 1/dT to 0.5, i.e. as fraction of reference
-            sampling rate up to Nyquist limit; dT = total duration (N/fs).
-            Overridden by `t`, if provided.
-            Relevant on `t` and `dT`: https://dsp.stackexchange.com/a/71580/50076
-
-        t: np.ndarray / None
-            Vector of times at which samples are taken (eg np.linspace(0, 1, n)).
-            Must be uniformly-spaced.
-            Defaults to `np.linspace(0, len(x)/fs, len(x), endpoint=False)`.
-            Overrides `fs` if not None.
+        fs, t
+            See `help(_cwt.cwt)`.
 
         ssq_freqs: str['log', 'linear'] / np.ndarray / None
             Frequencies to synchrosqueeze CWT scales onto. Scale-frequency
             mapping is only approximate and wavelet-dependent.
             If None, will infer from and set to same distribution as `scales`.
 
-        padtype: str
-            Pad scheme to apply on input. One of:
-                ('zero', 'reflect', 'symmetric', 'replicate').
-            'zero' is most naive, while 'reflect' (default) partly mitigates
-            boundary effects. See `help(utils.padsignal)`.
+        padtype: str / None
+            Pad scheme to apply on input. See `help(utils.padsignal)`.
+            `None` -> no padding.
 
-        squeezing: str['sum', 'lebesgue']
-                - 'sum' = standard synchrosqueezing using `Wx`.
-                - 'lebesgue' = as in [4], setting `Wx=ones()/len(Wx)`, which is
-                not invertible but has better robustness properties in some cases.
-                Not recommended unless you know what you're doing.
+        squeezing: str['sum', 'lebesgue'] / function
+            See `help(ssqueezing.ssqueeze)`.
 
-        mapkind: str['maximal', 'peak', 'energy']
+        maprange: str['maximal', 'peak', 'energy'] / tuple(float, float)
             Kind of frequency mapping used, determining the range of frequencies
             spanned (fm to fM, min to max).
 
@@ -64,7 +51,7 @@ def ssq_cwt(x, wavelet='morlet', scales='log', nv=None, fs=None, t=None,
                 Other mappings can never span outside this range.
                 - ('peak', 'energy'): sets fm and fM based on center frequency
                 associated with `wavelet` at maximum and minimum scale,
-                respectively. See help(wavelets.center_frequency)
+                respectively. See `help(wavelets.center_frequency)`.
                 - 'peak': the frequency-domain trimmed bell will have its peak
                 at Nyquist, meaning all other frequencies are beneath, so each
                 scale is still correctly resolved but with downscaled energies.
@@ -74,14 +61,15 @@ def ssq_cwt(x, wavelet='morlet', scales='log', nv=None, fs=None, t=None,
                 (left-half can be trimmed too). Use for energy-centric mapping,
                 which for sufficiently-spanned `scales` will always have lesser
                 fM (but ~same fM).
+                - tuple: sets `ssq_freqrange` directly.
 
-        difftype: str['direct', 'phase', 'numeric']
-            Method by which to differentiate Wx (default='direct') to obtain
+        difftype: str['trig', 'phase', 'numeric']
+            Method by which to differentiate Wx (default='trig') to obtain
             instantaneous frequencies:
                     w(a,b) = Im( (1/2pi) * (1/Wx(a,b)) * d/db[Wx(a,b)] )
 
-            - 'direct': use `dWx`, obtained via frequency-domain differentiation
-            (see `cwt`, `phase_cwt`).
+            - 'trig': use `dWx`, obtained via trigonometric (frequency-domain
+            interpolant) differentiation (see `cwt`, `phase_cwt`).
             - 'phase': differentiate by taking forward finite-difference of
             unwrapped angle of `Wx` (see `phase_cwt`).
             - 'numeric': first-, second-, or fourth-order (set by `difforder`)
@@ -98,19 +86,35 @@ def ssq_cwt(x, wavelet='morlet', scales='log', nv=None, fs=None, t=None,
             contributions from points with indeterminate phase.
             Default = sqrt(machine epsilon) = np.sqrt(np.finfo(np.float64).eps)
 
+        vectorized: bool (default True)
+            Whether to vectorize CWT, i.e. compute quantities for all scales at
+            once, which is faster but uses more memory.
+
+        preserve_transform: bool (default True)
+            Whether to return `Wx` as directly output from `cwt` (it might be
+            altered by `ssqueeze` or `phase_transform`). Uses more memory
+            per storing extra copy of `Wx`.
+
+        order: int (default 0) / tuple[int]
+            `order > 0` computes ssq of `cwt` taken with higher-order GMWs.
+            If tuple, computes ssq of average of `cwt`s taken at each specified
+            order. See `help(_cwt.cwt_higher_order)`.
+
     # Returns:
         Tx: np.ndarray [nf x n]
             Synchrosqueezed CWT of `x`. (rows=~frequencies, cols=timeshifts)
             (nf = len(ssq_freqs); n = len(x))
             `nf = na` by default, where `na = len(scales)`.
+        Wx: np.ndarray [na x n]
+            Continuous Wavelet Transform of `x`, L1-normed (see `cwt`).
         ssq_freqs: np.ndarray [nf]
             Frequencies associated with rows of `Tx`.
-        Wx: np.ndarray [na x n]
-            Continuous Wavelet Transform of `x` L1-normed (see `cwt`).
         scales: np.ndarray [na]
             Scales associated with rows of `Wx`.
         w: np.ndarray [na x n]
             Phase transform for each element of `Wx`.
+        dWx: [na x n] np.ndarray
+            See `help(_cwt.cwt)`.
 
     # References:
         1. The Synchrosqueezing algorithm for time-varying spectral analysis:
@@ -134,8 +138,9 @@ def ssq_cwt(x, wavelet='morlet', scales='log', nv=None, fs=None, t=None,
         https://github.com/ebrevdo/synchrosqueezing/blob/master/synchrosqueezing/
         synsq_cwt_fw.m
     """
-    def _process_args(N, scales, fs, t, nv, difftype, difforder, squeezing):
-        if difftype not in ('direct', 'phase', 'numeric'):
+    def _process_args(N, scales, fs, t, nv, difftype, difforder, squeezing,
+                      maprange, wavelet):
+        if difftype not in ('trig', 'phase', 'numeric'):
             raise ValueError("`difftype` must be one of: direct, phase, numeric"
                              " (got %s)" % difftype)
         if difforder is not None:
@@ -147,7 +152,7 @@ def ssq_cwt(x, wavelet='morlet', scales='log', nv=None, fs=None, t=None,
         elif difftype == 'numeric':
             difforder = 4
 
-        _check_squeezing_arg(squeezing)
+        _check_ssqueezing_args(squeezing, maprange, wavelet)
 
         if nv is None and not isinstance(scales, np.ndarray):
             nv = 32
@@ -156,7 +161,7 @@ def ssq_cwt(x, wavelet='morlet', scales='log', nv=None, fs=None, t=None,
         return dt, fs, difforder, nv
 
     def _phase_transform(Wx, dWx, N, dt, gamma, difftype, difforder):
-        if difftype == 'direct':
+        if difftype == 'trig':
             # calculate instantaneous frequency directly from the
             # frequency-domain derivative
             w = phase_cwt(Wx, dWx, difftype, gamma)
@@ -174,37 +179,53 @@ def ssq_cwt(x, wavelet='morlet', scales='log', nv=None, fs=None, t=None,
 
     N = len(x)
     dt, fs, difforder, nv = _process_args(N, scales, fs, t, nv, difftype,
-                                          difforder, squeezing)
-
+                                          difforder, squeezing, maprange, wavelet)
     wavelet = Wavelet._init_if_not_isinstance(wavelet, N=N)
+
+    # CWT with higher-order GMWs
+    if isinstance(order, (tuple, list, range)) or order > 0:
+        # keep padding for `trigdiff`
+        kw = dict(wavelet=wavelet, scales=scales, fs=fs, t=t, nv=nv,
+                  l1_norm=True, derivative=False, padtype=padtype, rpadded=True,
+                  vectorized=vectorized)
+        _, n1, _ = p2up(N)
+        average = isinstance(order, (tuple, list, range))
+
+        Wx, scales = cwt(x, order=order, average=average, **kw)
+        dWx = trigdiff(Wx, fs, rpadded=True, N=N, n1=n1)
+        Wx = Wx[:, n1:n1 + N]
+
     scales, cwt_scaletype, *_ = process_scales(scales, N, wavelet, nv=nv,
                                                get_params=True)
+    # regular CWT
+    if order == 0:
+        # l1_norm=True to spare a multiplication; for SSQ_CWT L1 & L2 are exactly
+        # same anyway since we're inverting CWT over time-frequency plane
+        rpadded = (difftype == 'numeric')
+        Wx, scales, dWx = cwt(x, wavelet, scales=scales, fs=fs, nv=nv,
+                              l1_norm=True, derivative=True, padtype=padtype,
+                              rpadded=rpadded, vectorized=vectorized)
 
-    # l1_norm=True to spare a multiplication; for SSWT L1 & L2 are exactly
-    # same anyway since we're inverting CWT over time-frequency plane
-    rpadded = (difftype == 'numeric')
-    Wx, scales, dWx = cwt(x, wavelet, scales=scales, fs=fs, nv=nv, l1_norm=True,
-                          derivative=True, padtype=padtype, rpadded=rpadded)
-
+    _Wx = Wx.copy() if preserve_transform else Wx
     gamma = gamma or np.sqrt(EPS)
-    Wx, w = _phase_transform(Wx, dWx, N, dt, gamma, difftype, difforder)
+    _Wx, w = _phase_transform(_Wx, dWx, N, dt, gamma, difftype, difforder)
 
     if ssq_freqs is None:
         # default to same scheme used by `scales`
         ssq_freqs = cwt_scaletype
 
-    Tx, ssq_freqs = ssqueeze(Wx, w, scales=scales, fs=fs, ssq_freqs=ssq_freqs,
+    Tx, ssq_freqs = ssqueeze(_Wx, w, scales=scales, fs=fs, ssq_freqs=ssq_freqs,
                              transform='cwt', squeezing=squeezing,
-                             mapkind=mapkind, wavelet=wavelet)
+                             maprange=maprange, wavelet=wavelet)
 
     if difftype == 'numeric':
         Wx = Wx[:, 4:-4]
         w  = w[:,  4:-4]
         Tx = Tx[:, 4:-4]
-    return Tx, ssq_freqs, Wx, scales, w  # TODO change return order
+    return Tx, Wx, ssq_freqs, scales, w, dWx
 
 
-def issq_cwt(Tx, wavelet, cc=None, cw=None):
+def issq_cwt(Tx, wavelet='gmw', cc=None, cw=None):
     """Inverse synchrosqueezing transform of `Tx` with associated frequencies
     in `fs` and curve bands in time-frequency plane specified by `Cs` and
     `freqband`. This implements Eq. 15 of [1].
@@ -226,7 +247,7 @@ def issq_cwt(Tx, wavelet, cc=None, cw=None):
             Curve centerpoints, and curve (vertical) widths (bandwidths),
             together defining the portion of Tx to invert over to extract
             K "components" per Modulation Model:
-                        x_k(t) = A_k(t) cos(phi_k(t)) + res;  k=0,...,K-1
+                x_k(t) = A_k(t) cos(phi_k(t)) + res;  k=0,...,K-1
             where K=len(c)==len(cw), and `res` is residual error (inversion
             over portion leftover/uncovered by cc, cw).
             None = full inversion.
@@ -237,8 +258,8 @@ def issq_cwt(Tx, wavelet, cc=None, cw=None):
             If cb & cw are None, x.shape == (Tx.shape[1],). See `cb, cw`.
 
     # Example:
-        Tx, *_ = ssq_cwt(x, 'morlet')    # synchrosqueezed CWT
-        x      = issq_cwt(Tx, 'morlet')  # reconstruction
+        Tx, *_ = ssq_cwt(x, 'gmw')    # synchrosqueezed CWT
+        x      = issq_cwt(Tx, 'gmw')  # reconstruction
 
     # References:
         1. The Synchrosqueezing algorithm for time-varying spectral analysis:
@@ -311,27 +332,30 @@ def _process_component_inversion_args(cc, cw):
     return cc, cw, full_inverse
 
 
-def phase_cwt(Wx, dWx, difftype='direct', gamma=None):
+def phase_cwt(Wx, dWx, difftype='trig', gamma=None):
     """Calculate the phase transform at each (scale, time) pair:
           w[a, b] = Im((1/2pi) * d/db (Wx[a,b]) / Wx[a,b])
     See above Eq 20.3 in [1], or Eq 13 in [2].
 
     # Arguments:
         Wx: np.ndarray
-            CWT of `x` (see `cwt`).
+            CWT of `x` (see `help(cwt)`).
 
         dWx: np.ndarray.
             Time-derivative of `Wx`, computed via frequency-domain differentiation
             (effectively, derivative of trigonometric interpolation; see [4]).
 
-        difftype: str['direct', 'phase']
-            Method by which to differentiate Wx (default='direct') to obtain
+        difftype: str['trig', 'phase']
+            Method by which to differentiate Wx (default='trig') to obtain
             instantaneous frequencies:
                     w(a,b) = Im( (1/2pi) * (1/Wx(a,b)) * d/db[Wx(a,b)] )
 
-                - 'direct': using `dWx` (see `dWx`).
+                - 'trig': using `dWx, the time-derivative of the CWT of `x`,
+                computed via frequency-domain differentiation (effectively,
+                derivative of trigonometric interpolation; see [4]). Implements
+                as described in Sec IIIB of [2].
                 - 'phase': differentiate by taking forward finite-difference of
-                unwrapped angle of `Wx` (see `phase_cwt`).
+                unwrapped angle of `Wx`
 
         gamma: float / None
             CWT phase threshold. Sets `w=inf` for small values of `Wx` where
@@ -367,13 +391,17 @@ def phase_cwt(Wx, dWx, difftype='direct', gamma=None):
         https://github.com/ebrevdo/synchrosqueezing/blob/master/synchrosqueezing/
         phase_cwt.m
     """
-    if difftype == 'phase':
+    if difftype == 'trig':
+        with np.errstate(divide='ignore', invalid='ignore'):
+            w = np.imag(dWx / Wx) / (2*pi)
+    elif difftype == 'phase':
         # TODO gives bad results; shouldn't we divide by Wx?
         u = np.unwrap(np.angle(Wx)).T
         w = np.vstack([np.diff(u, axis=0), u[-1] - u[0]]).T / (2*pi)
     else:
-        with np.errstate(divide='ignore'):
-            w = np.imag(dWx / Wx) / (2*pi)
+        raise ValueError(f"unsupported `difftype` '{difftype}'; must be one of "
+                         "'trig', 'phase'.")
+
     # treat negative phases as positive; these are in small minority, and
     # slightly aid invertibility (as less of `Wx` is zeroed in ssqueezing)
     w = np.abs(w)
@@ -390,9 +418,11 @@ def phase_cwt_num(Wx, dt, difforder=4, gamma=None):
     in [1], or Eq 13 in [2].
 
     # Arguments:
-        Wx: np.ndarray. Wavelet transform of `x` (see `cwt`).
+        Wx: np.ndarray
+            CWT of `x` (see `cwt`).
 
-        dt: int. Sampling period (e.g. t[1] - t[0]).
+        dt: float
+            Sampling period (e.g. t[1] - t[0]).
 
         difforder: int[1, 2, 4]
             Order of differentiation (default=4).

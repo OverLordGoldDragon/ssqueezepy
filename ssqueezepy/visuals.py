@@ -5,10 +5,11 @@ import matplotlib.pyplot as plt
 from numpy.fft import ifft
 from pathlib import Path
 from .algos import find_closest, find_maximum
+from .configs import gdefaults
 
 
 #### Visualizations ##########################################################
-def wavelet_tf(wavelet, N=2048, scale=100, notext=False, width=1.1, height=1):
+def wavelet_tf(wavelet, N=2048, scale=None, notext=False, width=1.1, height=1):
     """Visualize `wavelet` joint time-frequency resolution. Plots frequency-domain
     wavelet (psih) along y-axis, and time-domain wavelet (psi) along x-axis.
 
@@ -19,14 +20,39 @@ def wavelet_tf(wavelet, N=2048, scale=100, notext=False, width=1.1, height=1):
     `wavelet` is instance of `wavelets.Wavelet` or its valid `wavelet` argument.
     See also: https://www.desmos.com/calculator/nqowgloycy
     """
+    def pick_scale(wavelet, N):
+        """Pick scale such that both time- & freq-domain wavelets look nice."""
+        st_min, st_max = 65 * (N / 2048), 75 * (N / 2048)
+        max_iters = 100
+        scale = wavelet.scalec_ct
+        # generous `min_decay` since we don't care about initial bad cases
+        kw = dict(wavelet=wavelet, N=N, min_decay=1, nondim=False)
+        std_t = time_resolution(scale=scale, **kw)
+
+        i = 0
+        while not (st_min < std_t < st_max):
+            if std_t > st_max:
+                scale /= 1.1
+            else:
+                scale *= 1.1
+            std_t = time_resolution(scale=scale, **kw)
+
+            if i > max_iters:
+                raise ValueError(f"couldn't autofind `scale` after {max_iters} "
+                                 "iterations, aborting")
+            i += 1
+        return scale
+
     wavelet = Wavelet._init_if_not_isinstance(wavelet)
+    if scale is None:
+        scale = pick_scale(wavelet, N)
 
     #### Compute psi & psihf #################################################
     psi  = ifft(wavelet(scale * _xifn(1, N)) * (-1)**np.arange(N))
     apsi = np.abs(psi)
     t = np.arange(-N/2, N/2, step=1)
 
-    w = aifftshift(_xifn(1, N))[N//2-1:]
+    w = _xifn(1, N)[:N//2 + 1]
     psih = wavelet(scale * w)
 
     #### Compute stdevs & respective indices #################################
@@ -89,13 +115,7 @@ def wavelet_tf(wavelet, N=2048, scale=100, notext=False, width=1.1, height=1):
            "       = std_t * std_w\n\n"
            "(rad-c/s=\n radians*cycles/samples)"
            ).format(wc, std_t, std_w, std_t * std_w)
-    _kw = dict(xycoords='axes fraction', xy=(.7, .76), weight='bold',
-               fontsize=16)
-    try:
-        # 'Consolas' for vertical align
-        plt.annotate(txt, family='Consolas', **_kw)
-    except:
-        plt.annotate(txt, **_kw)  # in case platform lacks 'Consolas'
+    _annotate(txt, xy=(.7, .76), fontsize=16)
 
     ## Title: wavelet name & parameters
     title = wavelet._desc(N=N, scale=scale)
@@ -123,10 +143,10 @@ def wavelet_tf_anim(wavelet, N=2048, scales=None, width=1.1, height=1,
         if scales is None:
             scales = 'log:minimal'
             mn, mx = cwt_scalebounds(wavelet, N=N, preset='maximal',
-                                     double_N=False)
+                                     use_padded_N=False)
             scales = make_scales(N, 0.90*mn, 0.25*mx, scaletype='log')
         else:
-            scales = process_scales(scales, N, wavelet, double_N=False)
+            scales = process_scales(scales, N, wavelet, use_padded_N=False)
 
         # compute early and late scales more densely as they capture more
         # interesting behavior, so animation will slow down smoothly near ends
@@ -149,7 +169,6 @@ def wavelet_tf_anim(wavelet, N=2048, scales=None, width=1.1, height=1,
         scales  = scales.reshape(-1, 1)
         return scales
 
-    from .utils import NOTE, process_scales, cwt_scalebounds, make_scales
     from matplotlib.animation import FuncAnimation
     import matplotlib
     matplotlib.use("Agg")
@@ -163,7 +182,7 @@ def wavelet_tf_anim(wavelet, N=2048, scales=None, width=1.1, height=1,
     aPsi = np.abs(Psi)
     t = np.arange(-N/2, N/2, step=1)
 
-    w = aifftshift(_xifn(1, N))[N//2-1:]
+    w = _xifn(1, N)[:N//2 + 1]
     Psih = wavelet(scales * w)
 
     #### Compute stdevs & respective indices #################################
@@ -286,13 +305,12 @@ def wavelet_tf_anim(wavelet, N=2048, scales=None, width=1.1, height=1,
 def wavelet_heatmap(wavelet, scales='log', N=2048):
     wavelet = Wavelet._init_if_not_isinstance(wavelet)
     if not isinstance(scales, np.ndarray):
-        from .utils import process_scales
-        scales = process_scales('log', N, wavelet, double_N=False)
+        scales = process_scales(scales, N, wavelet, use_padded_N=False)
 
     #### Compute time- & freq-domain wavelets for all scales #################
     Psi = wavelet.psifn(scale=scales, N=N)
 
-    w = aifftshift(_xifn(1, N))[N//2-1:]
+    w = _xifn(1, N)[:N//2 + 1]
     Psih = wavelet(scales * w)
 
     #### Plot ################################################################
@@ -302,17 +320,17 @@ def wavelet_heatmap(wavelet, scales='log', N=2048):
     kw = dict(ylabel="scales", xlabel="samples")
     imshow(Psi.real,   norm=(-mx, mx), yticks=scales,
            title=title0 + " | Time-domain; real part", **kw)
-    imshow(Psi, abs=1, norm=(0, mx), yticks=scales,
+
+    imshow(Psi, abs=1, cmap='bone', norm=(0, mx), yticks=scales,
            title=title0 + " | Time-domain; abs-val", **kw)
+
     kw['xlabel'] = "radians"
     imshow(Psih, abs=1, cmap='jet', yticks=scales,
            xticks=np.linspace(0, np.pi, N//2),
-           title=title0 + "| Freq-domain; abs-val", **kw)
+           title=title0 + " | Freq-domain; abs-val", **kw)
 
 
 def sweep_std_t(wavelet, N, scales='log', get=False, **kw):
-    from .utils import process_scales
-
     def _process_kw(kw):
         kw = kw.copy()  # don't change external dict
         defaults = dict(min_decay=1, max_mult=2, min_mult=2,
@@ -344,8 +362,6 @@ def sweep_std_t(wavelet, N, scales='log', get=False, **kw):
 
 
 def sweep_std_w(wavelet, N, scales='log', get=False, **kw):
-    from .utils import process_scales
-
     def _process_kw(kw):
         kw = kw.copy()  # don't change external dict
         defaults = dict(nondim=False, force_int=True)
@@ -383,11 +399,9 @@ def sweep_harea(wavelet, N, scales='log', get=False, kw_w=None, kw_t=None):
     and limited bin discretization integrating unreliably (yet largely
     meaningfully; the unreliable-ness appears emergent from discretization).
     """
-    from .utils import process_scales
-
     kw_w, kw_t = (kw_w or {}), (kw_t or {})
-    scales = process_scales(scales, N, wavelet)
     wavelet = Wavelet._init_if_not_isinstance(wavelet)
+    scales = process_scales(scales, N, wavelet)
 
     std_ws = sweep_std_w(wavelet, N, scales, get=True, **kw_w)
     plt.show()
@@ -406,13 +420,11 @@ def sweep_harea(wavelet, N, scales='log', get=False, kw_w=None, kw_t=None):
 
 
 def wavelet_waveforms(wavelet, N, scale, zoom=True):
-    from .utils import find_maximum
-
     wavelet = Wavelet._init_if_not_isinstance(wavelet)
     ## Freq-domain sampled #######################
     w_peak, _ = find_maximum(wavelet.fn)
 
-    w_ct = np.linspace(0, w_peak*2, max(4096, 2*N))  # 'continuous-time'
+    w_ct = np.linspace(0, w_peak*2, max(4096, p2up(N)[0]))  # 'continuous-time'
     w_dt = np.linspace(0, np.pi, N//2) * scale  # sampling pts at `scale`
     psih_ct = wavelet(w_ct)
     psih_dt = wavelet(w_dt)
@@ -465,11 +477,8 @@ def _viz_cwt_scalebounds(wavelet, N, min_scale=None, max_scale=None,
     `max_scale` the time-domain one.
     """
     def _viz_max(wavelet, N, max_scale, std_t, stdevs, Nt):
-        from .wavelets import time_resolution
-
-        Nt = Nt or 2*N  # assume single extension
         if Nt is None:
-            Nt = 2*N
+            Nt = p2up(N)[0]
         if std_t is None:
             # permissive max_mult to not crash visual
             std_t = time_resolution(wavelet, max_scale, N, nondim=False,
@@ -512,11 +521,128 @@ def _viz_cwt_scalebounds(wavelet, N, min_scale=None, max_scale=None,
         raise ValueError("Must set at least one of `min_scale`, `max_scale`")
 
 
+def wavelet_filterbank(wavelet, N=1024, scales='log', skips=0, title_append=None,
+                       positives=False, show=True, get=False):
+    """Plot all frequency-domain wavelets, superposed.
+
+    `skips=1` will plot every *other* wavelet, `=2` will skip 2, etc.
+    `=0` shows all.
+
+    `title_append`: will `title += title_append` if not None. Must be string.
+    Can use to display additional info.
+
+    `positives=True` will show full wavelets as opposed to trimmed at Nyquist.
+
+    `get=True` to return the filter bank (ignores `skip`).
+    """
+    def _title():
+        scaletype = infer_scaletype(scales)[0]
+        desc = wavelet._desc(N=N)
+        desc = desc.replace(" |", " filterbank |")
+
+        title = "{}, scaletype={}{}".format(desc, scaletype, title_append or '')
+        title = _textwrap(title, wrap_len=72)
+        return title
+
+    # process `scales` & prepare freq-domain wavelets
+    scales = process_scales(scales, N, wavelet)
+    wavelet = Wavelet._init_if_not_isinstance(wavelet)
+    Psih = wavelet(scale=scales, N=N)
+
+    # process `skips`
+    Psih_show, scales_show = [], []
+    for i, psih in enumerate(Psih):
+        if i % (skips + 1) == 0:
+            Psih_show.append(psih)
+            scales_show.append(scales[i])
+    Psih_show = np.vstack(Psih_show).T
+
+    # prepare plot params
+    if positives:
+        w = None
+        xlims = (-N/100, N*1.01)
+    else:
+        Psih_show = Psih_show[:N//2]
+        w = np.linspace(0, np.pi, N//2, endpoint=True)
+        xlims = (-np.pi/100, np.pi*1.01)
+
+    # plot
+    if positives:
+        plt.axvline(N/2, color='tab:red')  # show Nyquist
+    plot(w, Psih_show, color='tab:blue', title=_title(), xlims=xlims, show=0,
+         xlabel="radians")
+
+    # style
+    _, ymax = plt.gca().get_ylim()
+    plt.ylim(-ymax/100, ymax*1.03)
+    txt = "(min, max)=(%.3f, %.1f)" % (np.min(scales_show), np.max(scales_show))
+    _annotate(txt, xy=(.63, .95), fontsize=17)
+
+    if show:
+        plt.show()
+    if get:
+        return Psih
+
+
+def viz_cwt_higher_order(Wx_k, scales=None, wavelet=None, **imshow_kw):
+    if wavelet is not None:
+        wavelet = Wavelet._init_if_not_isinstance(wavelet)
+        title_append = " | " + wavelet._desc(show_N=False)
+    else:
+        title_append = ''
+    yticks = scales.squeeze() if (scales is not None) else None
+    if imshow_kw.get('ticks', 1):
+        imshow_kw['yticks'] = imshow_kw.get('yticks', yticks)
+
+    if isinstance(Wx_k, list):
+        for k, Wx in enumerate(Wx_k):
+            title = "abs(CWT), order={}{}".format(k, title_append)
+            imshow(Wx, abs=1, title=title, **imshow_kw)
+
+        Wx_ka = np.mean(np.vstack([Wx_k]), axis=0)
+        order_str = ','.join(map(str, range(len(Wx_k))))
+        title = "abs(CWT), orders {} avg{}".format(order_str, title_append)
+        imshow(Wx_ka, abs=1, title=title, **imshow_kw)
+
+    else:
+        title = "abs(CWT), higher-order avg{}".format(title_append)
+        imshow(Wx_k, abs=1, title=title, **imshow_kw)
+
+
+def viz_gmw_orders(N=1024, n_orders=3, scale=5, gamma=3, beta=60,
+                   norm='bandpass'):
+    wavs = []
+    for k in range(n_orders):
+        wav = Wavelet(('gmw', dict(gamma=gamma, beta=beta, norm=norm, order=k)))
+        wavs.append(wav)
+
+    psihs = [wav(scale=scale)[:N//2 + 1] for wav in wavs]
+    psis  = [wav.psifn(scale=scale)      for wav in wavs]
+    w = np.linspace(0, np.pi, N//2 + 1, endpoint=True)
+
+    desc = wavs[0]._desc(show_N=False)
+    orders_str = ','.join(map(str, range(n_orders)))
+
+    for psih in psihs:
+        plot(w, psih, title="Freq-domain, orders=%s | %s" % (orders_str, desc))
+    plot([], show=1)
+
+    for k, psi in enumerate(psis):
+        plot(psi, complex=1)
+        plot(psi, abs=1, color='k', linestyle='--', show=1,
+             title=f"Time-domain, order={k} | {desc}")
+
+
 #### Visual tools ## messy code ##############################################
 def imshow(data, title=None, show=1, cmap=None, norm=None, complex=None, abs=0,
-           w=None, h=None, ridge=0, ticks=1, aspect='auto',
+           w=None, h=None, ridge=0, ticks=1, aspect='auto', ax=None, fig=None,
            yticks=None, xticks=None, xlabel=None, ylabel=None, **kw):
+    if (ax or fig) and complex:
+        NOTE("`ax` and `fig` ignored if `complex`")
+    ax  = ax  or plt.gca()
+    fig = fig or plt.gcf()
     kw['interpolation'] = kw.get('interpolation', 'none')
+
     if norm is None:
         mx = np.max(np.abs(data))
         vmin, vmax = ((-mx, mx) if not abs else
@@ -524,11 +650,11 @@ def imshow(data, title=None, show=1, cmap=None, norm=None, complex=None, abs=0,
     else:
         vmin, vmax = norm
     if cmap is None:
-        cmap = 'bone' if abs else 'bwr'
+        cmap = 'jet' if abs else 'bwr'
     _kw = dict(vmin=vmin, vmax=vmax, cmap=cmap, aspect=aspect, **kw)
 
     if abs:
-        plt.imshow(np.abs(data), **_kw)
+        ax.imshow(np.abs(data), **_kw)
     elif complex:
         fig, axes = plt.subplots(1, 2)
         axes[0].imshow(data.real, **_kw)
@@ -536,26 +662,26 @@ def imshow(data, title=None, show=1, cmap=None, norm=None, complex=None, abs=0,
         plt.subplots_adjust(left=0, right=1, bottom=0, top=1,
                             wspace=0, hspace=0)
     else:
-        plt.imshow(data.real, **_kw)
+        ax.imshow(data.real, **_kw)
 
     if w or h:
-        plt.gcf().set_size_inches(12 * (w or 1), 12 * (h or 1))
+        fig.set_size_inches(12 * (w or 1), 12 * (h or 1))
 
     if ridge:
         data_mx = np.where(np.abs(data) == np.abs(data).max(axis=0))
-        plt.scatter(data_mx[1], data_mx[0], color='r', s=4)
+        ax.scatter(data_mx[1], data_mx[0], color='r', s=4)
 
     if not ticks:
-        plt.xticks([])
-        plt.yticks([])
+        ax.set_xticks([])
+        ax.set_yticks([])
     if xticks is not None or yticks is not None:
         _ticks(xticks, yticks)
     if xlabel is not None:
-        plt.xlabel(xlabel, weight='bold', fontsize=15)
+        ax.set_xlabel(xlabel, weight='bold', fontsize=15)
     if ylabel is not None:
-        plt.ylabel(ylabel, weight='bold', fontsize=15)
+        ax.set_ylabel(ylabel, weight='bold', fontsize=15)
 
-    _maybe_title(title)
+    _maybe_title(title, ax=ax)
     if show:
         plt.show()
 
@@ -601,7 +727,7 @@ def plot(x, y=None, title=None, show=0, ax_equal=False, complex=0, abs=0,
     if xticks is not None or yticks is not None:
         _ticks(xticks, yticks)
 
-    _maybe_title(title)
+    _maybe_title(title, ax=ax)
     _scale_plot(fig, ax, show=show, ax_equal=ax_equal, w=w, h=h,
                 xlims=xlims, ylims=ylims, dx1=(len(x) if dx1 else 0),
                 xlabel=xlabel, ylabel=ylabel)
@@ -670,7 +796,8 @@ def plots(X, Y=None, nrows=None, ncols=None, tight=True, sharex=False,
 
 def scat(x, y=None, title=None, show=0, ax_equal=False, s=18, w=None, h=None,
          xlims=None, ylims=None, dx1=False, vlines=None, hlines=None, ticks=1,
-         complex=False, xlabel=None, ylabel=None, ax=None, fig=None, **kw):
+         complex=False, abs=False, xlabel=None, ylabel=None, ax=None, fig=None,
+         **kw):
     ax  = ax  or plt.gca()
     fig = fig or plt.gcf()
 
@@ -686,12 +813,14 @@ def scat(x, y=None, title=None, show=0, ax_equal=False, s=18, w=None, h=None,
         ax.scatter(x, y.real, s=s, **kw)
         ax.scatter(x, y.imag, s=s, **kw)
     else:
+        if abs:
+            y = np.abs(y)
         ax.scatter(x, y, s=s, **kw)
     if not ticks:
         ax.set_xticks([])
         ax.set_yticks([])
 
-    _maybe_title(title)
+    _maybe_title(title, ax=ax)
     if vlines:
         vhlines(vlines, kind='v')
     if hlines:
@@ -727,14 +856,15 @@ def vhlines(lines, kind='v'):
 
     if not isinstance(lines, (list, tuple)):
         lines, lkw = [lines], {}
-    elif isinstance(lines, list):
+    elif isinstance(lines, (list, np.ndarray)):
         lkw = {}
     elif isinstance(lines, tuple):
         lines, lkw = lines
-        lines = lines if isinstance(lines, list) else [lines]
+        lines = lines if isinstance(lines, (list, np.ndarray)) else [lines]
     else:
         raise ValueError("`lines` must be list or (list, dict) "
                          "(got %s)" % lines)
+
     for line in lines:
         lfn(line, **lkw)
 
@@ -757,13 +887,19 @@ def _ticks(xticks, yticks):
         xt = [fmt(xticks) % h for h in np.asarray(xticks)[idxs]]
         plt.xticks(idxs, xt)
 
-def _maybe_title(title):
-    if title is not None:
-        title, kw = (title if isinstance(title, tuple) else
-                     (title, {}))
-        defaults = dict(loc='left', weight='bold', fontsize=16)
-        for name in defaults:
-            kw[name] = kw.get(name, defaults[name])
+def _maybe_title(title, ax=None):
+    if title is None:
+        return
+
+    title, kw = (title if isinstance(title, tuple) else
+                 (title, {}))
+    defaults = gdefaults('visuals._maybe_title', get_all=True, as_dict=True)
+    for name in defaults:
+        kw[name] = kw.get(name, defaults[name])
+
+    if ax:
+        ax.set_title(str(title), **kw)
+    else:
         plt.title(str(title), **kw)
 
 
@@ -795,6 +931,18 @@ def _scale_plot(fig, ax, show=False, ax_equal=False, w=None, h=None,
         plt.show()
 
 
+def _annotate(txt, xy=(.85, .9), weight='bold', fontsize=16):
+    _kw = dict(xycoords='axes fraction', xy=xy, weight=weight, fontsize=fontsize)
+    try:
+        # 'Consolas' for vertical align
+        plt.annotate(txt, family='Consolas', **_kw)
+    except:
+        plt.annotate(txt, **_kw)  # in case platform lacks 'Consolas'
+
+
 #############################################################################
-from .wavelets import Wavelet, _xifn, aifftshift
+from .wavelets import Wavelet, _xifn
 from .wavelets import center_frequency, freq_resolution, time_resolution
+from .utils.common import NOTE, _textwrap, p2up
+from .utils.cwt_utils import process_scales, cwt_scalebounds, make_scales
+from .utils.cwt_utils import infer_scaletype

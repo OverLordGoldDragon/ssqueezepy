@@ -2,7 +2,6 @@
 """Utilities & others
 """
 import pytest
-import numpy as np
 from ssqueezepy.wavelets import Wavelet
 from ssqueezepy.utils import cwt_scalebounds
 

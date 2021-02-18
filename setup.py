@@ -1,3 +1,21 @@
+# -*- coding: utf-8 -*-
+#
+# Copyright © OverLordGoldDragon
+# Licensed under the terms of the MIT License
+# (see ssqueezepy/__init__.py for details)
+
+"""
+ssqueezepy
+======
+
+Synchrosqueezing, wavelet transforms, and time-frequency analysis in Python
+
+ssqueezepy features time-frequency analysis written for performance, flexibility,
+and clarity. Included are Continuous Wavelet Transform (CWT), Short-Time Fourier
+Transform (STFT), CWT & STFT synchrosqueezing, Generalized Morse Wavelets,
+visualizations, a signal testing suite, and automatic ridge extraction.
+"""
+
 import os
 import re
 from setuptools import setup, find_packages
@@ -33,12 +51,12 @@ setup(
     author="OverLordGoldDragon",
     author_email="16495490+OverLordGoldDragon@users.noreply.github.com",
     description=("Synchrosqueezing, wavelet transforms, and "
-                 "time-frequency analysis in Python "),
+                 "time-frequency analysis in Python"),
     long_description=read_file('README.md'),
     long_description_content_type="text/markdown",
     keywords=(
-        "signal-processing python synchrosqueezing wavelet-transform cwt "
-        "time-frequency time-frequency-analysis"
+        "signal-processing python synchrosqueezing wavelet-transform cwt stft "
+        "morse-wavelet ridge-extraction time-frequency time-frequency-analysis"
     ),
     install_requires=get_requirements('requirements.txt'),
     tests_require=["pytest>=4.0", "pytest-cov"],

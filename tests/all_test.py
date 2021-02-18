@@ -3,8 +3,8 @@
 """
 #### Disable Numba JIT during testing, as pytest can't measure its coverage ##
 # TODO find shorter way to do this
-print("numba.njit is now monkey")
-print("numba.jit  is now monkey")
+print("numba.njit is now monke")
+print("numba.jit  is now monke")
 def njit(fn):
     def decor(*args, **kw):
         return fn(*args, **kw)
@@ -25,18 +25,11 @@ numba.jit  = jit
 ##############################################################################
 import pytest
 import numpy as np
-from ssqueezepy.wavelets import Wavelet, center_frequency, freq_resolution
-from ssqueezepy.wavelets import time_resolution, _xifn
-from ssqueezepy.wavelets import _aifftshift_even, _afftshift_even
-from ssqueezepy.utils import cwt_scalebounds, buffer, est_riskshrink_thresh
-from ssqueezepy.utils import window_resolution, window_area, padsignal
-from ssqueezepy.utils import find_max_scale, unbuffer, _assert_positive_integer
-from ssqueezepy.utils import _infer_scaletype, _process_fs_and_t, make_scales
 from ssqueezepy._cwt import _icwt_norm
-from ssqueezepy._stft import get_window
-from ssqueezepy.visuals import hist, plot, plots, scat, plotscat, imshow
-from ssqueezepy.toolkit import lin_band, cos_f, sin_f, mad_rms, amax
-from ssqueezepy import ssq_cwt, issq_cwt, cwt, icwt, ssqueeze
+from ssqueezepy.configs import gdefaults
+from ssqueezepy import Wavelet, TestSignals, ssq_cwt, issq_cwt, cwt, icwt
+from ssqueezepy import issq_stft, ssqueeze, get_window
+from ssqueezepy import _gmw, utils, visuals, wavelets, toolkit
 
 #### Ensure cached imports reloaded ##########################################
 from types import ModuleType
@@ -70,13 +63,16 @@ def test_ssq_cwt():
                 np.power(2**(1/16), np.arange(1, 32))),
         difftype=('phase', 'numeric'),
         padtype=('zero', 'replicate'),
-        mapkind=('energy', 'peak'),
+        maprange=('maximal', 'energy', 'peak', (1, 32)),
     )
 
     for name in params:
         for value in params[name]:
             try:
-                _ = ssq_cwt(**kw, **{name: value})
+                if name == 'maprange' and value in ('maximal', (1, 32)):
+                    _ = ssq_cwt(**kw, **{name: value}, scales='log')
+                else:
+                    _ = ssq_cwt(**kw, **{name: value})
             except Exception as e:
                 raise Exception(f"{name}={value} failed with:\n{e}")
 
@@ -94,13 +90,19 @@ def test_cwt():
     mae = np.mean(np.abs(Wx - Wx2))
     assert mae <= 1e-16, f"MAE = {mae} > 1e-16 for for-loop vs vectorized `cwt`"
 
-    _ = est_riskshrink_thresh(Wx, nv=32)
+    _ = utils.est_riskshrink_thresh(Wx, nv=32)
     _ = _icwt_norm(scaletype='linear', l1_norm=False)
 
     x[0] = np.nan
     x[1] = np.inf
     x[2] = -np.inf
     _ = cwt(x, 'morlet', vectorized=False, derivative=True, l1_norm=False)
+
+
+def test_ssq_stft():
+    Tsx = np.random.randn(128, 128)
+    pass_on_error(issq_stft, Tsx, modulated=False)
+    pass_on_error(issq_stft, Tsx, hop_len=2)
 
 
 def test_wavelets():
@@ -130,86 +132,95 @@ def test_wavelets():
                     raise TypeError(e)
                 wavelet.viz(name, scales='log', N=256, **kw)
 
-    _ = cwt_scalebounds(wavelet, N=512, viz=3)
+    _ = utils.cwt_scalebounds(wavelet, N=512, viz=3)
 
     #### misc ################################################################
     wavelet = Wavelet(lambda x: x)
-    _ = _xifn(scale=10, N=128)
+    _ = wavelets._xifn(scale=10, N=128)
 
 
 def test_toolkit():
     Tx = np.random.randn(20, 20)
-    Cs, freqband = lin_band(Tx, slope=1, offset=.1, bw=.025)
+    Cs, freqband = toolkit.lin_band(Tx, slope=1, offset=.1, bw=.025)
 
-    _ = cos_f([1], N=64)
-    _ = sin_f([1], N=64)
-    _ = amax(Tx)
-    _ = mad_rms(np.random.randn(10), np.random.randn(10))
+    _ = toolkit.cos_f([1], N=64)
+    _ = toolkit.sin_f([1], N=64)
+    _ = toolkit.amax(Tx)
+    _ = toolkit.mad_rms(np.random.randn(10), np.random.randn(10))
 
 
 def test_visuals():
     x = np.random.randn(10)
-    hist(x, show=1, stats=1)
+    visuals.hist(x, show=1, stats=1)
 
     y = x * (1 + 1j)
-    plot(y, complex=1, c_annot=1, vlines=1, ax_equal=1,
+    visuals.plot(y, complex=1, c_annot=1, vlines=1, ax_equal=1,
          xticks=np.arange(len(y)), yticks=y)
-    plot(y, abs=1, vert=1, dx1=1, ticks=0)
+    visuals.plot(y, abs=1, vert=1, dx1=1, ticks=0)
 
-    scat(x, vlines=1, hlines=1)
-    scat(y, complex=1, ticks=0)
-    plotscat(y, show=1, xlims=(-1, 1), dx1=1, ylabel="5")
+    visuals.scat(x, vlines=1, hlines=1)
+    visuals.scat(y, complex=1, ticks=0)
+    visuals.plotscat(y, show=1, xlims=(-1, 1), dx1=1, ylabel="5")
 
-    plots([y, y], tight=1, show=1)
-    plots([y, y], nrows=2)
-    plots([y, y], ncols=2)
+    visuals.plots([y, y], tight=1, show=1)
+    visuals.plots([y, y], nrows=2)
+    visuals.plots([y, y], ncols=2)
 
     g = np.random.randn(4, 4)
-    imshow(g * (1 + 2j), complex=1)
-    imshow(g, ridge=1, ticks=0)
+    visuals.imshow(g * (1 + 2j), complex=1)
+    visuals.imshow(g, ridge=1, ticks=0)
 
-    _pass_on_error(plot, None, None)
+    pass_on_error(visuals.plot, None, None)
+    pass_on_error(visuals.wavelet_tf, 'morlet', notext=True)
 
 
 def test_utils():
-    _ = buffer(np.random.randn(20), 4, 1)
+    _ = utils.buffer(np.random.randn(20), 4, 1)
 
     wavelet = Wavelet(('morlet', {'mu': 6}))
-    _ = center_frequency(wavelet, viz=1)
-    _ = freq_resolution( wavelet, viz=1, scale=3, force_int=0)
-    _ = time_resolution( wavelet, viz=1)
+    _ = wavelets.center_frequency(wavelet, viz=1)
+    _ = wavelets.freq_resolution( wavelet, viz=1, scale=3, force_int=0)
+    _ = wavelets.time_resolution( wavelet, viz=1)
 
     xh = np.random.randn(128)
     xhs = np.zeros(xh.size)
-    _aifftshift_even(xh, xhs)
-    _afftshift_even(xh, xhs)
+    wavelets._aifftshift_even(xh, xhs)
+    wavelets._afftshift_even(xh, xhs)
 
-    _ = padsignal(xh, padlength=len(xh)*2, padtype='symmetric')
-    _ = padsignal(xh, padlength=len(xh)*2, padtype='wrap')
+    _ = utils.padsignal(xh, padlength=len(xh)*2, padtype='symmetric')
+    _ = utils.padsignal(xh, padlength=len(xh)*2, padtype='wrap')
+    x2d = np.random.randn(4, 64)
+    _ = utils.padsignal(x2d, padlength=96, padtype='symmetric')
 
     g = np.ones((128, 200))
-    unbuffer(g, xh, 1, n_fft=len(xh), N=None, win_exp=0)
-    unbuffer(g, xh, 1, n_fft=len(xh), N=g.shape[1], win_exp=2)
+    utils.unbuffer(g, xh, 1, n_fft=len(xh), N=None, win_exp=0)
+    utils.unbuffer(g, xh, 1, n_fft=len(xh), N=g.shape[1], win_exp=2)
+
+    scales = utils.process_scales('log', 1024, Wavelet())
+    _ = utils.find_downsampling_scale(Wavelet(), scales, method='any',
+                                      viz_last=1)
+    _ = utils.find_downsampling_scale(Wavelet(), scales, method='all')
 
     #### errors / warnings ###################################################
-    _pass_on_error(find_max_scale, 1, 1, -1, -1)
+    pass_on_error(utils.find_max_scale, 1, 1, -1, -1)
 
-    _pass_on_error(cwt_scalebounds, 1, 1, preset='etc', min_cutoff=0)
-    _pass_on_error(cwt_scalebounds, 1, 1, min_cutoff=-1)
-    _pass_on_error(cwt_scalebounds, 1, 1, min_cutoff=.2, max_cutoff=.1)
-    _pass_on_error(cwt_scalebounds, 1, 1, cutoff=0)
+    pass_on_error(utils.cwt_scalebounds, 1, 1, preset='etc', min_cutoff=0)
+    pass_on_error(utils.cwt_scalebounds, 1, 1, min_cutoff=-1)
+    pass_on_error(utils.cwt_scalebounds, 1, 1, min_cutoff=.2, max_cutoff=.1)
+    pass_on_error(utils.cwt_scalebounds, 1, 1, cutoff=0)
 
-    _pass_on_error(_assert_positive_integer, -1, 'w')
+    pass_on_error(utils._assert_positive_integer, -1, 'w')
 
-    _pass_on_error(_infer_scaletype, 1)
-    _pass_on_error(_infer_scaletype, np.array([1]))
-    _pass_on_error(_infer_scaletype, np.array([1., 2., 5.]))
+    pass_on_error(utils.infer_scaletype, 1)
+    pass_on_error(utils.infer_scaletype, np.array([1]))
+    pass_on_error(utils.infer_scaletype, np.array([1., 2., 5.]))
 
-    _pass_on_error(_process_fs_and_t, 1, np.array([1]), 2)
-    _pass_on_error(_process_fs_and_t, 1, np.array([1., 2, 4]), 3)
-    _pass_on_error(_process_fs_and_t, -1, None, 1)
+    pass_on_error(utils._process_fs_and_t, 1, np.array([1]), 2)
+    pass_on_error(utils._process_fs_and_t, 1, np.array([1., 2, 4]), 3)
+    pass_on_error(utils._process_fs_and_t, -1, None, 1)
 
-    _pass_on_error(make_scales, 128, scaletype='banana')
+    pass_on_error(utils.make_scales, 128, scaletype='banana')
+    pass_on_error(utils.padsignal, np.random.randn(3, 4, 5))
 
 
 def test_anim():
@@ -222,26 +233,129 @@ def test_ssqueezing():
     Wx = np.random.randn(4, 4)
     w = np.abs(Wx)
 
-    _pass_on_error(ssqueeze, Wx, w, transform='greenland')
-    _pass_on_error(ssqueeze, Wx, w, transform='cwt', scales=None)
-    _pass_on_error(ssqueeze, Wx, w, transform='cwt', wavelet=None,
-                   mapkind='maximal')
-    _pass_on_error(ssqueeze, Wx, w, transform='stft', mapkind='minimal')
-    _pass_on_error(ssqueeze, Wx, w, transform='abs')
-    _pass_on_error(ssqueeze, Wx, w, squeezing='big_bird')
-    _pass_on_error(ssqueeze, Wx, w, squeezing=lambda x: x**2)
+    pass_on_error(ssqueeze, Wx, w, transform='greenland')
+    pass_on_error(ssqueeze, Wx, w, transform='cwt', scales=None)
+    pass_on_error(ssqueeze, Wx, w, transform='cwt', wavelet=None,
+                   maprange='maximal')
+    pass_on_error(ssqueeze, Wx, w, transform='stft', maprange='minimal')
+    pass_on_error(ssqueeze, Wx, w, transform='stft', ssq_freqs='linear')
+    pass_on_error(ssqueeze, Wx, w, transform='abs')
+    pass_on_error(ssqueeze, Wx, w, squeezing='big_bird')
+    pass_on_error(ssqueeze, Wx, w, squeezing=lambda x: x**2)
+    pass_on_error(ssqueeze, Wx, w, squeezing='abs')
+
+
+def test_get_window():
+    _ = get_window('hann', win_len=128, n_fft=None)
+    pass_on_error(get_window, 1, 2)
 
 
 def test_windows():
     window = get_window(None, win_len=100, n_fft=128)
 
-    window_area(window, time=True,  frequency=True)
-    window_area(window, time=True,  frequency=False)
-    window_area(window, time=False, frequency=True)
-    window_resolution(window)
+    utils.window_area(window, time=True,  frequency=True)
+    utils.window_area(window, time=True,  frequency=False)
+    utils.window_area(window, time=False, frequency=True)
+    utils.window_resolution(window)
 
 
-def _pass_on_error(fn, *args, **kw):
+def test_morse_utils():
+    """Test miscellaneous utility funcs."""
+    _gmw.morseafun(3, 60, 1, 'bandpass')
+    _gmw.morseafun(3, 60, 1, 'energy')
+
+    for n_out in range(1, 5):
+        _gmw.morsefreq(3, 60, n_out=n_out)
+        _gmw._morsemom(1, 3, 60, n_out=n_out)
+    _gmw._moments_to_cumulants(np.random.uniform(0, 1, 5))
+
+    pass_on_error(_gmw._check_args, gamma=-1)
+    pass_on_error(_gmw._check_args, beta=-1)
+    pass_on_error(_gmw._check_args, norm='cactus')
+    pass_on_error(_gmw._check_args, scale=-1)
+
+
+def test_test_signals():
+    tsigs = TestSignals()
+    pass_on_error(tsigs, dft='doot')
+
+    fn = lambda *args, **kw: (np.random.randn(100, 100), {})
+    tsigs.test_transforms(fn)
+
+    pass_on_error(tsigs._process_input, 'etc:t')
+    pass_on_error(tsigs._process_input, ['a', 1])
+    pass_on_error(tsigs._process_input, ['a', (1, 2)])
+
+    backup = tsigs.default_args.copy()
+    tsigs.default_args['am-cosine'] = dict(amin=.1)
+    pass_on_error(tsigs._process_input, 'am-cosine')
+    tsigs.default_args['am-cosine'] = 2
+    pass_on_error(tsigs._process_input, 'am-cosine')
+    tsigs.default_args.update(backup)
+
+
+def test_cwt_higher_order():
+    N = 256
+
+    tsigs = TestSignals()
+    x, t = tsigs.par_lchirp(N=N)
+    x += x[::-1]
+
+    for noise in (False, True):
+        if noise:
+            x += np.random.randn(len(x))
+        Wx_k, scales = cwt(x, 'gmw', order=range(3), average=False)
+
+        visuals.viz_cwt_higher_order(Wx_k, scales, 'gmw')
+        print("=" * 80)
+
+    _ = cwt(x, ('gmw', {'norm': 'energy'}), order=(0, 1), average=True,
+            l1_norm=False)
+    _ = cwt(x, 'gmw', order=1, average=False, derivative=True)
+
+
+def test_viz_gmw_orders():
+    N = 256
+    gamma, beta, norm = 3, 60, 'bandpass'
+    n_orders = 3
+    scale = 5
+    visuals.viz_gmw_orders(N, n_orders, scale, gamma, beta, norm)
+
+
+def test_trigdiff():
+    """Ensure `trigdiff` matches `cwt(derivative=True)`."""
+    N = 256
+    x = np.random.randn(N)
+    Wx, _, dWx = cwt(x, derivative=True, rpadded=True)
+
+    _, n1, _ = utils.p2up(N)
+    dWx2 = utils.trigdiff(Wx, rpadded=True, N=N, n1=n1)
+    dWx = dWx[:, n1:n1+N]
+
+    mae = np.mean(np.abs(dWx - dWx2))
+    assert mae < 1e-15, mae
+
+
+def test_logscale_transition_idx():
+    """Ensure the function splits `idx` such that `scales` are split as
+    `[scales[:idx], scales[idx:]]`
+    """
+    scales = np.exp(np.linspace(0, 5, 512))
+    idx = 399
+    for downsample in (2, 3, 4):
+        scales1 = scales[:idx]
+        scales2 = scales[idx + downsample - 1::downsample]
+        scales = np.hstack([scales1, scales2])
+
+        tidx = utils.logscale_transition_idx(scales)
+        assert idx == tidx, "{} != {}".format(idx, tidx)
+
+
+def test_configs():
+    pass_on_error(gdefaults, None)
+
+
+def pass_on_error(fn, *args, **kw):
     try: fn(*args, **kw)
     except: pass
 
@@ -250,24 +364,33 @@ if __name__ == '__main__':
     if VIZ:
         test_ssq_cwt()
         test_cwt()
+        test_ssq_stft()
         test_wavelets()
         test_toolkit()
         test_visuals()
         test_utils()
         test_anim()
         test_ssqueezing()
+        test_get_window()
         test_windows()
+        test_morse_utils()
+        test_test_signals()
+        test_cwt_higher_order()
+        test_viz_gmw_orders()
+        test_trigdiff()
+        test_logscale_transition_idx()
+        test_configs()
     else:
         pytest.main([__file__, "-s"])
 
-        # restore original in case it matters for future testing
-        reload(numba)
-        numba.njit = njit_orig
-        numba.jit  = jit_orig
-        reload(ssqueezepy)
-        for name in dir(ssqueezepy):
-            obj = getattr(ssqueezepy, name)
-            if isinstance(obj, ModuleType):
-                reload(obj)
-        print("numba.njit is no longer monkey")
-        print("numba.jit  is no longer monkey")
+    # restore original in case it matters for future testing
+    reload(numba)
+    numba.njit = njit_orig
+    numba.jit  = jit_orig
+    reload(ssqueezepy)
+    for name in dir(ssqueezepy):
+        obj = getattr(ssqueezepy, name)
+        if isinstance(obj, ModuleType):
+            reload(obj)
+    print("numba.njit is no longer monke")
+    print("numba.jit  is no longer monke")

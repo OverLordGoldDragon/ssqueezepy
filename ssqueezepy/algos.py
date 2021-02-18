@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import numpy as np
-from numba import njit
+from numba import jit
+from functools import reduce
 
 
 def find_closest(a, v):
@@ -10,17 +11,26 @@ def find_closest(a, v):
     sidx = v.argsort()
     v_s = v[sidx]
     idx = np.searchsorted(v_s, a)
-    idx[idx==len(v)] = len(v)-1
+    idx[idx == len(v)] = len(v) - 1
     idx0 = (idx-1).clip(min=0)
 
-    m = np.abs(a-v_s[idx]) >= np.abs(v_s[idx0]-a)
-    m[idx==0] = 0
+    m = np.abs(a - v_s[idx]) >= np.abs(v_s[idx0] - a)
+    m[idx == 0] = 0
     idx[m] -= 1
     out = sidx[idx]
     return out
 
 
-@njit
+def nCk(n, k):
+    """n-Choose-k"""
+    mul = lambda a, b: a * b
+    r = min(k, n - k)
+    numer = reduce(mul, range(n, n - r, -1), 1)
+    denom = reduce(mul, range(1, r + 1), 1)
+    return numer / denom
+
+
+@jit(nopython=True, cache=True)
 def indexed_sum(a, k):
     """Sum `a` into rows of 2D array according to indices given by 2D `k`"""
     out = np.zeros(a.shape, dtype=np.cfloat)
@@ -77,7 +87,7 @@ def replace_at_value(x, ref=None, value=0., replacement=0.):
         x = x.squeeze(axis=-1)
     return x
 
-@njit
+@jit(nopython=True, cache=True)
 def _replace_at_inf_or_nan(x, ref, replacement=0.):
     for i in range(x.shape[0]):
         for j in range(x.shape[1]):
@@ -86,7 +96,7 @@ def _replace_at_inf_or_nan(x, ref, replacement=0.):
                     x[i, j, k] = replacement
     return x
 
-@njit
+@jit(nopython=True, cache=True)
 def _replace_at_inf(x, ref, replacement=0.):
     for i in range(x.shape[0]):
         for j in range(x.shape[1]):
@@ -95,7 +105,7 @@ def _replace_at_inf(x, ref, replacement=0.):
                     x[i, j, k] = replacement
     return x
 
-@njit
+@jit(nopython=True, cache=True)
 def _replace_at_nan(x, ref, replacement=0.):
     for i in range(x.shape[0]):
         for j in range(x.shape[1]):
@@ -104,7 +114,7 @@ def _replace_at_nan(x, ref, replacement=0.):
                     x[i, j, k] = replacement
     return x
 
-@njit
+@jit(nopython=True, cache=True)
 def _replace_at_value(x, ref, value=0., replacement=0.):
     for i in range(x.shape[0]):
         for j in range(x.shape[1]):
@@ -114,9 +124,9 @@ def _replace_at_value(x, ref, value=0., replacement=0.):
     return x
 
 #### misc (short) ############################################################
-@njit
+@jit(nopython=True, cache=True)
 def _min_neglect_idx(arr, th=1e-12):
-    """Used in utils._integrate_analytic and ._integrate_bounded."""
+    """Used in utils.integrate_analytic and ._integrate_bounded."""
     for i, x in enumerate(arr):
         if x < th:
             return i
