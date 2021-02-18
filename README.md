@@ -46,7 +46,7 @@ Synchrosqueezing is a powerful _reassignment method_ that focuses time-frequency
 
 <img src="https://user-images.githubusercontent.com/16495490/107919540-f4e5d000-6f84-11eb-9f86-dbfd34733084.png">
 
-[More.](https://github.com/OverLordGoldDragon/ssqueezepy/tree/master/examples/ridge_extraction)
+[More](https://github.com/OverLordGoldDragon/ssqueezepy/tree/master/examples/ridge_extraction)
 
 ### 5. Testing suite: GMW vs Morlet, reflect-added hyperbolic chirp (extreme time-loc.)
 

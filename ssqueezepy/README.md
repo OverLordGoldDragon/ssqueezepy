@@ -1,7 +1,12 @@
 # Usage guide
 
 See full README and `examples/` at https://github.com/OverLordGoldDragon/ssqueezepy/ . Also 
-see method/object docstrings via e.g. `help(cwt)`, `help(wavelet)`.
+see method/object docstrings via e.g. `help(cwt)`, `help(wavelet)`. Other READMEs/references:
+
+ - Ridge extraction: https://github.com/OverLordGoldDragon/ssqueezepy/tree/master/examples/ridge_extraction
+ - Generalized Morse Wavelets: https://overlordgolddragon.github.io/generalized-morse-wavelets/
+ - Testing suite: https://overlordgolddragon.github.io/test-signals/
+
 
 ## Selecting `scales` (CWT)
 
