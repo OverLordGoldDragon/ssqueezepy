@@ -34,9 +34,9 @@ ridge_idxs = extract_ridges(Tx, scales, penalty, n_ridges=2, bw=4)
 viz(x, Tx, ridge_idxs, ssq_freqs, ssq=True)
 ```
 
-![signal_1](/examples/ridge_extract_readme/imgs/signal_1.png)
-![cwt_ridge_signal_1](/examples/ridge_extract_readme/imgs/cwt_signal_1_ridge.png)
-![ssq_ridge_signal_1](/examples/ridge_extract_readme/imgs/ssq_signal_1_ridge.png)
+![signal_1](/examples/ridge_extraction/imgs/signal_1.png)
+![cwt_ridge_signal_1](/examples/ridge_extraction/imgs/cwt_signal_1_ridge.png)
+![ssq_ridge_signal_1](/examples/ridge_extraction/imgs/ssq_signal_1_ridge.png)
 
 ## 2: Two chirp signals with linear and quadratic frequency variation
 
@@ -62,9 +62,9 @@ ridge_idxs = extract_ridges(Tx, scales, penalty, n_ridges=2, bw=2)
 viz(x, Tx, ridge_idxs, ssq=True)
 ```
 
-![signal_2](/examples/ridge_extract_readme/imgs/signal_2.png)
-![cwt_ridge_signal_2](/examples/ridge_extract_readme/imgs/cwt_signal_2_ridge.png)
-![ssq_ridge_signal_2](/examples/ridge_extract_readme/imgs/ssq_signal_2_ridge.png)
+![signal_2](/examples/ridge_extraction/imgs/signal_2.png)
+![cwt_ridge_signal_2](/examples/ridge_extraction/imgs/cwt_signal_2_ridge.png)
+![ssq_ridge_signal_2](/examples/ridge_extraction/imgs/ssq_signal_2_ridge.png)
 
 ## 3: One sweep signal and one constant frequency signal
 
@@ -91,9 +91,9 @@ ridge_idxs = extract_ridges(Tx, scales, penalty, n_ridges=2, bw=2)
 viz(x, Tx, ridge_idxs, ssq=True)
 ```
 
-![signal_3](/examples/ridge_extract_readme/imgs/signal_3.png)
-![cwt_ridge_signal_3](/examples/ridge_extract_readme/imgs/cwt_signal_3_ridge.png)
-![ssq_ridge_signal_3](/examples/ridge_extract_readme/imgs/ssq_signal_3_ridge.png)
+![signal_3](/examples/ridge_extraction/imgs/signal_3.png)
+![cwt_ridge_signal_3](/examples/ridge_extraction/imgs/cwt_signal_3_ridge.png)
+![ssq_ridge_signal_3](/examples/ridge_extraction/imgs/ssq_signal_3_ridge.png)
 
 ## 4: Example of insufficient penalty term 
 
@@ -119,9 +119,9 @@ ridge_idxs = extract_ridges(Wx, scales, penalty=0.5, n_ridges=2, bw=25)
 viz(x, Wx, ridge_idxs)
 ```
 
-![signal_failed_wsst](/examples/ridge_extract_readme/imgs/signal_failed_wsst.png)
-![cwt_ridge_signal_failed_wsst_noPen](/examples/ridge_extract_readme/imgs/cwt_signal_failed_wsst_ridge_pen00.png)
-![cwt_ridge_signal_failed_wsst_penalty05](/examples/ridge_extract_readme/imgs/cwt_signal_failed_wsst_ridge_pen05.png)
+![signal_failed_wsst](/examples/ridge_extraction/imgs/signal_failed_wsst.png)
+![cwt_ridge_signal_failed_wsst_noPen](/examples/ridge_extraction/imgs/cwt_signal_failed_wsst_ridge_pen00.png)
+![cwt_ridge_signal_failed_wsst_penalty05](/examples/ridge_extraction/imgs/cwt_signal_failed_wsst_ridge_pen05.png)
 
 
 ### Practical considerations
