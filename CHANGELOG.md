@@ -41,6 +41,8 @@
  - `stft` default `window` increased frequency resolution
  - `visuals.imshow()`: `cmap` now defaults to `'jet'` instead of `'bone'` for `abs=True`
  - Added Examples to README, adjusted Minimal Example
+ - `NOTICE.txt`: added jLab
+ - `setup.py`: added short & long description, copyright, keywords
 
 #### FIXES
  - `visuals.wavelet_heatmap`: string `scales` now functional
