@@ -955,7 +955,7 @@ class TestSignals():
         tbase = self._title(name, len(x), fparams, aparams)
         title = tbase + '\n' + title
 
-        fig, axes = plt.subplots(1, 2, figsize=(w * 12, h * 12))
+        _, axes = plt.subplots(1, 2, figsize=(w * 12, h * 12))
 
         pkw = dict(color='k', linestyle='--', ylims=(0, len(Tf)),
                    xlims=(0, Tf.shape[1]), ticks=0)
