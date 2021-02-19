@@ -43,9 +43,10 @@ def test_cwt_vs_stft():
     # (N, beta, NW): (512, 42.5, 255); (256, 21.5, 255)
     N = 256#512
     signals = 'all'
+    snr = 5
     n_fft = N
     win_len = n_fft#//2
-    tsigs = TestSignals(N=N)
+    tsigs = TestSignals(N=N, snr=snr)
     wavelet = Wavelet(('GMW', {'beta': 21.5}))
 
     NW = win_len//2 - 1

@@ -33,6 +33,10 @@ variety of localization characteristics.
 11. **packed**: closely-spaced bands of sinusoids with majority overlap, e.g.
                 `cos(w*t[No:]) + cos((w+1)*t[-No:]) + cos((w+3)*t[No:]) + ...`,
                 `No = .8*len(t)`.
+
+12. **packed_poly**: closely-packed polynomial frequency modulations
+                (non-configurable)
+                Generates https://www.desmos.com/calculator/swbhgezpjk with A.M.
 """
 import inspect
 import numpy as np
@@ -47,13 +51,14 @@ from .visuals import plot, plots, imshow
 
 
 pi = np.pi
-DEFAULT_N = 256
+DEFAULT_N = 512
+DEFAULT_SNR = None
 DEFAULT_ARGS = {
-    'cosine': dict(f=8, phi0=0),
-    'sine':   dict(f=8, phi0=0),
-    'lchirp': dict(tmin=0, tmax=1, fmin=0,  fmax=None),
-    'echirp': dict(tmin=0, tmax=1, fmin=1,  fmax=None),
-    'hchirp': dict(tmin=0, tmax=1, fmin=.5, fmax=None),
+    'cosine': dict(f=64, phi0=0),
+    'sine':   dict(f=64, phi0=0),
+    'lchirp': dict(tmin=0, tmax=1, fmin=0, fmax=None),
+    'echirp': dict(tmin=0, tmax=1, fmin=1, fmax=None),
+    'hchirp': dict(tmin=0, tmax=1, fmin=1, fmax=None),
     'jumps':  dict(),
     'low':    dict(),
     'am-cosine': dict(amin=.1),
@@ -77,7 +82,8 @@ class TestSignals():
     See `examples/` on Github, and
     https://overlordgolddragon.github.io/test-signals/
 
-    Also see `TestSignals.SUPPORTED`, `TestSignals.DEMO`.
+    Also see `help(ssqueezepy._test_signals)`, `TestSignals.SUPPORTED`,
+    `TestSignals.DEMO`.
 
     **Sweep functions**
         For `lchirp`, `echirp`, & `hchirp`, `N` will be determined automatically
@@ -91,6 +97,13 @@ class TestSignals():
     # Arguments
         N: int
             Will use this as default `N` anytime `N` is left unspecified.
+
+        snr: float / None
+            If not None, will add random normal (White Gaussian) noise to
+            signal of SNR `snr` - computed as:
+                SNR = 10*log10(xo_var / noise_var)
+                noise_var = xo_var / 10^(SNR/10)
+            where `xo_var` = unnoised signal variance.
 
         default_args: dict
             `{<signal_name>: {'param_name': value}}` pairs, where `signal_name`
@@ -106,18 +119,19 @@ class TestSignals():
     """
     SUPPORTED = ['cosine', 'sine', 'lchirp', 'echirp', 'echirp_pc', 'hchirp',
                  'par-lchirp', 'par-echirp', 'par-hchirp', 'jumps', 'packed',
-                 'am-sine', 'am-cosine', 'am-exp', 'am-gauss']
+                 'packed-poly', 'am-sine', 'am-cosine', 'am-exp', 'am-gauss']
     # what to show with `signal='all'`, and in what order
     DEMO = ['cosine', 'sine',
             'lchirp', 'echirp', 'hchirp',
             '#lchirp', '#echirp', '#hchirp',
             'par-lchirp', 'par-echirp', 'par-hchirp', '#par-lchirp',
-            'jumps', 'packed',
+            'jumps', 'packed', 'packed-poly',
             'am-sine', 'am-cosine', 'am-exp', 'am-gauss']
 
-    def __init__(self, N=None, default_args=None, default_tkw=None,
+    def __init__(self, N=None, snr=None, default_args=None, default_tkw=None,
                  warn_alias=True):
-        self.default_N    = N    or DEFAULT_N
+        self.N = N or DEFAULT_N
+        self.snr = snr or DEFAULT_SNR
         self.default_args = default_args or DEFAULT_ARGS
         self.default_tkw  = default_tkw  or DEFAULT_TKW
         self.warn_alias   = warn_alias
@@ -261,7 +275,7 @@ class TestSignals():
         """Linear frequency modulation in parallel. Should have
         `fmax2 > fmax1`, `fmin2 > fmin1`, and shared `tmin`, `tmax`.
         """
-        N = N or self.default_N
+        N = N or self.N
         fdiff_default = N/10
 
         if fmin1 is None:
@@ -285,7 +299,7 @@ class TestSignals():
         """Exponential frequency modulation in parallel. Should have
         `fmax2 > fmax1`, `fmin2 > fmin1`, and shared `tmin`, `tmax`.
         """
-        N = N or self.default_N
+        N = N or self.N
         fratio_default = 1.5
 
         if fmin1 is None:
@@ -309,7 +323,7 @@ class TestSignals():
         """Hyperbolic frequency modulation in parallel. Should have
         `fmax2 > fmax1`, `fmin2 > fmin1`, and shared `tmin`, `tmax`.
         """
-        N = N or self.default_N
+        N = N or self.N
         fratio_default = 3
 
         if fmin1 is None:
@@ -330,21 +344,21 @@ class TestSignals():
 
     def am_sine(self, N=None, f=1, amin=0, amax=1, phi=0, **tkw):
         """Sine amplitude modulation, `|sin(w) + 1| / 2`."""
-        N = N or self.default_N
+        N = N or self.N
         _A, t = self.sine(N, f, phi, **tkw)
         _A = (_A + 1) / 2
         return amin + (amax - amin) * _A, t
 
     def am_cosine(self, N=None, f=1, amin=0, amax=1, phi=0, **tkw):
         """Cosine amplitude modulation, `|cos(w) + 1| / 2`."""
-        N = N or self.default_N
+        N = N or self.N
         _A, t = self.cosine(N, f, phi, **tkw)
         _A = (_A + 1) / 2
         return amin + (amax - amin) * _A, t
 
     def am_exp(self, N=None, amin=.1, amax=1, **tkw):
         """Uses `echirp`'s expression for `f(t)`."""
-        N = N or self.default_N
+        N = N or self.N
         t, tmin, tmax = self._process_params(N, tkw)
         _A = self._echirp_fn(t, tmin, tmax, amin, amax, get_w=True)[1]
         _A /= (2*pi)
@@ -352,25 +366,28 @@ class TestSignals():
 
     def am_gauss(self, N=None, amin=.1, amax=1, **tkw):
         """Gaussian centered at center sample (`N/2`)."""
-        N = N or self.default_N
+        N = N or self.N
         t = _t(-1, 1, N)
         _A = np.exp( -((t - t.mean())**2 * 5) )
         return amin + (amax - amin)*_A, t
 
     def jumps(self, N=None, freqs=None, **tkw):
         """Large instant freq transitions, e.g. `cos(2pi f*t), f=2 -> f=100`."""
-        N = N or self.default_N
+        N = N or self.N
         t, tmin, tmax = self._process_params(N, tkw)
-        if freqs is None:
-            freqs = [1, N/4, N/2, N/16]
-        tdiff = tmax - tmin
 
+        n_freqs = len(freqs) if freqs is not None else 4
+        M = N // n_freqs
+        if freqs is None:
+            freqs = [1, M/4, M/2, M/16]
+
+        tdiff = tmax - tmin
         x_freqs = []
         endpoint = tkw.get('endpoint', self.default_tkw.get('endpoint', False))
-        t_all = _t(tmin, tdiff * len(freqs), N * len(freqs), endpoint)
 
+        t_all = _t(tmin, tdiff * len(freqs), M * len(freqs), endpoint)
         for i, f in enumerate(freqs):
-            t = t_all[i*N : (i+1)*N]
+            t = t_all[i*M : (i+1)*M]
             x_freqs.append(np.cos(2*pi * f * t))
         x, t = np.hstack(x_freqs), t_all
 
@@ -381,7 +398,7 @@ class TestSignals():
             `cos(w*t[No:]) + cos((w+1)*t[-No:]) + cos((w+3)*t[No:]) + ...`,
             `No = .8*len(t)`.
         """
-        N = N or self.default_N
+        N = N or self.N
         t, *_ = self._process_params(N, tkw)
         if freqs is None:
             freqs = [.5, 1, 2, N/10, N/10 + N/50, N/10 + N/25,
@@ -395,6 +412,28 @@ class TestSignals():
             x[idxs] += np.cos(2*pi * f * t[idxs])
         return x, t
 
+    def packed_poly(self, N=None, **tkw):
+        """Closely-packed polynomial frequency modulations (non-configurable;
+        adjusts with N to keep bands approx unmoved in time-frequency plane).
+
+        Generates https://www.desmos.com/calculator/swbhgezpjk with A.M.
+        """
+        N = N or self.N
+        t = np.linspace(0, 10, N)
+
+        k1, k2, k3 = 10, 2.4, 4.8  # offsets
+        adj = N / 512  # keep FMs around same part of time-freq plane
+        k1, k2, k3 = k1*adj, k2*adj, k3*adj
+
+        x1 = (1 + .3 * np.cos(t)
+              ) * np.cos(2*np.pi * (k1*t - 0.3*adj*np.sin(t) - 1.8*adj*t**1.5))
+        x2 = (1 + .2 * np.cos(2*t)) * np.exp(-t/15) * np.cos(
+            2*np.pi * (k2*t + 0.5*adj*t**1.2 + .3*np.sin(t)))
+        x3 = np.cos(2*np.pi * (k3*t + .2*adj*t**1.3))
+
+        x = x1 + x2 + x3
+        return x, t
+
     #### Test functions ######################################################
     def demo(self, signals='all', N=None, dft=None):
         """Plots signal waveforms, and optionally their DFTs.
@@ -405,6 +444,8 @@ class TestSignals():
                 that order. Else, strings must be in `TestSignals.SUPPORTED`.
                 Can also be `(str, dict)` pairs in a list, dict passed as
                 keyword arguments to the generating function.
+                Also see `help(ssqueezepy._test_signals)`, and
+                `help(TestSignals.make_signals)`.
 
             N: int
                 Length (# of samples) of generated signals.
@@ -438,6 +479,9 @@ class TestSignals():
         `(Tf, pkw)`, where `Tf` is a 2D np.ndarray time-frequency transform,
         and `pkw` is keyword arguments to `ssqueezepy.visuals.imshow`
         (can be empty dict).
+
+        Also see `help(ssqueezepy._test_signals)`, and
+        `help(TestSignals.make_signals)`.
         """
         data = self.make_signals(signals, N)
         default_pkw = dict(abs=1, cmap='jet', show=1)
@@ -465,6 +509,10 @@ class TestSignals():
         the signal, `t` is its time vector, `fparams` is a dict of keyword args
         to the carrier, and `aparams` to the amplitude modulator (if applicable,
         e.g. `lchirp:am-sine').
+        `fparams` may additionally contain a special kwarg: `snr`, not passed to
+        carrier `fn`, that adds random normal noise of SNR `snr` to signal.
+
+        Also see `help(ssqueezepy._test_signals)`.
         """
         def _process_args(name, fparams, aparams):
             fname, aname = (name.split(':') if ':' in name else
@@ -489,18 +537,37 @@ class TestSignals():
         data = {}
         for name, (fparams, aparams) in zip(names, params_all):
             fn, afn, *_, tkw = _process_args(name, fparams, aparams)
+            snr = fparams.pop('snr', self.snr)
+
             x, t = fn(N, **fparams)
             x *= afn(len(x), **aparams, **tkw)[0]
+
             if name[0] == '#':
                 x += x[::-1]
+            if snr:
+                noise_var = x.var() / 10**(snr/10)
+                noise = np.sqrt(noise_var) * np.random.randn(len(x))
+                # use actual values
+                fparams['snr'] = 10*np.log10(x.var() / noise.var())
+
+                x += noise
 
             data[name] = (x, t, (fparams, aparams))
         return data
 
     @classmethod
-    def _title(self, signal, N, fparams, aparams, wrap_len=70):
+    def _title(self, signal, N, fparams, aparams, x=None, wrap_len=70):
         fparams = self._process_varname_alias(signal, N, fparams)
-        fparams = dict(N=N, **fparams)
+        snr = fparams.pop('snr', None)
+
+        if snr:
+            snr = "{:.1f}dB".format(snr)
+            fparams = dict(N=N, SNR=snr, **fparams)
+        else:
+            fparams = dict(N=N, **fparams)
+        # drop `.0` from integer floats
+        fparams = {k: (int(v) if (isinstance(v, float) and v.is_integer()) else v)
+                   for k, v in fparams.items()}
 
         ptxt = ', '.join(f"{k}={v}" for k, v in fparams.items())
         title = "{} | {}".format(signal, ptxt)
@@ -529,7 +596,7 @@ class TestSignals():
         if N is None:
             tmin, tmax = tkw['tmin'], tkw['tmax']
             if any(var is None for var in (tmin, tmax, fmin, fmax)):
-                N = self.default_N
+                N = self.N
             else:
                 f_fn = lambda *args, **kw: fn(*args, **kw, get_w=True)[1]
                 N = self._est_N_nonalias(f_fn, tmin, tmax, fmin, fmax)
@@ -691,8 +758,21 @@ class TestSignals():
         self.test_transforms(fn, signals=signals, N=N)
 
     def _wavcomp_fn(self, x, t, params, wavelets, w=1.2, h=None, tight_kw=None):
+        def _get_default_hspace():
+            """Set dims based on maximum number of rows titles occupy."""
+            title_nrows = []
+            for wavelet in wavelets:
+                name, fparams, aparams = params
+                title1, title2 = self._title_cwt(wavelet, name, x,
+                                                 fparams, aparams)
+                title_nrows.extend([title1.count('\n'), title2.count('\n')])
+
+            max_rows = max(title_nrows) + 1
+            return (.13 + .05*(max_rows - 2)) * (.9 / h)
+
         h = h or .45 * len(wavelets)
         fig, axes = plt.subplots(len(wavelets), 2, figsize=(w * 12, h * 12))
+
         for i, wavelet in enumerate(wavelets):
             Tx, Wx, *_ = ssq_cwt(x, wavelet, t=t)
             Tx = np.flipud(Tx)
@@ -705,8 +785,9 @@ class TestSignals():
             imshow(Tx, **pkw, ax=axes[i, 1], show=0, title=title2)
 
         tight_kw = tight_kw or {}
+        default_hspace = _get_default_hspace()
         defaults = dict(left=0, right=1, bottom=0, top=1, wspace=.01,
-                        hspace=.13)
+                        hspace=default_hspace)
         for k, v in defaults.items():
             tight_kw[k] = v
         plt.subplots_adjust(**tight_kw)
@@ -730,18 +811,24 @@ class TestSignals():
     def _cwt_vs_stft_fn(self, x, t, params, wavelet, window, win_len=None,
                         n_fft=None, window_name=None, config_str='', w=1.2, h=.9,
                         tight_kw=None):
+        def _get_default_hspace():
+            """Set dims based on maximum number of rows titles occupy."""
+            max_rows = 1 + max(g.count('\n') for g in (ctitle1, ctitle2,
+                                                       stitle1, stitle2))
+            return (.13 + .05*(max_rows - 2)) * (.9 / h)
+
         fs = 1 / (t[1] - t[0])
         Tsx, Sx, *_ = ssq_stft(x, window, n_fft=n_fft, win_len=win_len, fs=fs)
         Twx, Wx, *_ = ssq_cwt(x, wavelet, t=t)
         Twx, Tsx, Sx = np.flipud(Twx), np.flipud(Tsx), np.flipud(Sx)
-
-        fig, axes = plt.subplots(2, 2, figsize=(w * 12, h * 12))
 
         name, fparams, aparams = params
         ctitle1, ctitle2 = self._title_cwt( wavelet, name, x, fparams, aparams)
         stitle1, stitle2 = self._title_stft(window,  name, x, fparams, aparams,
                                             win_len, n_fft, window_name,
                                             config_str)
+
+        fig, axes = plt.subplots(2, 2, figsize=(w * 12, h * 12))
 
         pkw = dict(abs=1, cmap='jet', ticks=0, fig=fig)
         imshow(Wx,  **pkw, ax=axes[0, 0], show=0, title=ctitle1)
@@ -750,15 +837,16 @@ class TestSignals():
         imshow(Tsx, **pkw, ax=axes[1, 1], show=0, title=stitle2)
 
         tight_kw = tight_kw or {}
+        default_hspace = _get_default_hspace()
         defaults = dict(left=0, right=1, bottom=0, top=1, wspace=.01,
-                        hspace=.2)
+                        hspace=default_hspace)
         for k, v in defaults.items():
             tight_kw[k] = v
         plt.subplots_adjust(**tight_kw)
         plt.show()
 
     @staticmethod
-    def _title_cwt(wavelet, name, x, fparams, aparams, wrap_len=50):
+    def _title_cwt(wavelet, name, x, fparams, aparams, wrap_len=53):
         title = TestSignals._title(name, len(x), fparams, aparams)
 
         # special case: GMW
@@ -773,11 +861,15 @@ class TestSignals():
 
     @staticmethod
     def _title_stft(window, name, x, fparams, aparams, win_len=None, n_fft=None,
-                    window_name='', config_str='', wrap_len=50):
+                    window_name='', config_str='', wrap_len=53):
         title = TestSignals._title(name, len(x), fparams, aparams)
 
-        twin = "{} window | win_len={}, n_fft={}, {}".format(
-            window_name, win_len, n_fft, config_str)
+        if win_len is not None:
+            twin = "{} window | win_len={}, n_fft={}, {}".format(
+                window_name, win_len, n_fft, config_str)
+        else:
+            twin = "{} window | n_fft={}, {}".format(window_name, n_fft,
+                                                     config_str)
         stitle1 = title + '\nabs(STFT) | ' + twin
         stitle2 = 'abs(SSQ_STFT)'
 
