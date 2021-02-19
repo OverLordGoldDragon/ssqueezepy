@@ -66,6 +66,18 @@ def test_cwt_vs_stft():
                       n_fft=n_fft, window_name=window_name, config_str=config_str)
 
 
+def test_ridgecomp():
+    N = 256
+    n_ridges = 3
+    penalty = 25
+    signals = 'poly-cubic'
+
+    tsigs = TestSignals(N=N)
+    kw = dict(N=N, signals=signals, n_ridges=n_ridges, penalty=penalty)
+    tsigs.ridgecomp(transform='cwt',  **kw)
+    tsigs.ridgecomp(transform='stft', **kw)
+
+
 if __name__ == '__main__':
     if VIZ:
         test_demo()

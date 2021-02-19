@@ -68,3 +68,15 @@ signals = 'packed-poly'
 
 tsigs = TestSignals(N=N, snr=snr)
 tsigs.cwt_vs_stft(N=N, signals=signals, **kw)
+
+#%%# Ridge extraction ########################################################
+N = 512
+signals = 'poly-cubic'
+snr = None
+n_ridges = 3
+penalty = 25
+
+tsigs = TestSignals(N=N, snr=snr)
+kw = dict(N=N, signals=signals, n_ridges=n_ridges, penalty=penalty)
+tsigs.ridgecomp(transform='cwt',  **kw)
+tsigs.ridgecomp(transform='stft', **kw)

@@ -37,10 +37,14 @@ variety of localization characteristics.
 12. **packed_poly**: closely-packed polynomial frequency modulations
                 (non-configurable)
                 Generates https://www.desmos.com/calculator/swbhgezpjk with A.M.
+
+13. **poly_cubic**: cubic polynomial frequency variation + pure tone
+               (non-configurable)
 """
 import inspect
 import numpy as np
 import matplotlib.pyplot as plt
+import scipy.signal as sig
 from numpy.fft import rfft
 
 from ._ssq_cwt import ssq_cwt
@@ -48,6 +52,7 @@ from ._ssq_stft import ssq_stft
 from .utils import WARN, _textwrap
 from .wavelets import Wavelet
 from .visuals import plot, plots, imshow
+from .ridge_extraction import extract_ridges
 
 
 pi = np.pi
@@ -123,13 +128,14 @@ class TestSignals():
     """
     SUPPORTED = ['cosine', 'sine', 'lchirp', 'echirp', 'echirp_pc', 'hchirp',
                  'par-lchirp', 'par-echirp', 'par-hchirp', 'jumps', 'packed',
-                 'packed-poly', 'am-sine', 'am-cosine', 'am-exp', 'am-gauss']
+                 'packed-poly', 'poly-cubic',
+                 'am-sine', 'am-cosine', 'am-exp', 'am-gauss']
     # what to show with `signal='all'`, and in what order
     DEMO = ['cosine', 'sine',
             'lchirp', 'echirp', 'hchirp',
             '#lchirp', '#echirp', '#hchirp',
             'par-lchirp', 'par-echirp', 'par-hchirp', '#par-lchirp',
-            'jumps', 'packed', 'packed-poly',
+            'jumps', 'packed', 'packed-poly', 'poly-cubic',
             'am-sine', 'am-cosine', 'am-exp', 'am-gauss']
 
     def __init__(self, N=None, snr=None, default_args=None, default_tkw=None,
@@ -439,6 +445,22 @@ class TestSignals():
         x = x1 + x2 + x3
         return x, t
 
+    def poly_cubic(self, N=None, **tkw):
+        """Cubic polynomial frequency variation + pure tone (non-configurable;
+        adjusts with N to keep bands approx unmoved in time-frequency plane).
+        """
+        N = N or self.N
+        t  = np.linspace(0, 10, N, endpoint=True)
+
+        p1 = np.poly1d([0.025, -0.36, 1.25, 2.0]) * (N / 256)
+        p3 = np.poly1d([0.01, -0.25, 1.5, 4.0]) * (N / 256)
+        x1 = sig.sweep_poly(t, p1)
+        x3 = sig.sweep_poly(t, p3)
+        x2 = np.sin(2*np.pi * (.5*N/256) * t)
+
+        x = x1 + x2 + x3
+        return x, t
+
     #### Test functions ######################################################
     def demo(self, signals='all', N=None, dft=None):
         """Plots signal waveforms, and optionally their DFTs.
@@ -653,13 +675,21 @@ class TestSignals():
                             "(got (%s))" % ', '.join(
                                 map(lambda s: type(s).__name__, signal)))
 
-        if isinstance(signals, (list, tuple)):
+        if isinstance(signals, (str, tuple)):
+            if signals != 'all':
+                signals = [signals]
+        elif not isinstance(signals, list):
+            raise TypeError("`signals` must be string, list, or tuple "
+                            "(got %s)" % type(signals))
+
+        if isinstance(signals, list):
             for signal in signals:
                 if isinstance(signal, str):
                     if ':' in signal:
                         fname, aname = signal.split(':')
                     else:
                         fname, aname = signal, ''
+                    fname = fname.lstrip('#')
 
                     for name in (fname, aname):
                         if name != '' and name not in self.SUPPORTED:
@@ -679,9 +709,6 @@ class TestSignals():
                                     "or tuple or list of (string, dict) or "
                                     "(string, (dict, dict)) pairs "
                                     "(found %s)" % type(signal))
-        elif not isinstance(signals, str):
-            raise TypeError("`signals` must be string, list, or tuple "
-                            "(got %s)" % type(signals))
 
         if signals == 'all':
             signals = self.DEMO.copy()
@@ -841,7 +868,11 @@ class TestSignals():
         imshow(Wx,  **pkw, ax=axes[0, 0], show=0, title=ctitle1)
         imshow(Twx, **pkw, ax=axes[0, 1], show=0, title=ctitle2)
         imshow(Sx,  **pkw, ax=axes[1, 0], show=0, title=stitle1)
-        imshow(Tsx, **pkw, ax=axes[1, 1], show=0, title=stitle2)
+        norm = ((0, np.abs(Tsx).mean()*300) if ("packed-poly" in name)
+                else None)
+        norm = ((0, np.abs(Tsx).mean()*200) if ("#par-lchirp" in name)
+                else norm)
+        imshow(Tsx, **pkw, ax=axes[1, 1], show=0, title=stitle2, norm=norm)
 
         tight_kw = tight_kw or {}
         default_hspace = _get_default_hspace()
@@ -882,6 +913,60 @@ class TestSignals():
 
         stitle1 = _textwrap(stitle1, wrap_len)
         return stitle1, stitle2
+
+    def ridgecomp(self, signals='all', N=None, penalty=20, n_ridges=2, bw=None,
+                  transform='cwt', w=1.2, h=.4, **transform_kw):
+        """Plots extracted ridges from a CWT or STFT and them SSQ'd of `signals`,
+        superimposed on the transform itself, passing in `transform_kw` to
+        `ssq_cwt` or `ssq_stft`. `w` & `h` control plots' width & height.
+
+        See `help(ridge_extraction.extract_ridges)`.
+        """
+        fn = lambda x, t, params: self._ridgecomp_fn(
+            x, t, params, penalty, n_ridges, bw, transform,
+            **transform_kw)
+        self.test_transforms(fn, signals=signals, N=N)
+
+    def _ridgecomp_fn(self, x, t, params, penalty=20, n_ridges=2, bw=None,
+                      transform='cwt', w=1.2, h=.4, **transform_kw):
+        transform_fn = ssq_cwt if transform == 'cwt' else ssq_stft
+        Tfs, Tf, ssq_freqs, scales, *_ = transform_fn(x, t=t, **transform_kw)
+
+        if bw is None:
+            tf_bw, ssq_bw = 10, 2
+        elif isinstance(bw, tuple):
+            tf_bw, ssq_bw = bw
+        else:
+            tf_bw = ssq_bw = bw
+        rkw = dict(penalty=penalty, n_ridges=n_ridges, transform=transform)
+        ridges     = extract_ridges(Tf,  scales,    bw=tf_bw,  **rkw)
+        ssq_ridges = extract_ridges(Tfs, ssq_freqs, bw=ssq_bw, **rkw)
+
+        name, fparams, aparams = params
+        if transform == 'cwt':
+            Tf = np.flipud(Tf)
+            ridges = len(Tf) - ridges
+            title, title_s = "abs(CWT) w/ ridges", "abs(SSQ_CWT) w/ ridges"
+        else:
+            title, title_s = "abs(STFT) w/ ridges", "abs(SSQ_STFT) w/ ridges"
+        tridge = "\npenalty={}, n_ridges={}, tf_bw={}, ssq_bw={}".format(
+            penalty, n_ridges, tf_bw, ssq_bw)
+        title += tridge
+        tbase = self._title(name, len(x), fparams, aparams)
+        title = tbase + '\n' + title
+
+        fig, axes = plt.subplots(1, 2, figsize=(w * 12, h * 12))
+
+        pkw = dict(color='k', linestyle='--', ylims=(0, len(Tf)),
+                   xlims=(0, Tf.shape[1]), ticks=0)
+        plot(ridges,     ax=axes[0], **pkw)
+        imshow(Tf,  abs=1, title=title,   ax=axes[0], show=0)
+        plot(ssq_ridges, ax=axes[1], **pkw)
+        imshow(Tfs, abs=1, title=title_s, ax=axes[1], show=0)
+
+        tight_kw = dict(left=0, right=1, bottom=0, top=1, wspace=.01, hspace=0)
+        plt.subplots_adjust(**tight_kw)
+        plt.show()
 
 
 def _t(tmin, tmax, N, endpoint=False):
