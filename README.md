@@ -128,7 +128,7 @@ The Discrete Fourier Transform lays the foundation of signal processing with rea
 
 ## Contributors (noteworthy)
 
- - [David Bondesson](https://github.com/DavidBondesson): ridge extraction (`ridge_extraction.py`; `examples/`: `extracting_ridges.py`, `README.md`)
+ - [David Bondesson](https://github.com/DavidBondesson): ridge extraction (`ridge_extraction.py`; `examples/`: `extracting_ridges.py`, `ridge_extraction/README.md`)
  
 
 ## References

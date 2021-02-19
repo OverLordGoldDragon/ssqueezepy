@@ -1,4 +1,4 @@
-### 0.6.0 (2-18-2021): Generalized Morse Wavelets, Ridge Extraction, Testing Suite
+### 0.6.0 (2-19-2021): Generalized Morse Wavelets, Ridge Extraction, Testing Suite
 
 #### FEATURES (major)
  - Added [Generalized Morse Wavelets](https://overlordgolddragon.github.io/generalized-morse-wavelets/) (`gmw`, `morsewave` in `_gmw.py`)
