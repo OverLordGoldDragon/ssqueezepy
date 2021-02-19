@@ -53,6 +53,7 @@ from .visuals import plot, plots, imshow
 pi = np.pi
 DEFAULT_N = 512
 DEFAULT_SNR = None
+DEFAULT_SEED = None
 DEFAULT_ARGS = {
     'cosine': dict(f=64, phi0=0),
     'sine':   dict(f=64, phi0=0),
@@ -116,6 +117,9 @@ class TestSignals():
             Whether to print warning if generated signal aliases (f > fs/2);
             to disable, pass `warn_alias=False` to `__init__()`, or set directly
             on instance (`TestSignals().warn_alias=False`).
+
+        seed: int / None
+            If not None, will `np.random.seed(seed)` before applying `snr` noise.
     """
     SUPPORTED = ['cosine', 'sine', 'lchirp', 'echirp', 'echirp_pc', 'hchirp',
                  'par-lchirp', 'par-echirp', 'par-hchirp', 'jumps', 'packed',
@@ -129,12 +133,13 @@ class TestSignals():
             'am-sine', 'am-cosine', 'am-exp', 'am-gauss']
 
     def __init__(self, N=None, snr=None, default_args=None, default_tkw=None,
-                 warn_alias=True):
-        self.N = N or DEFAULT_N
+                 warn_alias=True, seed=None):
+        self.N = N    or DEFAULT_N
         self.snr = snr or DEFAULT_SNR
         self.default_args = default_args or DEFAULT_ARGS
         self.default_tkw  = default_tkw  or DEFAULT_TKW
         self.warn_alias   = warn_alias
+        self.seed = seed or DEFAULT_SEED
 
         # set defaults on unspecified
         for k, v in DEFAULT_ARGS.items():
@@ -546,6 +551,8 @@ class TestSignals():
                 x += x[::-1]
             if snr:
                 noise_var = x.var() / 10**(snr/10)
+                if self.seed is not None:
+                    np.random.seed(self.seed)
                 noise = np.sqrt(noise_var) * np.random.randn(len(x))
                 # use actual values
                 fparams['snr'] = 10*np.log10(x.var() / noise.var())
