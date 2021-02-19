@@ -2,8 +2,7 @@
 """Generalized Morse Wavelets.
 
 For complete functionality, utility functions have been ported from jLab, and
-largely validated to match jLab's behavior. These can be used to compute
-higher-order wavelets, or pertinent properties thereof. jLab tests not ported.
+largely validated to match jLab's behavior. jLab tests not ported.
 """
 import numpy as np
 from numpy.fft import ifft

@@ -43,9 +43,10 @@ def test_cwt_vs_stft():
     # (N, beta, NW): (512, 42.5, 255); (256, 21.5, 255)
     N = 256#512
     signals = 'all'
+    snr = 5
     n_fft = N
     win_len = n_fft#//2
-    tsigs = TestSignals(N=N)
+    tsigs = TestSignals(N=N, snr=snr)
     wavelet = Wavelet(('GMW', {'beta': 21.5}))
 
     NW = win_len//2 - 1
@@ -63,6 +64,18 @@ def test_cwt_vs_stft():
 
     tsigs.cwt_vs_stft(wavelet, window, signals=signals, N=N, win_len=win_len,
                       n_fft=n_fft, window_name=window_name, config_str=config_str)
+
+
+def test_ridgecomp():
+    N = 256
+    n_ridges = 3
+    penalty = 25
+    signals = 'poly-cubic'
+
+    tsigs = TestSignals(N=N)
+    kw = dict(N=N, signals=signals, n_ridges=n_ridges, penalty=penalty)
+    tsigs.ridgecomp(transform='cwt',  **kw)
+    tsigs.ridgecomp(transform='stft', **kw)
 
 
 if __name__ == '__main__':

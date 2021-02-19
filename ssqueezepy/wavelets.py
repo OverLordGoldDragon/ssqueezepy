@@ -85,6 +85,13 @@ class Wavelet():
         return psi
 
     def xifn(self, scale=None, N=None):
+        """Computes `xi`, radian frequencies at which `wavelet` is sampled,
+        as fraction of sampling frequency: 0 to pi & -pi to 0, scaled by
+        `scale` - or more precisely:
+
+            N=128: [0, 1, 2, ..., 64, -63, -62, ..., -1] * (2*pi / N) * scale
+            N=129: [0, 1, 2, ..., 64, -64, -63, ..., -1] * (2*pi / N) * scale
+        """
         if isinstance(scale, np.ndarray) and scale.size > 1:
             if scale.squeeze().ndim > 1:
                 raise ValueError("2D `scale` unsupported")
@@ -101,6 +108,7 @@ class Wavelet():
 
     @property
     def N(self):
+        """Default value used when `N` is not passed to a `Wavelet` method."""
         return self._N
 
     @N.setter
@@ -110,15 +118,20 @@ class Wavelet():
 
     @property
     def xi(self):
+        """`xi` computed at `scale=1` and `N=self.N`. See `help(Wavelet.xifn)`."""
         return self._xi
 
     #### Properties ##########################################################
     @property
     def name(self):
+        """Name of underlying freq-domain function, processed by
+        `wavelets._fn_to_name`.
+        """
         return _fn_to_name(self.fn)
 
     @property
     def config_str(self):
+        """`self.config` formatted into a nice string."""
         if self.config:
             cfg = ""
             for k, v in self.config.items():
@@ -624,13 +637,19 @@ def time_resolution(wavelet, scale=10, N=1024, min_decay=1e3, max_mult=2,
     Detailed overview: https://dsp.stackexchange.com/q/72042/50076
 
     `nondim` will multiply by peak center frequency and return unitless quantity.
+    ______________________________________________________________________________
 
-    Interpreted as time-span of 68% of wavelet's energy (1 stdev for Gauss-shaped
+    **Interpretation**
+
+    Measures time-span of 68% of wavelet's energy (1 stdev for Gauss-shaped
     |psi(t)|^2). Inversely-proportional with `N`, i.e. same `scale` spans half
     the fraction of sequence that's twice long. Is actually *half* the span
     per unilateral (radius) std.
 
         std_t ~ scale (T / N)
+    ______________________________________________________________________________
+
+    **Implementation details**
 
     `t` may be defined from `min_mult` up to `max_mult` times the original span
     for computing stdev since wavelet may not decay to zero within target frame.
@@ -646,6 +665,7 @@ def time_resolution(wavelet, scale=10, N=1024, min_decay=1e3, max_mult=2,
     behavior per discretization complications (call with `viz=True`). Workaround
     via computing at stable scale and calculating via formula shouldn't work as
     both-domain behaviors deviate from continuous, complete counterparts.
+    ______________________________________________________________________________
 
     See tests/props_test.py for further info.
 
@@ -763,6 +783,7 @@ def _aifftshift_even(xh, xhs):
 
 
 def _fn_to_name(fn):
+    """`_` to ` `, removes `<lambda>` & `.`, handles `SPECIALS`."""
     SPECIALS = {'Gmw ': 'GMW '}
     name = fn.__qualname__.replace('_', ' ').replace('<locals>', '').replace(
         '<lambda>', '').replace('.', '').title()

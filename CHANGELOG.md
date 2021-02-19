@@ -32,7 +32,7 @@
  - `_infer_scaletype` -> `infer_scaletype`
  - `_integrate_analytic` -> `integrate_analytic`
  - `find_max_scale` -> `find_max_scale_alt`, but `find_max_scale` is still (but a different) function
- 
+
 #### MISC
  - `phase_cwt`: takes `abs(w)` instead of zeroing negatives
  - `wavelet` in `icwt` and `issq_cwt` now defaults to the default wavelet
@@ -47,13 +47,14 @@
 #### FIXES
  - `visuals.wavelet_heatmap`: string `scales` now functional
  - `visuals`: `w` overreached into negative frequencies for odd `N` in `wavelet_tf`, `wavelet_tf_anim`, & `wavelet_heatmap`
- - `icwt`: `padtype` now functional 
+ - `icwt`: `padtype` now functional
 
 #### FILE CHANGES
  - `ssqueezepy/` added: `_gmw.py`, `_test_signals.py`, `ridge_extraction.py`, `configs.ini`, `README.md`
  - `ssqueezepy/` added `utils/`, split `utils.py` into `common.py`, `cwt_utils.py`, `stft_utils.py`, `__init__.py`, & moved to `utils/`.
  - `tests/` added: `gmw_test.py`, `test_signals_test.py`, `ridge_extraction_test.py`
  - `examples/` added: `extracting_ridges.py`, `scales_selection.py`, `ridge_extract_readme/`: `README.md`, `imgs/*`
+ - Created `MANIFEST.in`
 
 
 ### 0.5.5 (1-14-2021): STFT & Synchrosqueezed STFT

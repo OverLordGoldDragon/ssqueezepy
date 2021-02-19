@@ -46,6 +46,8 @@ Synchrosqueezing is a powerful _reassignment method_ that focuses time-frequency
 
 <img src="https://user-images.githubusercontent.com/16495490/107919540-f4e5d000-6f84-11eb-9f86-dbfd34733084.png">
 
+[More](https://github.com/OverLordGoldDragon/ssqueezepy/tree/master/examples/ridge_extraction)
+
 ### 5. Testing suite: GMW vs Morlet, reflect-added hyperbolic chirp (extreme time-loc.)
 
 <img src="https://user-images.githubusercontent.com/16495490/107903903-d9b69880-6f63-11eb-9478-8ead016cf6f8.png">
@@ -68,7 +70,6 @@ Synchrosqueezing is a powerful _reassignment method_ that focuses time-frequency
 <img src="https://raw.githubusercontent.com/OverLordGoldDragon/ssqueezepy/master/examples/imgs/morlet_5vs20_tf.png">
 <img src="https://user-images.githubusercontent.com/16495490/107297978-e6338080-6a8d-11eb-8a11-60bfd6e4137d.png">
 
-<br>
 <hr>
 
 
@@ -109,6 +110,8 @@ viz(xo, Tsxo, np.flipud(Sxo))
 Tsx, Sx, *_ = ssq_stft(x)
 viz(x, Tsx, np.flipud(Sx))
 ```
+
+Also see ridge extraction [README](https://github.com/OverLordGoldDragon/ssqueezepy/tree/master/examples/ridge_extraction).
 
 
 ## Learning resources
