@@ -31,7 +31,7 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=None, t=None,
         n_fft: int >= 0 / None
             FFT length, or STFT column length. If `win_len < n_fft`, will
             pad `window`. Every STFT column is `fft(window * x_slice)`.
-            Defaults to `len(x)`.
+            Defaults to `len(x)`, up to 2048.
 
         win_len: int >= 0 / None
             Length of `window` to use. Used to generate a window if `window`
@@ -118,7 +118,7 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=None, t=None,
         return (Sx, dSx) if derivative else (Sx, None)
 
     _, fs, _ = _process_fs_and_t(fs, t, len(x))
-    n_fft = n_fft or len(x)
+    n_fft = n_fft or min(len(x), 2048)
     if win_len is None:
         win_len = (len(window) if isinstance(window, np.ndarray) else
                    n_fft)
