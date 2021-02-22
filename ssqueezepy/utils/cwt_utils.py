@@ -3,6 +3,7 @@ import numpy as np
 from scipy import integrate
 from .common import WARN, assert_is_one_of, p2up
 from ..algos import _min_neglect_idx, find_maximum, find_first_occurrence
+from ..configs import gdefaults
 
 pi = np.pi
 
@@ -294,7 +295,7 @@ def infer_scaletype(scales):
 
 
 def make_scales(N, min_scale=None, max_scale=None, nv=32, scaletype='log',
-                wavelet=None, downsample=3):
+                wavelet=None, downsample=None):
     """Recommended to first work out `min_scale` & `max_scale` with
     `cwt_scalebounds`.
 
@@ -324,10 +325,13 @@ def make_scales(N, min_scale=None, max_scale=None, nv=32, scaletype='log',
     if scaletype == 'log-piecewise' and wavelet is None:
         raise ValueError("must pass `wavelet` for `scaletype == 'log-piecewise'`")
     if min_scale is None and max_scale is None and wavelet is not None:
-        min_scale, max_scale = cwt_scalebounds(wavelet, N)
+        min_scale, max_scale = cwt_scalebounds(wavelet, N, use_padded_N=True)
     else:
         min_scale = min_scale or 1
         max_scale = max_scale or N
+    downsample = int(gdefaults('utils.cwt_utils.make_scales',
+                               downsample=downsample))
+    print("downsample", downsample)
 
     # number of 2^-distributed scales spanning min to max
     na = int(np.ceil(nv * np.log2(max_scale / min_scale)))
@@ -341,8 +345,9 @@ def make_scales(N, min_scale=None, max_scale=None, nv=32, scaletype='log',
 
     elif scaletype == 'log-piecewise':
         scales = 2 ** (np.arange(mn_pow, mx_pow) / nv)
+        print("pre-downsample:", len(scales))
         idx = find_downsampling_scale(wavelet, scales)
-
+        print("idx:", idx)
         if idx is not None:
             # `+downsample - 1` starts `scales2` as continuing from `scales1`
             # at `scales2`'s sampling rate; rest of ops are based on this design,
@@ -374,10 +379,12 @@ def logscale_transition_idx(scales):
     # every other value must be zero, assert it is so
     scales_diff2[idx - 2] = 0
 
+    th = 1e-14 if str(scales.dtype) == 'float64' else 1e-6
+
     if not np.any(diff2_max > 100*np.abs(scales_diff2).mean()):
         # everything's zero, i.e. no transition detected
         return None
-    elif not np.all(np.abs(scales_diff2) < 1e-14):
+    elif not np.all(np.abs(scales_diff2) < th):
         # other nonzero diffs found, more than one transition point
         return None
     else:
@@ -446,7 +453,7 @@ def find_max_scale(wavelet, N, bin_loc=1, bin_amp=1):
 
 
 def find_downsampling_scale(wavelet, scales, span=5, tol=3, method='sum',
-                            nonzero_th=.02, nonzero_tol=4., viz=False,
+                            nonzero_th=.02, nonzero_tol=4., N=None, viz=False,
                             viz_last=False):
     """Find `scale` past which freq-domain wavelets are "excessively redundant",
     redundancy determined by `span, tol, method, nonzero_th, nonzero_tol`.
@@ -522,8 +529,13 @@ def find_downsampling_scale(wavelet, scales, span=5, tol=3, method='sum',
     if not isinstance(wavelet, np.ndarray):
         wavelet = Wavelet._init_if_not_isinstance(wavelet)
 
+    # fix N at 2048
+    # this is because `span`, `tol`, & other should be adjusted with `N`,
+    # so instead we fix `N` and it generalizes well.
+    N = N or 2048  # TODO docs
     Psih = (wavelet if isinstance(wavelet, np.ndarray) else
-            wavelet(scale=scales))
+            wavelet(scale=scales, N=N))
+
     if len(Psih) != len(scales):
         raise ValueError("len(Psih) != len(scales) "
                          "(%s != %s)" % (len(Psih), len(scales)))

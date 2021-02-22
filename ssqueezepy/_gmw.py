@@ -10,14 +10,15 @@ from numba import jit
 from scipy.special import (gamma   as gamma_fn,
                            gammaln as gammaln_fn)
 from .algos import nCk
-from .wavelets import _xifn
+from .wavelets import _xifn, _process_params_dtype
 from .configs import gdefaults
 
 pi = np.pi
 
 
 #### Base wavelets (`K=1`) ###################################################
-def gmw(gamma=None, beta=None, norm=None, order=None, centered_scale=None):
+def gmw(gamma=None, beta=None, norm=None, order=None, centered_scale=None,
+        dtype=None):
     """Generalized Morse Wavelets. Returns function which computes GMW in the
     frequency domain.
 
@@ -111,7 +112,7 @@ def gmw(gamma=None, beta=None, norm=None, order=None, centered_scale=None):
     """
     _check_args(gamma=gamma, beta=beta, norm=norm, order=order)
     kw = gdefaults('_gmw.gmw', gamma=gamma, beta=beta, norm=norm, order=order,
-                   centered_scale=centered_scale, as_dict=True)
+                   centered_scale=centered_scale, dtype=dtype, as_dict=True)
     norm, k = kw.pop('norm'), kw.pop('order')
 
     l1_fn, l2_fn = ((gmw_l1, gmw_l2) if k == 0 else
@@ -175,12 +176,14 @@ def compute_gmw(N, scale, gamma=3, beta=60, time=False, norm='bandpass',
     return (X, x) if time else X
 
 
-def gmw_l1(gamma=3., beta=60., centered_scale=False):
+def gmw_l1(gamma=3., beta=60., centered_scale=False, dtype='float64'):
     """Generalized Morse Wavelets, first order, L1(bandpass)-normalized.
     See `help(_gmw.gmw)`.
     """
     _check_args(gamma=gamma, beta=beta, allow_zerobeta=False)
     wc = morsefreq(gamma, beta)
+
+    gamma, beta, wc = _process_params_dtype(gamma, beta, wc, dtype=dtype)
     if centered_scale:
         return lambda w: _gmw_l1(np.atleast_1d(w * wc), gamma, beta, wc, w < 0)
     else:
@@ -193,7 +196,7 @@ def _gmw_l1(w, gamma, beta, wc, w_negs):
                       + beta * np.log(w)  - w**gamma) * (~w_negs)
 
 
-def gmw_l2(gamma=3., beta=60., centered_scale=False):
+def gmw_l2(gamma=3., beta=60., centered_scale=False, dtype='float64'):
     """Generalized Morse Wavelets, first order, L2(energy)-normalized.
     See `help(_gmw.gmw)`.
     """
@@ -202,6 +205,8 @@ def gmw_l2(gamma=3., beta=60., centered_scale=False):
     r = (2*beta + 1) / gamma
     rgamma = gamma_fn(r)
 
+    (gamma, beta, wc, r, rgamma
+     ) = _process_params_dtype(gamma, beta, wc, r, rgamma, dtype=dtype)
     if centered_scale:
         return lambda w: _gmw_l2(np.atleast_1d(w * wc), gamma, beta, wc,
                                  r, rgamma, w < 0)
@@ -299,6 +304,7 @@ def _gmw_k_constants(gamma, beta, k, norm='bandpass'):
     if norm == 'bandpass':
         k_consts *= 2
     return k_consts
+
 
 #### General order wavelets (any `K`) ########################################
 def morsewave(N, freqs, gamma=3, beta=60, K=1, norm='bandpass'):

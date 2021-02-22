@@ -14,6 +14,8 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
     """Synchrosqueezed Continuous Wavelet Transform.
     Implements the algorithm described in Sec. III of [1].
 
+    Uses `Wavelet.dtype` precision.
+
     # Arguments:
         x: np.ndarray
             Input vector, 1D.
@@ -49,18 +51,22 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
                 - 'maximal': fm=1/dT, fM=1/(2*dt), always. Data's fundamental
                 and Nyquist frequencies, determined from `fs` (or `t`).
                 Other mappings can never span outside this range.
+
                 - ('peak', 'energy'): sets fm and fM based on center frequency
                 associated with `wavelet` at maximum and minimum scale,
                 respectively. See `help(wavelets.center_frequency)`.
+
                 - 'peak': the frequency-domain trimmed bell will have its peak
                 at Nyquist, meaning all other frequencies are beneath, so each
                 scale is still correctly resolved but with downscaled energies.
                 With sufficiently-spanned `scales`, coincides with 'maximal'.
+
                 - 'energy': however, the bell's spectral energy is centered
                 elsewhere, as right-half of bell is partly or entirely trimmed
                 (left-half can be trimmed too). Use for energy-centric mapping,
                 which for sufficiently-spanned `scales` will always have lesser
                 fM (but ~same fM).
+
                 - tuple: sets `ssq_freqrange` directly.
 
         difftype: str['trig', 'phase', 'numeric']
@@ -177,6 +183,8 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
             w = phase_cwt_num(Wx, dt, difforder, gamma)
         return Wx, w
 
+    from time import time
+    t0 = time()
     N = len(x)
     dt, fs, difforder, nv = _process_args(N, scales, fs, t, nv, difftype,
                                           difforder, squeezing, maprange, wavelet)
@@ -195,8 +203,12 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
         dWx = trigdiff(Wx, fs, rpadded=True, N=N, n1=n1)
         Wx = Wx[:, n1:n1 + N]
 
+    t0 = time()
     scales, cwt_scaletype, *_ = process_scales(scales, N, wavelet, nv=nv,
                                                get_params=True)
+    print("scales.shape", scales.shape)
+    print("proc_scales:", time() - t0)
+
     # regular CWT
     if order == 0:
         # l1_norm=True to spare a multiplication; for SSQ_CWT L1 & L2 are exactly
@@ -216,7 +228,7 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
 
     Tx, ssq_freqs = ssqueeze(_Wx, w, scales=scales, fs=fs, ssq_freqs=ssq_freqs,
                              transform='cwt', squeezing=squeezing,
-                             maprange=maprange, wavelet=wavelet)
+                             maprange=maprange, wavelet=wavelet, padtype=padtype)
 
     if difftype == 'numeric':
         Wx = Wx[:, 4:-4]

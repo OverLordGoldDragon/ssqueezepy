@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 import logging
-from numpy.fft import ifft, fftshift, ifftshift
+from scipy.fftpack import ifft, fftshift, ifftshift
 from numba import jit
 from types import FunctionType
 from scipy import integrate
@@ -20,6 +20,20 @@ class Wavelet():
     `Wavelet.VISUALS`   for names of visualizations    passable to `viz()`.
     `viz()` to run visuals, `info()` to print relevant wavelet info.
 
+    # Arguments:
+        wavelet: str / tuple[str, dict] /FunctionType
+            Name of supported wavelet (must be one of `Wavelet.SUPPORTED`)
+            or custom function. Or tuple, name of wavelet and its configs,
+            e.g. `('morlet', {'mu': 5})`.
+
+        N: int
+            Default length of wavelet.
+
+        dtype: str / type (np.dtype) / None
+            dtype at which wavelets are generated; can't change after __init__.
+            Must be one of `Wavelet.DTYPES`. If None, uses value from
+            `configs.ini`, global (if set) or wavelet-specific.
+
     # Example:
         wavelet = Wavelet(('morlet', {'mu': 7}), N=1024)
         plt.plot(wavelet(scale=8))
@@ -27,8 +41,10 @@ class Wavelet():
     SUPPORTED = {'gmw', 'morlet', 'bump', 'cmhat', 'hhhat'}
     VISUALS = {'time-frequency', 'heatmap', 'waveforms', 'filterbank',
                'harea', 'std_t', 'std_w', 'anim:time-frequency'}
+    DTYPES = {'float64', 'float32'}
 
-    def __init__(self, wavelet='gmw', N=1024):
+    def __init__(self, wavelet='gmw', N=1024, dtype=None):
+        self._dtype = self._process_dtype(dtype) if dtype is not None else None
         self._validate_and_set_wavelet(wavelet)
 
         self.N = N  # also sets _xi
@@ -46,7 +62,7 @@ class Wavelet():
         real), will drop it; set to None to disable.
         """
         if w is not None:
-            psih = self.fn(w)
+            psih = self.fn(w.astype(self.dtype))
         else:
             psih = self.fn(self.xifn(scale, N))
 
@@ -74,9 +90,9 @@ class Wavelet():
         """
         psih = self(w, scale=scale, N=N, nohalf=False)
         if psih.ndim == 1:
-            pn = (-1)**np.arange(len(psih))
+            pn = (-1)**np.arange(len(psih), dtype=self.dtype)
         elif psih.ndim == 2:
-            pn = (-1)**np.arange(psih.shape[1])
+            pn = (-1)**np.arange(psih.shape[1], dtype=self.dtype)
         else:
             raise ValueError("`psih` must yield to 1D or 2D (got %s)" % psih.ndim)
 
@@ -100,11 +116,30 @@ class Wavelet():
         elif scale is None:
             scale = 1.
 
+        scale = np.asarray(scale, dtype=self.dtype)
         if N is None:
             xi = scale * self.xi
         else:
-            xi = scale * _xifn(scale=1., N=N)
+            xi = scale * _xifn(scale=1., N=N, dtype=self.dtype)
         return xi
+
+    def Psih(self, scale=None, N=None, nohalf=True):
+        """Return pre-computed `psih` at scale(s) `scale` of length `N` if
+        same `scale` & `N` were passed previously, else compute anew.
+
+        `dtype` will override `self.dtype` if not None.
+        """
+        # pN, ps = getattr(self, '_Psih_N', -1), getattr(self, '_Psih_scale', -1)
+        pN = getattr(self, '_Psih_N', np.array([-1]))
+        ps = getattr(self, '_Psih_scale', np.array([-1]))
+        if ((scale is None and N is None) or
+                (N == pN and (len(scale) == len(ps) and np.allclose(scale, ps)))):
+            return self._Psih
+
+        self._Psih = self(scale=scale, N=N, nohalf=nohalf)
+        self._Psih_N = N
+        self._Psih_scale = scale
+        return self._Psih
 
     @property
     def N(self):
@@ -113,13 +148,19 @@ class Wavelet():
 
     @N.setter
     def N(self, value):
+        """Ensure `xi` always matches `N`."""
         self._N = value
-        self._xi = _xifn(scale=1, N=value)  # ensure xi always matches N
+        self._xi = _xifn(scale=1, N=value, dtype=self.dtype)
 
     @property
     def xi(self):
         """`xi` computed at `scale=1` and `N=self.N`. See `help(Wavelet.xifn)`."""
         return self._xi
+
+    @property
+    def dtype(self):
+        """dtype at which psih and psi are generated; can't change post-init."""
+        return self._dtype
 
     #### Properties ##########################################################
     @property
@@ -135,7 +176,7 @@ class Wavelet():
         if self.config:
             cfg = ""
             for k, v in self.config.items():
-                if k in ('norm', 'centered_scale'):
+                if k in ('norm', 'centered_scale', 'dtype'):
                     # too long, no real need
                     continue
                 elif k == 'order' and v == 0:
@@ -312,6 +353,17 @@ class Wavelet():
             title = title[:title.find(f"N={N}")].rstrip(', ')
         return title
 
+    @classmethod
+    def _process_dtype(self, dtype):
+        """If not None, overrides `self.dtype`, and ensures string -> np.dtype."""
+        if isinstance(dtype, str):
+            assert_is_one_of(dtype, 'dtype', Wavelet.DTYPES)
+            return getattr(np, dtype)
+        elif not isinstance(dtype, (type, np.dtype)):
+            raise TypeError("`dtype` must be string or type (np.dtype)")
+        else:
+            return dtype
+
     #### Init ################################################################
     @classmethod
     def _init_if_not_isinstance(self, wavelet, **kw):
@@ -346,29 +398,31 @@ class Wavelet():
             wavopts = gdefaults(f"{module}.{wavelet}", get_all=True,
                                 as_dict=True, default_order=True, **wavopts)
 
-        if wavelet == 'gmw':
-            self.fn = gmw(**wavopts)
-        elif wavelet == 'morlet':
-            self.fn = morlet(**wavopts)
-        elif wavelet == 'bump':
-            self.fn = bump(**wavopts)
-        elif wavelet == 'cmhat':
-            self.fn = cmhat(**wavopts)
-        elif wavelet == 'hhhat':
-            self.fn = hhhat(**wavopts)
-        else:
-            raise ValueError(f"wavelet '{wavelet}' is not supported; pass "
-                             "in fn=custom_fn, or use one of:", ', '.join(
-                                 Wavelet.SUPPORTED))
+        assert_is_one_of(wavelet, 'wavelet', Wavelet.SUPPORTED)
+        self._fn_maker = {
+            'gmw':    gmw,
+            'morlet': morlet,
+            'bump':   bump,
+            'cmhat':  cmhat,
+            'hhhat':  hhhat,
+        }[wavelet]
+
+        if self.dtype is not None:
+            wavopts['dtype'] = self.dtype
+        self.fn = self._fn_maker(**wavopts)
+        if self.dtype is None:
+            # 32 will promote to 64 if other params are 64
+            out_dtype = self.fn(np.array([1.], dtype='float32')).dtype
+            self._dtype = self._process_dtype(out_dtype)
         self.config = wavopts
 
 
 @jit(nopython=True, cache=True)
-def _xifn(scale, N):
+def _xifn(scale, N, dtype=np.float64):
     """N=128: [0, 1, 2, ..., 64, -63, -62, ..., -1] * (2*pi / N) * scale
        N=129: [0, 1, 2, ..., 64, -64, -63, ..., -1] * (2*pi / N) * scale
     """
-    xi = np.zeros(N)
+    xi = np.zeros(N, dtype=dtype)
     h = scale * (2 * pi) / N
     for i in range(N // 2 + 1):
         xi[i] = i * h
@@ -376,8 +430,13 @@ def _xifn(scale, N):
         xi[i] = (i - N) * h
     return xi
 
+def _process_params_dtype(*params, dtype):
+    dtype = Wavelet._process_dtype(dtype)
+    params = [np.asarray(p, dtype=dtype) for p in params]
+    return params if len(params) > 1 else params[0]
+
 #### Wavelet functions ######################################################
-def morlet(mu=None):
+def morlet(mu=None, dtype=None):
     """Higher `mu` -> greater frequency, lesser time resolution.
     Recommended range: 4 to 16. For `mu > 6` the wavelet is almsot exactly
     Gaussian for most scales, providing maximum joint resolution.
@@ -388,9 +447,10 @@ def morlet(mu=None):
     https://en.wikipedia.org/wiki/Morlet_wavelet#Definition
     https://www.desmos.com/calculator/cuypxm8s1y
     """
-    mu = gdefaults('wavelets.morlet', mu=mu)
+    mu, dtype = gdefaults('wavelets.morlet', mu=mu, dtype=dtype)
     cs = (1 + np.exp(-mu**2) - 2 * np.exp(-3/4 * mu**2)) ** (-.5)
     ks = np.exp(-.5 * mu**2)
+    mu, cs, ks = _process_params_dtype(mu, cs, ks, dtype=dtype)
     return lambda w: _morlet(w, mu, cs, ks)
 
 @jit(nopython=True, cache=True)
@@ -399,11 +459,12 @@ def _morlet(w, mu, cs, ks):
                                         - ks * np.exp(-.5 * w**2))
 
 
-def bump(mu=None, s=None, om=None):
+def bump(mu=None, s=None, om=None, dtype=None):
     """Bump wavelet.
     https://www.mathworks.com/help/wavelet/gs/choose-a-wavelet.html
     """
-    mu, s, om = gdefaults('wavelets.bump', mu=mu, s=s, om=om)
+    mu, s, om, dtype = gdefaults('wavelets.bump', mu=mu, s=s, om=om, dtype=dtype)
+    mu, s, om = _process_params_dtype(mu, s, om)
     return lambda w: _bump(w, (w - mu) / s, om, s)
 
 @jit(nopython=True, cache=True)
@@ -413,11 +474,12 @@ def _bump(w, _w, om, s):
                                     ) / .443993816053287
 
 
-def cmhat(mu=None, s=None):
+def cmhat(mu=None, s=None, dtype=None):
     """Complex Mexican Hat wavelet.
     https://en.wikipedia.org/wiki/Complex_mexican_hat_wavelet
     """
-    mu, s = gdefaults('wavelets.cmhat', mu=mu, s=s)
+    mu, s, dtype = gdefaults('wavelets.cmhat', mu=mu, s=s, dtype=dtype)
+    mu, s = _process_params_dtype(mu, s, dtype=dtype)
     return lambda w: _cmhat(w - mu, s)
 
 @jit(nopython=True, cache=True)
@@ -426,9 +488,10 @@ def _cmhat(_w, s):
         s**(5/2) * _w**2 * np.exp(-s**2 * _w**2 / 2) * (_w >= 0))
 
 
-def hhhat(mu=None):
+def hhhat(mu=None, dtype=None):
     """Hilbert analytic function of Hermitian Hat."""
-    mu = gdefaults('wavelets.hhhat', mu=mu)
+    mu, dtype = gdefaults('wavelets.hhhat', mu=mu, dtype=dtype)
+    mu = _process_params_dtype(mu, dtype=dtype)
     return lambda w: _hhhat(w - mu)
 
 @jit(nopython=True, cache=True)

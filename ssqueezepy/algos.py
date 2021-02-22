@@ -31,9 +31,9 @@ def nCk(n, k):
 
 
 @jit(nopython=True, cache=True)
-def indexed_sum(a, k):
+def indexed_sum(a, k, dtype=np.cfloat):
     """Sum `a` into rows of 2D array according to indices given by 2D `k`"""
-    out = np.zeros(a.shape, dtype=np.cfloat)
+    out = np.zeros(a.shape, dtype=dtype)
     for i in range(a.shape[0]):
         for j in range(a.shape[1]):
             out[k[i, j], j] += a[i, j]

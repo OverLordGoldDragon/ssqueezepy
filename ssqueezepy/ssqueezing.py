@@ -2,13 +2,14 @@
 import numpy as np
 from types import FunctionType
 from .algos import find_closest, indexed_sum, replace_at_inf
-from .utils import process_scales, infer_scaletype, _process_fs_and_t
+from .utils import p2up, process_scales, infer_scaletype, _process_fs_and_t
 from .utils import NOTE, pi, logscale_transition_idx, assert_is_one_of
-from .wavelets import center_frequency
+from .wavelets import center_frequency, _process_params_dtype
 
+# TODO check `N` is proper for quantity computations
 
 def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt',
-             squeezing='sum', maprange='maximal', wavelet=None):
+             squeezing='sum', maprange='maximal', wavelet=None, padtype=''):
     """Synchrosqueezes the CWT or STFT of `x`.
 
     # Arguments:
@@ -68,6 +69,11 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
             Only used if maprange != 'maximal' to compute center frequencies.
             See `help(cwt)`.
 
+        padtype: None or not None
+            If not None, indicates that `cwt` padded `x` to next power of 2,
+            and computes `maprange` accordingly. Used only with `transform='cwt'`
+            and non-tuple `maprange`.
+
     # Returns:
         Tx: np.ndarray [nf x n]
             Synchrosqueezed CWT of `x`. (rows=~frequencies, cols=timeshifts)
@@ -110,14 +116,15 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
             # Eq 14 [2]; Eq 2.3 [1]
             if cwt_scaletype[:3] == 'log':
                 # ln(2)/nv == diff(ln(scales))[0] == ln(2**(1/nv))
-                Tx = indexed_sum(Wx * np.log(2) / nv, k)
+                da = np.log(2, dtype=nv.dtype) / nv
+                Tx = indexed_sum(Wx * da, k, dtype=Wx.dtype)
             elif cwt_scaletype == 'linear':
                 # omit /dw since it's cancelled by *dw in inversion anyway
                 da = (scales[1] - scales[0])
-                Tx = indexed_sum(Wx / scales * da, k)
+                Tx = indexed_sum(Wx / scales * da, k, dtype=Wx.dtype)
         elif transform == 'stft':
             df = (ssq_freqs[1] - ssq_freqs[0])  # 'alpha' from [3]
-            Tx = indexed_sum(Wx * df, k)
+            Tx = indexed_sum(Wx * df, k, dtype=Wx.dtype)
         return Tx
 
     def _process_args(w, fs, t, N, transform, squeezing, scales, maprange,
@@ -158,7 +165,8 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
                              "tuple with `maprange = 'maximal'` "
                              "(got %s)" % str(maprange))
         ssq_freqs = _compute_associated_frequencies(
-            dt, na, N, transform, ssq_scaletype, maprange, wavelet, scales)
+            dt, na, N, transform, ssq_scaletype, maprange,
+            wavelet, scales, padtype)
     else:
         ssq_scaletype = infer_scaletype(ssq_freqs)
 
@@ -170,11 +178,16 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
     elif squeezing == 'abs':
         Wx = np.abs(Wx)
 
+    if nv is not None:
+        nv = _process_params_dtype(nv, dtype=Wx.dtype)
+    from time import time
+    t0 = time()
     Tx = _ssqueeze(w, Wx, nv, ssq_freqs, transform, ssq_scaletype, cwt_scaletype)
+    print("ssqueeze:", time() - t0)
     return Tx, ssq_freqs
 
 
-def _ssq_freqrange(maprange, dt, N, wavelet, scales):
+def _ssq_freqrange(maprange, dt, N, wavelet, scales, padtype):
     if isinstance(maprange, tuple):
         fm, fM = maprange
     elif maprange == 'maximal':
@@ -186,14 +199,15 @@ def _ssq_freqrange(maprange, dt, N, wavelet, scales):
         # maximum measurable (Nyquist) frequency of data
         fM = 1 / (2 * dt)
     elif maprange in ('peak', 'energy'):
-        fm = _get_center_frequency(wavelet, N, maprange, dt, scales[-1])
-        fM = _get_center_frequency(wavelet, N, maprange, dt, scales[0])
+        kw = dict(wavelet=wavelet, N=N, maprange=maprange, dt=dt, padtype=padtype)
+        fm = _get_center_frequency(**kw, scale=scales[-1])
+        fm = _get_center_frequency(**kw, scale=scales[0])
     return fm, fM
 
 
 def _compute_associated_frequencies(dt, na, N, transform, ssq_scaletype,
-                                    maprange, wavelet, scales):
-    fm, fM = _ssq_freqrange(maprange, dt, N, wavelet, scales)
+                                    maprange, wavelet, scales, padtype):
+    fm, fM = _ssq_freqrange(maprange, dt, N, wavelet, scales, padtype)
 
     # frequency divisions `w_l` to reassign to in Synchrosqueezing
     if ssq_scaletype == 'log':
@@ -206,7 +220,8 @@ def _compute_associated_frequencies(dt, na, N, transform, ssq_scaletype,
             ssq_freqs = fm * np.power(fM / fm, np.arange(na)/(na - 1))
         else:
             f0, f2 = fm, fM
-            f1 = _get_center_frequency(wavelet, N, maprange, dt, scales[idx])
+            f1 = _get_center_frequency(wavelet, N, maprange, dt, scales[idx],
+                                       padtype)
 
             # here we don't know what the pre-downsampled `len(scales)` was,
             # so we take a longer route by piecewising respective center freqs
@@ -218,7 +233,7 @@ def _compute_associated_frequencies(dt, na, N, transform, ssq_scaletype,
 
             sqf1 = _exp_fm(t1, f0, f1)[:-1]
             sqf2 = _exp_fm(t2, f1, f2)
-            ssq_freqs = np.hstack([sqf1, sqf2])
+            ssq_freqs = np.hstack([sqf1, sqf2]).astype(scales.dtype)
             ssq_idx = logscale_transition_idx(ssq_freqs)
             assert (na - ssq_idx) == idx, "{} != {}".format(na - ssq_idx, idx)
 
@@ -237,10 +252,13 @@ def _exp_fm(t, fmin, fmax):
     return a*b**t
 
 
-def _get_center_frequency(wavelet, N, maprange, dt, scale):
+def _get_center_frequency(wavelet, N, maprange, dt, scale, padtype):
+    if padtype is not None:
+        N = p2up(N)[0]
     kw = dict(wavelet=wavelet, N=N, scale=scale, kind=maprange)
     if maprange == 'energy':
         kw['force_int'] = True
+
     wc = center_frequency(**kw)
     fc = wc / (2*pi) / dt
     return fc

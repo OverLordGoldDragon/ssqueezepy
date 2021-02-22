@@ -31,7 +31,9 @@ def gdefaults(module_and_obj=None, get_all=False, as_dict=None,
         obj = stack[1][3]
         module = stack[1][1].split(os.path.sep)[-1].rstrip('.py')
     else:
-        module, obj = module_and_obj.split('.')
+        # may have e.g. `utils.common.obj`
+        mos = module_and_obj.split('.')
+        module, obj = '.'.join(mos[:-1]), mos[-1]
 
     # fetch latest
     GDEFAULTS = _get_gdefaults()
