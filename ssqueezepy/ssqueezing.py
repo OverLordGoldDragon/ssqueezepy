@@ -6,7 +6,6 @@ from .utils import p2up, process_scales, infer_scaletype, _process_fs_and_t
 from .utils import NOTE, pi, logscale_transition_idx, assert_is_one_of
 from .wavelets import center_frequency, _process_params_dtype
 
-# TODO check `N` is proper for quantity computations
 
 def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt',
              squeezing='sum', maprange='maximal', wavelet=None, padtype=''):
@@ -180,10 +179,7 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
 
     if nv is not None:
         nv = _process_params_dtype(nv, dtype=Wx.dtype)
-    from time import time
-    t0 = time()
     Tx = _ssqueeze(w, Wx, nv, ssq_freqs, transform, ssq_scaletype, cwt_scaletype)
-    print("ssqueeze:", time() - t0)
     return Tx, ssq_freqs
 
 
@@ -201,7 +197,7 @@ def _ssq_freqrange(maprange, dt, N, wavelet, scales, padtype):
     elif maprange in ('peak', 'energy'):
         kw = dict(wavelet=wavelet, N=N, maprange=maprange, dt=dt, padtype=padtype)
         fm = _get_center_frequency(**kw, scale=scales[-1])
-        fm = _get_center_frequency(**kw, scale=scales[0])
+        fM = _get_center_frequency(**kw, scale=scales[0])
     return fm, fM
 
 

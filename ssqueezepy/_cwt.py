@@ -124,24 +124,18 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
         https://github.com/ebrevdo/synchrosqueezing/blob/master/synchrosqueezing/
         cwt_fw.m
     """
-    from time import time
-    def _vectorized(xh, scales, wavelet, pn, derivative, dtype):
-        t0 = time()
+    def _vectorized(xh, scales, wavelet, pn, derivative):
         Wx = wavelet.Psih(scale=scales, nohalf=False) * pn
-        print(time() - t0); t0 = time()
         if derivative:
             dWx = (1j * wavelet.xi / dt) * Wx
-        print(time() - t0); t0 = time()
 
         Wx = ifftshift(ifft(Wx * xh, axis=-1), axes=-1)
-        print(time() - t0); t0 = time()
         if derivative:
             dWx = ifftshift(ifft(dWx * xh, axis=-1), axes=-1)
-        print(time() - t0); t0 = time()
         return (Wx, dWx) if derivative else (Wx, None)
 
-    def _for_loop(xh, scales, wavelet, pn, derivative, dtype):
-        cdtype = 'complex128' if dtype in ('float64', np.float64) else 'complex64'
+    def _for_loop(xh, scales, wavelet, pn, derivative):
+        cdtype = 'complex128' if xh.dtype == np.float64 else 'complex64'
         Wx = np.zeros((len(scales), len(xh)), dtype=cdtype)
         if derivative:
             dWx = Wx.copy()
@@ -203,8 +197,8 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
     # temporarily adjust `wavlet.N`, take CWT
     wavelet_N_orig = wavelet.N
     wavelet.N = len(xp)
-    cwt_fn = _vectorized if vectorized else _for_loop
-    Wx, dWx = cwt_fn(xh, scales, wavelet, pn, derivative, dtype)
+    Wx, dWx = (_vectorized(xh, scales, wavelet, pn, derivative) if vectorized else
+               _for_loop(  xh, scales, wavelet, pn, derivative))
     wavelet.N = wavelet_N_orig  # restore
 
     # handle unpadding, normalization

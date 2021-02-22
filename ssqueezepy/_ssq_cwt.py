@@ -183,8 +183,6 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
             w = phase_cwt_num(Wx, dt, difforder, gamma)
         return Wx, w
 
-    from time import time
-    t0 = time()
     N = len(x)
     dt, fs, difforder, nv = _process_args(N, scales, fs, t, nv, difftype,
                                           difforder, squeezing, maprange, wavelet)
@@ -203,11 +201,8 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
         dWx = trigdiff(Wx, fs, rpadded=True, N=N, n1=n1)
         Wx = Wx[:, n1:n1 + N]
 
-    t0 = time()
     scales, cwt_scaletype, *_ = process_scales(scales, N, wavelet, nv=nv,
                                                get_params=True)
-    print("scales.shape", scales.shape)
-    print("proc_scales:", time() - t0)
 
     # regular CWT
     if order == 0:

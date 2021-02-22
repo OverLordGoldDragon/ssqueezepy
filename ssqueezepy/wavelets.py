@@ -41,7 +41,7 @@ class Wavelet():
     SUPPORTED = {'gmw', 'morlet', 'bump', 'cmhat', 'hhhat'}
     VISUALS = {'time-frequency', 'heatmap', 'waveforms', 'filterbank',
                'harea', 'std_t', 'std_w', 'anim:time-frequency'}
-    DTYPES = {'float64', 'float32'}
+    DTYPES = {'float32', 'float64'}
 
     def __init__(self, wavelet='gmw', N=1024, dtype=None):
         self._dtype = self._process_dtype(dtype) if dtype is not None else None
@@ -128,6 +128,8 @@ class Wavelet():
         same `scale` & `N` were passed previously, else compute anew.
 
         `dtype` will override `self.dtype` if not None.
+
+        If both `scale` & `N` are None, will return previously computed `Psih`.
         """
         # pN, ps = getattr(self, '_Psih_N', -1), getattr(self, '_Psih_scale', -1)
         pN = getattr(self, '_Psih_N', np.array([-1]))
@@ -398,18 +400,17 @@ class Wavelet():
             wavopts = gdefaults(f"{module}.{wavelet}", get_all=True,
                                 as_dict=True, default_order=True, **wavopts)
 
+        if self.dtype is not None:
+            wavopts['dtype'] = self.dtype
         assert_is_one_of(wavelet, 'wavelet', Wavelet.SUPPORTED)
-        self._fn_maker = {
+        self.fn = {
             'gmw':    gmw,
             'morlet': morlet,
             'bump':   bump,
             'cmhat':  cmhat,
             'hhhat':  hhhat,
-        }[wavelet]
+        }[wavelet](**wavopts)
 
-        if self.dtype is not None:
-            wavopts['dtype'] = self.dtype
-        self.fn = self._fn_maker(**wavopts)
         if self.dtype is None:
             # 32 will promote to 64 if other params are 64
             out_dtype = self.fn(np.array([1.], dtype='float32')).dtype

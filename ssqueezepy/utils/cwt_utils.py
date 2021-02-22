@@ -331,7 +331,6 @@ def make_scales(N, min_scale=None, max_scale=None, nv=32, scaletype='log',
         max_scale = max_scale or N
     downsample = int(gdefaults('utils.cwt_utils.make_scales',
                                downsample=downsample))
-    print("downsample", downsample)
 
     # number of 2^-distributed scales spanning min to max
     na = int(np.ceil(nv * np.log2(max_scale / min_scale)))
@@ -345,9 +344,7 @@ def make_scales(N, min_scale=None, max_scale=None, nv=32, scaletype='log',
 
     elif scaletype == 'log-piecewise':
         scales = 2 ** (np.arange(mn_pow, mx_pow) / nv)
-        print("pre-downsample:", len(scales))
         idx = find_downsampling_scale(wavelet, scales)
-        print("idx:", idx)
         if idx is not None:
             # `+downsample - 1` starts `scales2` as continuing from `scales1`
             # at `scales2`'s sampling rate; rest of ops are based on this design,
@@ -489,6 +486,11 @@ def find_downsampling_scale(wavelet, scales, span=5, tol=3, method='sum',
             which testing is exempted. (e.g. if 5 wavelets have 25 nonzero points,
             average is 5, so if `nonzero_tol=4`, the `scale` is skipped/passed).
 
+        N: int / None
+            Length of wavelet to use. Defaults to 2048, which generalizes well
+            along other defaults, since those params (`span`, `tol`, etc) would
+            need to be scaled alongside `N`.
+
         viz: bool (default False)
             Visualize every test for debug purposes.
 
@@ -529,10 +531,7 @@ def find_downsampling_scale(wavelet, scales, span=5, tol=3, method='sum',
     if not isinstance(wavelet, np.ndarray):
         wavelet = Wavelet._init_if_not_isinstance(wavelet)
 
-    # fix N at 2048
-    # this is because `span`, `tol`, & other should be adjusted with `N`,
-    # so instead we fix `N` and it generalizes well.
-    N = N or 2048  # TODO docs
+    N = N or 2048
     Psih = (wavelet if isinstance(wavelet, np.ndarray) else
             wavelet(scale=scales, N=N))
 

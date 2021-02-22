@@ -29,7 +29,7 @@ def buffer(x, seg_len, n_overlap):
     """
     hop_len = seg_len - n_overlap
     n_segs = (len(x) - seg_len) // hop_len + 1
-    out = np.zeros((seg_len, n_segs))
+    out = np.zeros((seg_len, n_segs), dtype=x.dtype)
 
     for i in range(n_segs):
         start = i * hop_len
