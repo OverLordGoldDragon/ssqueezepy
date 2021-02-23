@@ -61,6 +61,9 @@ def gmw(gamma=None, beta=None, norm=None, order=None, centered_scale=None,
 
             False by default for consistency with other `ssqueezepy` wavelets.
 
+        dtype: str / type (np.dtype) / None
+            See `wavelets.Wavelet`.
+
     # Returns
         psihfn: function
             Function that computes GMWs, taking `w` (radian frequency)
@@ -114,6 +117,10 @@ def gmw(gamma=None, beta=None, norm=None, order=None, centered_scale=None,
     kw = gdefaults('_gmw.gmw', gamma=gamma, beta=beta, norm=norm, order=order,
                    centered_scale=centered_scale, dtype=dtype, as_dict=True)
     norm, k = kw.pop('norm'), kw.pop('order')
+    if norm == 'energy'and dtype in ('float32', np.float32):
+        raise ValueError("`norm='energy'` w/ `dtype='float32'` is unsupported; "
+                         "use 'float64' instead.")
+    print("gmw-dtype", kw['dtype'])
 
     l1_fn, l2_fn = ((gmw_l1, gmw_l2) if k == 0 else
                     (gmw_l1_k, gmw_l2_k))
@@ -184,6 +191,7 @@ def gmw_l1(gamma=3., beta=60., centered_scale=False, dtype='float64'):
     wc = morsefreq(gamma, beta)
 
     gamma, beta, wc = _process_params_dtype(gamma, beta, wc, dtype=dtype)
+    print("g b wc", gamma.dtype, beta.dtype, wc.dtype)
     if centered_scale:
         return lambda w: _gmw_l1(np.atleast_1d(w * wc), gamma, beta, wc, w < 0)
     else:
@@ -221,14 +229,15 @@ def _gmw_l2(w, gamma, beta, wc, r, rgamma, w_negs):
                    ) * w**beta * np.exp(-w**gamma) * (~w_negs)
 
 
-def gmw_l1_k(gamma=3., beta=60., k=1, centered_scale=False):
+def gmw_l1_k(gamma=3., beta=60., k=1, centered_scale=False, dtype='float64'):
     """Generalized Morse Wavelets, `k`-th order, L1(bandpass)-normalized.
     See `help(_gmw.gmw)`.
     """
     _check_args(gamma=gamma, beta=beta, allow_zerobeta=False)
 
     wc = morsefreq(gamma, beta)
-    k_consts = _gmw_k_constants(gamma, beta, k, norm='bandpass')
+    k_consts = _gmw_k_constants(gamma, beta, k, norm='bandpass', dtype=dtype)
+    gamma, beta, wc = _process_params_dtype(gamma, beta, wc, dtype=dtype)
 
     if centered_scale:
         return lambda w: _gmw_l1_k(np.atleast_1d(w * wc), gamma, beta, wc, w < 0,
@@ -249,14 +258,15 @@ def _gmw_l1_k(w, gamma, beta, wc, w_negs, k_consts):
                       + beta * np.log(w)  - w**gamma) * (~w_negs)
 
 
-def gmw_l2_k(gamma=3., beta=60., k=1, centered_scale=False):
+def gmw_l2_k(gamma=3., beta=60., k=1, centered_scale=False, dtype='float64'):
     """Generalized Morse Wavelets, `k`-th order, L2(energy)-normalized.
     See `help(_gmw.gmw)`.
     """
     _check_args(gamma=gamma, beta=beta, allow_zerobeta=False)
 
     wc = morsefreq(gamma, beta)
-    k_consts = _gmw_k_constants(gamma, beta, k, norm='energy')
+    k_consts = _gmw_k_constants(gamma, beta, k, norm='energy', dtype=dtype)
+    gamma, beta, wc = _process_params_dtype(gamma, beta, wc, dtype=dtype)
 
     if centered_scale:
         return lambda w: _gmw_l2_k(np.atleast_1d(w * wc), gamma, beta, wc, w < 0,
@@ -276,7 +286,7 @@ def _gmw_l2_k(w, gamma, beta, wc, w_negs, k_consts):
     return C * np.exp(beta * np.log(w) - w**gamma) * (~w_negs)
 
 
-def _gmw_k_constants(gamma, beta, k, norm='bandpass'):
+def _gmw_k_constants(gamma, beta, k, norm='bandpass', dtype='float64'):
     """Laguerre polynomial constants & `coeff` term.
 
     Higher-order GMWs are coded such that constants are pre-computed and reused
@@ -294,7 +304,7 @@ def _gmw_k_constants(gamma, beta, k, norm='bandpass'):
                         np.exp(gammaln_fn(k + 1) - gammaln_fn(k + r)))
 
     # compute Laguerre polynomial constants
-    L_consts = np.zeros(k + 1)
+    L_consts = np.zeros(k + 1, dtype=dtype)
     for m in range(k + 1):
         fact = np.exp(gammaln_fn(k + c + 1) - gammaln_fn(c + m + 1) -
                       gammaln_fn(k - m + 1))
@@ -303,6 +313,7 @@ def _gmw_k_constants(gamma, beta, k, norm='bandpass'):
     k_consts = L_consts * coeff
     if norm == 'bandpass':
         k_consts *= 2
+    k_consts = k_consts.astype(dtype)
     return k_consts
 
 

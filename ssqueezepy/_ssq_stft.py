@@ -2,7 +2,7 @@
 import numpy as np
 from ._stft import stft, get_window, _check_NOLA
 from ._ssq_cwt import _invert_components, _process_component_inversion_args
-from .utils import WARN, EPS, pi, _process_fs_and_t
+from .utils import WARN, EPS32, EPS64, pi, _process_fs_and_t
 from .ssqueezing import ssqueeze, _check_ssqueezing_args
 
 
@@ -180,7 +180,7 @@ def phase_stft(Sx, dSx, Sfs, gamma=None):
     # slightly aid invertibility (as less of `Wx` is zeroed in ssqueezing)
     w = np.abs(w)
 
-    gamma = gamma or np.sqrt(EPS)
+    gamma = gamma or np.sqrt(EPS64 if w.dtype == np.cfloat else EPS32)
     # threshold out small points
     w[np.abs(Sx) < gamma] = np.inf
     return w

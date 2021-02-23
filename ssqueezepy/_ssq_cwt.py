@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import numpy as np
-from .utils import WARN, EPS, pi, p2up, adm_ssq, process_scales
+from .utils import WARN, EPS32, EPS64, pi, p2up, adm_ssq, process_scales
 from .utils import trigdiff, _process_fs_and_t
 from .ssqueezing import ssqueeze, _check_ssqueezing_args
 from .wavelets import Wavelet
@@ -214,7 +214,7 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
                               rpadded=rpadded, vectorized=vectorized)
 
     _Wx = Wx.copy() if preserve_transform else Wx
-    gamma = gamma or np.sqrt(EPS)
+    gamma = gamma or np.sqrt(EPS64 if Wx.dtype == np.cfloat else EPS32)
     _Wx, w = _phase_transform(_Wx, dWx, N, dt, gamma, difftype, difforder)
 
     if ssq_freqs is None:
@@ -413,7 +413,7 @@ def phase_cwt(Wx, dWx, difftype='trig', gamma=None):
     # slightly aid invertibility (as less of `Wx` is zeroed in ssqueezing)
     w = np.abs(w)
 
-    gamma = gamma or np.sqrt(EPS)
+    gamma = gamma or np.sqrt(EPS64 if w.dtype == np.cfloat else EPS32)
     w[np.abs(Wx) < gamma] = np.inf
     return w
 
@@ -483,14 +483,15 @@ def phase_cwt_num(Wx, dt, difforder=4, gamma=None):
             w /= (12 * dt)
         return w
 
-    # epsilon from Daubechies, H-T Wu, et al.
-    # gamma from Brevdo, H-T Wu, et al.
-    gamma = gamma or np.sqrt(EPS)
     if difforder not in (1, 2, 4):
         raise ValueError("`difforder` must be one of: 1, 2, 4 "
                          "(got %s)" % difforder)
 
     w = _differentiate(Wx, dt)
+
+    # epsilon from Daubechies, H-T Wu, et al.
+    # gamma from Brevdo, H-T Wu, et al.
+    gamma = gamma or np.sqrt(EPS64 if Wx.dtype == np.cfloat else EPS32)
     w[np.abs(Wx) < gamma] = np.inf
 
     # calculate inst. freq for each scale

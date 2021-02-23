@@ -333,7 +333,8 @@ def test_trigdiff():
     dWx = dWx[:, n1:n1+N]
 
     mae = np.mean(np.abs(dWx - dWx2))
-    assert mae < 1e-15, mae
+    th = 1e-15 if dWx.dtype == np.cfloat else 1e-7
+    assert mae < th, mae
 
 
 def test_logscale_transition_idx():
@@ -349,6 +350,29 @@ def test_logscale_transition_idx():
 
         tidx = utils.logscale_transition_idx(scales)
         assert idx == tidx, "{} != {}".format(idx, tidx)
+
+
+def test_dtype():
+    """Ensure `cwt` and `ssq_cwt` compute at appropriate precision depending
+    on `Wavelet.dtype`, returning float32 & complex64 arrays for single precision.
+    """
+    wav32, wav64 = Wavelet(dtype='float32'), Wavelet(dtype='float64')
+    x = np.random.randn(256)
+    outs32    = ssq_cwt(x, wav32)
+    outs64    = ssq_cwt(x, wav64)
+    outs32_o2 = ssq_cwt(x, wav32, order=2)
+
+    names = ('Tx', 'Wx', 'ssq_freqs', 'scales', 'w', 'dWx')
+    outs32    = {k: v for k, v in zip(names, outs32)}
+    outs32_o2 = {k: v for k, v in zip(names, outs32_o2)}
+    outs64    = {k: v for k, v in zip(names, outs64)}
+
+    for k, v in outs32.items():
+        assert v.dtype in (np.float32, np.complex64),  ("float32", k, v.dtype)
+    for k, v in outs32_o2.items():
+        assert v.dtype in (np.float32, np.complex64),  ("float32", k, v.dtype)
+    for k, v in outs64.items():
+        assert v.dtype in (np.float64, np.complex128), ("float64", k, v.dtype)
 
 
 def test_configs():
@@ -379,6 +403,7 @@ if __name__ == '__main__':
         test_viz_gmw_orders()
         test_trigdiff()
         test_logscale_transition_idx()
+        test_dtype()
         test_configs()
     else:
         pytest.main([__file__, "-s"])

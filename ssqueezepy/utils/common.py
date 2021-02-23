@@ -9,13 +9,15 @@ logging.basicConfig(format='')
 WARN = lambda msg: logging.warning("WARNING: %s" % msg)
 NOTE = lambda msg: logging.warning("NOTE: %s" % msg)  # else it's mostly ignored
 pi = np.pi
-EPS = np.finfo(np.float64).eps  # machine epsilon for float64  # TODO float32?
+EPS32 = np.finfo(np.float32).eps  # machine epsilon
+EPS64 = np.finfo(np.float64).eps
 
 __all__ = [
     "WARN",
     "NOTE",
     "pi",
-    "EPS",
+    "EPS32",
+    "EPS64",
     "p2up",
     "padsignal",
     "trigdiff",

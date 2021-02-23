@@ -436,7 +436,9 @@ def cwt_higher_order(x, wavelet='gmw', order=1, average=None, **kw):
 
         wavopts = wavelet.config.copy()
         wavopts.pop('order')
+        print(wavopts)
         wavelets = [Wavelet(('gmw', dict(order=k, **wavopts))) for k in order]
+        _=[print(w.dtype) for w in wavelets]
         return wavelets, wavopts
 
     def _process_args(wavelet, order, average, kw):
@@ -460,6 +462,8 @@ def cwt_higher_order(x, wavelet='gmw', order=1, average=None, **kw):
         return wavelets, order, average
 
     wavelets, order, average = _process_args(wavelet, order, average, kw)
+    for i, w in enumerate(wavelets):
+        print(i, w.dtype)
 
     Wx_all = []
     derivative = kw.get('derivative', False)
@@ -469,6 +473,7 @@ def cwt_higher_order(x, wavelet='gmw', order=1, average=None, **kw):
     # take the CWTs
     for k in range(len(order)):
         out = cwt(x, wavelets[k], order=0, **kw)
+        print("out", out[0].dtype)
         Wx_all.append(out[0])
         if derivative:
             dWx_all.append(out[-1])

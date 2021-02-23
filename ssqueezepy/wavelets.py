@@ -1,15 +1,11 @@
 # -*- coding: utf-8 -*-
 import numpy as np
-import logging
 from scipy.fftpack import ifft, fftshift, ifftshift
 from numba import jit
 from types import FunctionType
 from scipy import integrate
 from .algos import find_maximum
 from .configs import gdefaults
-
-pi = np.pi
-NOTE = lambda msg: logging.warning("NOTE: %s" % msg)
 
 
 class Wavelet():
@@ -33,6 +29,9 @@ class Wavelet():
             dtype at which wavelets are generated; can't change after __init__.
             Must be one of `Wavelet.DTYPES`. If None, uses value from
             `configs.ini`, global (if set) or wavelet-specific.
+
+            'float32' is unsupported for GMW's `norm='energy'` and will be
+            overridden by 'float64' (with a warning if it was passed to __init__).
 
     # Example:
         wavelet = Wavelet(('morlet', {'mu': 7}), N=1024)
@@ -376,6 +375,17 @@ class Wavelet():
         return Wavelet(wavelet, **kw)
 
     def _validate_and_set_wavelet(self, wavelet):
+        def process_dtype(wavopts, user_passed_float32):
+            """Handles GMW's `norm='energy'` w/ dtype='float32'."""
+            if wavopts.get('norm', 'bandpass') == 'energy':
+                if user_passed_float32:
+                    WARN("`norm='energy'` w/ `dtype='float32'` is unsupported; "
+                         "will use 'float64' instead.")
+                self._dtype = np.float64
+                wavopts['dtype'] = np.float64
+            elif self.dtype is not None:
+                wavopts['dtype'] = self.dtype
+
         if isinstance(wavelet, FunctionType):
             self.fn = wavelet
             self.config = {}
@@ -394,14 +404,15 @@ class Wavelet():
         elif isinstance(wavelet, str):
             wavopts = {}
 
+        user_passed_float32 = any(x in ('float32', np.float32)
+                                  for x in (self.dtype, wavopts.get('dtype', 0)))
         if isinstance(wavelet, str):
             wavelet = wavelet.lower()
             module = 'wavelets' if wavelet != 'gmw' else '_gmw'
             wavopts = gdefaults(f"{module}.{wavelet}", get_all=True,
                                 as_dict=True, default_order=True, **wavopts)
 
-        if self.dtype is not None:
-            wavopts['dtype'] = self.dtype
+        process_dtype(wavopts, user_passed_float32)
         assert_is_one_of(wavelet, 'wavelet', Wavelet.SUPPORTED)
         self.fn = {
             'gmw':    gmw,
@@ -414,6 +425,11 @@ class Wavelet():
         if self.dtype is None:
             # 32 will promote to 64 if other params are 64
             out_dtype = self.fn(np.array([1.], dtype='float32')).dtype
+            print("out_dtype", out_dtype)
+            if out_dtype in (np.complex64, np.complex128):
+                # 'bump' wavelet case
+                out_dtype = (np.float32 if out_dtype == np.complex64 else
+                             np.float64)
             self._dtype = self._process_dtype(out_dtype)
         self.config = wavopts
 
@@ -465,7 +481,7 @@ def bump(mu=None, s=None, om=None, dtype=None):
     https://www.mathworks.com/help/wavelet/gs/choose-a-wavelet.html
     """
     mu, s, om, dtype = gdefaults('wavelets.bump', mu=mu, s=s, om=om, dtype=dtype)
-    mu, s, om = _process_params_dtype(mu, s, om)
+    mu, s, om = _process_params_dtype(mu, s, om, dtype=dtype)
     return lambda w: _bump(w, (w - mu) / s, om, s)
 
 @jit(nopython=True, cache=True)
@@ -870,4 +886,4 @@ def isinstance_by_name(obj, ref):
 from ._gmw import gmw
 from . import visuals
 from .visuals import plot, _viz_cwt_scalebounds
-from .utils.common import assert_is_one_of
+from .utils.common import WARN, NOTE, pi, assert_is_one_of
