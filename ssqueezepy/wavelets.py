@@ -425,7 +425,6 @@ class Wavelet():
         if self.dtype is None:
             # 32 will promote to 64 if other params are 64
             out_dtype = self.fn(np.array([1.], dtype='float32')).dtype
-            print("out_dtype", out_dtype)
             if out_dtype in (np.complex64, np.complex128):
                 # 'bump' wavelet case
                 out_dtype = (np.float32 if out_dtype == np.complex64 else
@@ -470,7 +469,7 @@ def morlet(mu=None, dtype=None):
     mu, cs, ks = _process_params_dtype(mu, cs, ks, dtype=dtype)
     return lambda w: _morlet(w, mu, cs, ks)
 
-@jit(nopython=True, cache=True)
+@jit(nopython=True, cache=True, parallel=True)
 def _morlet(w, mu, cs, ks):
     return np.sqrt(2) * cs * pi**.25 * (np.exp(-.5 * (w - mu)**2)
                                         - ks * np.exp(-.5 * w**2))
@@ -484,7 +483,7 @@ def bump(mu=None, s=None, om=None, dtype=None):
     mu, s, om = _process_params_dtype(mu, s, om, dtype=dtype)
     return lambda w: _bump(w, (w - mu) / s, om, s)
 
-@jit(nopython=True, cache=True)
+@jit(nopython=True, cache=True, parallel=True)
 def _bump(w, _w, om, s):
     return np.exp(2 * pi * 1j * om * w) / s * (
         np.abs(_w) < .999) * np.exp(-1. / (1 - (_w * (np.abs(_w) < .999))**2)
@@ -499,7 +498,7 @@ def cmhat(mu=None, s=None, dtype=None):
     mu, s = _process_params_dtype(mu, s, dtype=dtype)
     return lambda w: _cmhat(w - mu, s)
 
-@jit(nopython=True, cache=True)
+@jit(nopython=True, cache=True, parallel=True)
 def _cmhat(_w, s):
     return 2 * np.sqrt(2/3) * pi**(-1/4) * (
         s**(5/2) * _w**2 * np.exp(-s**2 * _w**2 / 2) * (_w >= 0))
@@ -511,7 +510,7 @@ def hhhat(mu=None, dtype=None):
     mu = _process_params_dtype(mu, dtype=dtype)
     return lambda w: _hhhat(w - mu)
 
-@jit(nopython=True, cache=True)
+@jit(nopython=True, cache=True, parallel=True)
 def _hhhat(_w):
     return 2/np.sqrt(5)*pi**(-1/4) * (_w * (1 + _w) * np.exp(-1/2 * _w**2)
                                       ) * (1 + np.sign(_w))

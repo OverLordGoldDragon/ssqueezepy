@@ -118,4 +118,19 @@ def _get_gdefaults():
     return GDEFAULTS
 
 
+def is_parallel():
+    """Returns False if 'SSQ_PARALLEL' environment flag was set to '0', or
+    if `parallel` in `configs.ini` is set to `0`; former overrides latter.
+    """
+    par_env = (os.environ.get('SSQ_PARALLEL', '1') == '0')
+    if par_env:
+        return False
+
+    par_config = (gdefaults('configs.is_parallel', parallel=None) == 0)
+    if par_config:
+        return False
+
+    return True
+
+
 GDEFAULTS = _get_gdefaults()

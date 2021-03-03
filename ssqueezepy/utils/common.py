@@ -23,6 +23,7 @@ __all__ = [
     "trigdiff",
     "mad",
     "est_riskshrink_thresh",
+    "find_closest_parallel_is_faster",
     "assert_is_one_of",
     "_textwrap",
 ]
@@ -200,6 +201,24 @@ def est_riskshrink_thresh(Wx, nv):
     Wx_fine = np.abs(Wx[:nv])
     gamma = 1.4826 * np.sqrt(2 * np.log(N)) * mad(Wx_fine)
     return gamma
+
+
+def find_closest_parallel_is_faster(shape, dtype='float32', trials=7, verbose=1):
+    """Returns True if `find_closest(, parallel=True)` is faster, as averaged
+    over `trials` trials on dummy data.
+    """
+    from timeit import timeit
+    from ..algos import find_closest
+
+    a = np.abs(np.random.randn(*shape).astype(dtype))
+    v = np.random.uniform(0, len(a), len(a)).astype(dtype)
+
+    t0 = timeit(lambda: find_closest(a, v, parallel=False), number=trials)
+    t1 = timeit(lambda: find_closest(a, v, parallel=True),  number=trials)
+    if verbose:
+        print("Parallel avg.:     {} sec\nNon-parallel avg.: {} sec".format(
+            t1 / trials, t0 / trials))
+    return t1 > t0
 
 
 def mad(data, axis=None):

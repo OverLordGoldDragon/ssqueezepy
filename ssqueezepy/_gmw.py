@@ -120,7 +120,6 @@ def gmw(gamma=None, beta=None, norm=None, order=None, centered_scale=None,
     if norm == 'energy'and dtype in ('float32', np.float32):
         raise ValueError("`norm='energy'` w/ `dtype='float32'` is unsupported; "
                          "use 'float64' instead.")
-    print("gmw-dtype", kw['dtype'])
 
     l1_fn, l2_fn = ((gmw_l1, gmw_l2) if k == 0 else
                     (gmw_l1_k, gmw_l2_k))
@@ -191,13 +190,12 @@ def gmw_l1(gamma=3., beta=60., centered_scale=False, dtype='float64'):
     wc = morsefreq(gamma, beta)
 
     gamma, beta, wc = _process_params_dtype(gamma, beta, wc, dtype=dtype)
-    print("g b wc", gamma.dtype, beta.dtype, wc.dtype)
     if centered_scale:
         return lambda w: _gmw_l1(np.atleast_1d(w * wc), gamma, beta, wc, w < 0)
     else:
         return lambda w: _gmw_l1(np.atleast_1d(w), gamma, beta, wc, w < 0)
 
-@jit(nopython=True, cache=True)
+@jit(nopython=True, cache=True, parallel=True)
 def _gmw_l1(w, gamma, beta, wc, w_negs):
     w *= ~w_negs  # zero negative `w` to avoid nans
     return 2 * np.exp(- beta * np.log(wc) + wc**gamma
@@ -222,7 +220,7 @@ def gmw_l2(gamma=3., beta=60., centered_scale=False, dtype='float64'):
         return lambda w: _gmw_l2(np.atleast_1d(w), gamma, beta, wc,
                                  r, rgamma, w < 0)
 
-@jit(nopython=True, cache=True)
+@jit(nopython=True, cache=True, parallel=True)
 def _gmw_l2(w, gamma, beta, wc, r, rgamma, w_negs):
     w *= ~w_negs  # zero negative `w` to avoid nans
     return np.sqrt(2.*pi * gamma * 2.**r / rgamma
@@ -246,7 +244,7 @@ def gmw_l1_k(gamma=3., beta=60., k=1, centered_scale=False, dtype='float64'):
         return lambda w: _gmw_l1_k(np.atleast_1d(w), gamma, beta, wc, w < 0,
                                    k_consts)
 
-@jit(nopython=True, cache=True)
+@jit(nopython=True, cache=True, parallel=True)
 def _gmw_l1_k(w, gamma, beta, wc, w_negs, k_consts):
     w *= ~w_negs  # zero negative `w` to avoid nans
 
@@ -275,7 +273,7 @@ def gmw_l2_k(gamma=3., beta=60., k=1, centered_scale=False, dtype='float64'):
         return lambda w: _gmw_l2_k(np.atleast_1d(w), gamma, beta, wc, w < 0,
                                    k_consts)
 
-@jit(nopython=True, cache=True)
+@jit(nopython=True, cache=True, parallel=True)
 def _gmw_l2_k(w, gamma, beta, wc, w_negs, k_consts):
     w *= ~w_negs  # zero negative `w` to avoid nans
 

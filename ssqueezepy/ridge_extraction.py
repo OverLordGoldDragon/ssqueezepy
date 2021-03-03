@@ -4,12 +4,12 @@
 Ridge extraction from time-frequency representations (STFT, CWT, synchrosqueezed).
 """
 import numpy as np
-from numba import jit
+from numba import jit, prange
 from .utils import EPS32, EPS64
 
 
 def extract_ridges(Tf, scales, penalty=2., n_ridges=1, bw=15, transform='cwt',
-                   get_params=False):
+                   get_params=False, parallel=True):
     """Tracks time-frequency ridges by performing forward-backward ridge tracking
     algorithm, based on ref [1] (a version of Eq. III.4).
 
@@ -42,6 +42,10 @@ def extract_ridges(Tf, scales, penalty=2., n_ridges=1, bw=15, transform='cwt',
 
         get_params: bool (default False)
             Whether to also compute and return `fridge` & `max_energy`.
+
+        parallel: bool (default True)
+            Whether to use parallelized JIT code; runs much faster but uses much
+            more CPU.
 
     # Returns
         ridge_idxs: np.ndarray
@@ -96,11 +100,12 @@ def extract_ridges(Tf, scales, penalty=2., n_ridges=1, bw=15, transform='cwt',
                                      ridge indices
         """
         (penalized_energy_fw, ridge_idxs_fw
-         ) = _accumulated_penalty_energy_fw(energy_to_track, penalty_matrix)
+         ) = _accumulated_penalty_energy_fw(energy_to_track, penalty_matrix,
+                                            parallel)
         # backward calculation of frequency ridge (min log negative energy)
         ridge_idxs_fw_bw = _accumulated_penalty_energy_bw(
             energy_to_track, penalty_matrix, penalized_energy_fw,
-            ridge_idxs_fw, eps)
+            ridge_idxs_fw, eps, parallel)
 
         return ridge_idxs_fw_bw
 
@@ -140,7 +145,7 @@ def extract_ridges(Tf, scales, penalty=2., n_ridges=1, bw=15, transform='cwt',
             ridge_idxs)
 
 
-def _accumulated_penalty_energy_fw(energy_to_track, penalty_matrix):
+def _accumulated_penalty_energy_fw(energy_to_track, penalty_matrix, parallel):
     """Calculates acummulated penalty in forward direction (t=0...end).
 
     `energy_to_track`: squared abs time-frequency transform
@@ -152,8 +157,9 @@ def _accumulated_penalty_energy_fw(energy_to_track, penalty_matrix):
         `ridge_idxs`: calculated initial ridge with only forward penalty
     """
     penalized_energy = energy_to_track.copy()
-    penalized_energy = __accumulated_penalty_energy_fw(penalized_energy,
-                                                       penalty_matrix)
+    fn = (__accumulated_penalty_energy_fwp if parallel else
+          __accumulated_penalty_energy_fw)
+    penalized_energy = fn(penalized_energy, penalty_matrix)
     ridge_idxs = np.unravel_index(np.argmin(penalized_energy, axis=0),
                                   penalized_energy.shape)[1]
     return penalized_energy, ridge_idxs
@@ -168,9 +174,19 @@ def __accumulated_penalty_energy_fw(penalized_energy, penalty_matrix):
                                           penalty_matrix[idx_freq, :])
     return penalized_energy
 
+@jit(nopython=True, cache=True, parallel=True)
+def __accumulated_penalty_energy_fwp(penalized_energy, penalty_matrix):
+    for idx_time in range(1, penalized_energy.shape[1]):
+        for idx_freq in prange(0, penalized_energy.shape[0]):
+            penalized_energy[idx_freq, idx_time
+                             ] += np.amin(penalized_energy[:, idx_time - 1] +
+                                          penalty_matrix[idx_freq, :])
+    return penalized_energy
+
 
 def _accumulated_penalty_energy_bw(energy_to_track, penalty_matrix,
-                                   penalized_energy_fw, ridge_idxs_fw, eps):
+                                   penalized_energy_fw, ridge_idxs_fw,
+                                   eps, parallel):
     """Calculates acummulated penalty in backward direction (t=end...0)
 
     `energy_to_track`: squared abs time-frequency transform
@@ -182,8 +198,9 @@ def _accumulated_penalty_energy_bw(energy_to_track, penalty_matrix,
     """
     pen_e = penalized_energy_fw
     e = energy_to_track
-    ridge_idxs_fw = __accumulated_penalty_energy_bw(e, penalty_matrix, pen_e,
-                                                    ridge_idxs_fw, eps)
+    fn = (__accumulated_penalty_energy_bwp if parallel else
+          __accumulated_penalty_energy_bw)
+    ridge_idxs_fw = fn(e, penalty_matrix, pen_e, ridge_idxs_fw, eps)
     ridge_idxs_fw = np.asarray(ridge_idxs_fw, dtype=int)
     return ridge_idxs_fw
 
@@ -194,6 +211,21 @@ def __accumulated_penalty_energy_bw(e, penalty_matrix, pen_e, ridge_idxs_fw, eps
         val = (pen_e[ridge_idxs_fw[idx_time + 1], idx_time + 1] -
                e[    ridge_idxs_fw[idx_time + 1], idx_time + 1])
         for idx_freq in range(e.shape[0]):
+            new_penalty = penalty_matrix[ridge_idxs_fw[idx_time + 1], idx_freq]
+
+            if abs(val - (pen_e[idx_freq, idx_time] + new_penalty)) < eps:
+                ridge_idxs_fw[idx_time] = idx_freq
+    return ridge_idxs_fw
+
+@jit(nopython=True, cache=True, parallel=True)
+def __accumulated_penalty_energy_bwp(e, penalty_matrix, pen_e, ridge_idxs_fw,
+                                     eps):
+    for tidx in prange(e.shape[1] - 1):
+        # `prange` only supports a step size of 1, so we use a trick
+        idx_time = (e.shape[1] - 2) - tidx
+        val = (pen_e[ridge_idxs_fw[idx_time + 1], idx_time + 1] -
+               e[    ridge_idxs_fw[idx_time + 1], idx_time + 1])
+        for idx_freq in prange(e.shape[0]):
             new_penalty = penalty_matrix[ridge_idxs_fw[idx_time + 1], idx_freq]
 
             if abs(val - (pen_e[idx_freq, idx_time] + new_penalty)) < eps:

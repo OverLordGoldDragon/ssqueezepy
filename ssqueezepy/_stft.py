@@ -1,14 +1,15 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 import scipy.signal as sig
-from numpy.fft import fft, ifft, rfft, irfft, fftshift, ifftshift
+from scipy.fft import fft, ifft, rfft, irfft, fftshift, ifftshift
 from .utils import WARN, padsignal, buffer, unbuffer, window_norm
 from .utils import _process_fs_and_t
-from .wavelets import _xifn
+from .wavelets import _xifn, _process_params_dtype
 
+# TODO float32
 
 def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=None, t=None,
-         padtype='reflect', modulated=True, derivative=False):
+         padtype='reflect', modulated=True, derivative=False, dtype=None):
     """Short-Time Fourier Transform.
 
     `modulated=True` computes "modified" variant from [1] which is advantageous
@@ -67,6 +68,10 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=None, t=None,
         derivative: bool (default False)
             Whether to compute and return `dSx`. Uses `fs`.
 
+        dtype: str / type (np.dtype) / None
+            Compute precision, float32 or float64. If None, uses value from
+            `configs.ini`.
+
     **Modulation**
         `True` will center DFT cisoids at the window for each shift `u`:
             Sm[u, k] = sum_{0}^{N-1} f[n] * g[n - u] * exp(-j*2pi*k*(n - u)/N)
@@ -124,6 +129,8 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=None, t=None,
                    n_fft)
     window, diff_window = get_window(window, win_len, n_fft, derivative=True)
     _check_NOLA(window, hop_len)
+    # x, window, diff_window = _process_params_dtype(x, window, diff_window,
+    #                                                dtype=dtype)
 
     padlength = len(x) + n_fft - 1  # pad `x` to length `padlength`
     xp = padsignal(x, padtype, padlength=padlength)

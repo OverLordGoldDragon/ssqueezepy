@@ -10,7 +10,8 @@ from ._cwt import cwt
 def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
             ssq_freqs=None, padtype='reflect', squeezing='sum', maprange='peak',
             difftype='trig', difforder=None, gamma=None, vectorized=True,
-            preserve_transform=True, order=0):
+            preserve_transform=True, order=0, patience=0,
+            find_closest_parallel=None):  # TODO docs
     """Synchrosqueezed Continuous Wavelet Transform.
     Implements the algorithm described in Sec. III of [1].
 
@@ -105,6 +106,9 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
             `order > 0` computes ssq of `cwt` taken with higher-order GMWs.
             If tuple, computes ssq of average of `cwt`s taken at each specified
             order. See `help(_cwt.cwt_higher_order)`.
+
+        find_closest_parallel: bool (default False) / None
+            See `help(ssqueezing.ssqueeze)`.
 
     # Returns:
         Tx: np.ndarray [nf x n]
@@ -211,7 +215,8 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
         rpadded = (difftype == 'numeric')
         Wx, scales, dWx = cwt(x, wavelet, scales=scales, fs=fs, nv=nv,
                               l1_norm=True, derivative=True, padtype=padtype,
-                              rpadded=rpadded, vectorized=vectorized)
+                              rpadded=rpadded, vectorized=vectorized,
+                              patience=patience)
 
     _Wx = Wx.copy() if preserve_transform else Wx
     gamma = gamma or np.sqrt(EPS64 if Wx.dtype == np.cfloat else EPS32)
@@ -223,7 +228,8 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
 
     Tx, ssq_freqs = ssqueeze(_Wx, w, scales=scales, fs=fs, ssq_freqs=ssq_freqs,
                              transform='cwt', squeezing=squeezing,
-                             maprange=maprange, wavelet=wavelet, padtype=padtype)
+                             maprange=maprange, wavelet=wavelet, padtype=padtype,
+                             find_closest_parallel=find_closest_parallel)
 
     if difftype == 'numeric':
         Wx = Wx[:, 4:-4]

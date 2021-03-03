@@ -4,11 +4,13 @@ from types import FunctionType
 from .algos import find_closest, indexed_sum, replace_at_inf
 from .utils import p2up, process_scales, infer_scaletype, _process_fs_and_t
 from .utils import NOTE, pi, logscale_transition_idx, assert_is_one_of
+from .configs import gdefaults, is_parallel
 from .wavelets import center_frequency, _process_params_dtype
 
 
 def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt',
-             squeezing='sum', maprange='maximal', wavelet=None, padtype=''):
+             squeezing='sum', maprange='maximal', wavelet=None, padtype='',
+             find_closest_parallel=None):
     """Synchrosqueezes the CWT or STFT of `x`.
 
     # Arguments:
@@ -73,6 +75,16 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
             and computes `maprange` accordingly. Used only with `transform='cwt'`
             and non-tuple `maprange`.
 
+        find_closest_parallel: bool (default False) / None
+            Whether to use parallel version of `algos.find_closest`, which is
+            faster than the "smart" version depending on size of `w` and
+            CPU hardware.
+                - Note, parallel version may take much longer for very large `w`,
+                and "smart" should be faster or as fast in most cases.
+                - Use `ssqueezepy.find_closest_parallel_is_faster` to figure
+                whether this is worth setting True.
+                - None (default): draws value from `configs.ini`
+
     # Returns:
         Tx: np.ndarray [nf x n]
             Synchrosqueezed CWT of `x`. (rows=~frequencies, cols=timeshifts)
@@ -107,8 +119,10 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
         # w[a, b] lands in (i.e. to which f in ssq_freqs each w[a, b] is closest)
         # equivalent to argmin(abs(w[a, b] - ssq_freqs)) for every a, b
         with np.errstate(divide='ignore', invalid='ignore'):
-            k = (find_closest(w, ssq_freqs) if ssq_scaletype[:3] != 'log' else
-                 find_closest(np.log2(w), np.log2(ssq_freqs)))
+            ssq_logscale = ssq_scaletype.startswith('log')
+            par = find_closest_parallel
+            k = (find_closest(w, ssq_freqs, par) if not ssq_logscale else
+                 find_closest(np.log2(w), np.log2(ssq_freqs), par))
 
         # Tx[k[i, j], j] += Wx[i, j] * norm
         if transform == 'cwt':
@@ -116,14 +130,14 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
             if cwt_scaletype[:3] == 'log':
                 # ln(2)/nv == diff(ln(scales))[0] == ln(2**(1/nv))
                 da = np.log(2, dtype=nv.dtype) / nv
-                Tx = indexed_sum(Wx * da, k, dtype=Wx.dtype)
+                Tx = indexed_sum(Wx * da, k, is_parallel())
             elif cwt_scaletype == 'linear':
                 # omit /dw since it's cancelled by *dw in inversion anyway
                 da = (scales[1] - scales[0])
-                Tx = indexed_sum(Wx / scales * da, k, dtype=Wx.dtype)
+                Tx = indexed_sum(Wx / scales * da, k, is_parallel())
         elif transform == 'stft':
             df = (ssq_freqs[1] - ssq_freqs[0])  # 'alpha' from [3]
-            Tx = indexed_sum(Wx * df, k, dtype=Wx.dtype)
+            Tx = indexed_sum(Wx * df, k, is_parallel())
         return Tx
 
     def _process_args(w, fs, t, N, transform, squeezing, scales, maprange,
@@ -144,6 +158,8 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
     na, N = Wx.shape
     dt = _process_args(w, fs, t, N, transform, squeezing, scales,
                        maprange, wavelet)
+    find_closest_parallel = gdefaults('ssqueezing.ssqueeze',
+                                      find_closest_parallel=find_closest_parallel)
 
     if transform == 'cwt':
         scales, cwt_scaletype, _, nv = process_scales(scales, N, get_params=True)
@@ -179,7 +195,16 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
 
     if nv is not None:
         nv = _process_params_dtype(nv, dtype=Wx.dtype)
-    Tx = _ssqueeze(w, Wx, nv, ssq_freqs, transform, ssq_scaletype, cwt_scaletype)
+
+    args = (nv, ssq_freqs, transform, ssq_scaletype, cwt_scaletype)
+    if Wx.ndim == 2:
+        Tx = _ssqueeze(w, Wx, *args)
+    elif Wx.ndim == 3:
+        Tx = []
+        for _w, _Wx in zip(w, Wx):
+            Tx.append(_ssqueeze(_w, _Wx, *args))
+        Tx = np.vstack([Tx])
+
     return Tx, ssq_freqs
 
 

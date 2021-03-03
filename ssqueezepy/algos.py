@@ -1,10 +1,32 @@
 # -*- coding: utf-8 -*-
 import numpy as np
-from numba import jit
+from numba import jit, prange
 from functools import reduce
 
 
-def find_closest(a, v):
+def find_closest(a, v, parallel=False):
+    """`argmin(abs(a[i, j] - v)) for all `i, j`; `a` is 2D, `v` is 1D.
+
+    `parallel`:
+        - True: uses `numba.jit(parallel=True)`
+        - False: uses a very fast smart algorithm
+            (credit: Divakar -- https://stackoverflow.com/a/64526158/10133797)
+    """
+    if parallel:
+        return _find_closest_par(a, v)
+    return _find_closest(a, v)
+
+
+@jit(nopython=True, cache=True, parallel=True)
+def _find_closest_par(a, v):
+    out = np.zeros(a.shape, dtype=np.int32)
+    for i in prange(a.shape[0]):
+        for j in prange(a.shape[1]):
+            out[i, j] = np.argmin(np.abs(a[i, j] - v))
+    return out
+
+
+def _find_closest(a, v):
     """Equivalent to argmin(abs(a[i, j] - v)) for all i, j; a is 2D, v is 1D.
     Credit: Divakar -- https://stackoverflow.com/a/64526158/10133797
     """
@@ -12,7 +34,7 @@ def find_closest(a, v):
     v_s = v[sidx]
     idx = np.searchsorted(v_s, a)
     idx[idx == len(v)] = len(v) - 1
-    idx0 = (idx-1).clip(min=0)
+    idx0 = (idx - 1).clip(min=0)
 
     m = np.abs(a - v_s[idx]) >= np.abs(v_s[idx0] - a)
     m[idx == 0] = 0
@@ -30,12 +52,25 @@ def nCk(n, k):
     return numer / denom
 
 
-@jit(nopython=True, cache=True)
-def indexed_sum(a, k, dtype=np.cfloat):
+def indexed_sum(a, k, parallel=True):
     """Sum `a` into rows of 2D array according to indices given by 2D `k`"""
-    out = np.zeros(a.shape, dtype=dtype)
+    out = np.zeros(a.shape, dtype=a.dtype)
+    if parallel:
+        return _indexed_sum_par(a, k, out)
+    return _indexed_sum(a, k, out)
+
+
+@jit(nopython=True, cache=True)
+def _indexed_sum(a, k, out):
     for i in range(a.shape[0]):
         for j in range(a.shape[1]):
+            out[k[i, j], j] += a[i, j]
+    return out
+
+@jit(nopython=True, cache=True, parallel=True)
+def _indexed_sum_par(a, k, out):
+    for j in prange(a.shape[1]):
+        for i in range(a.shape[0]):
             out[k[i, j], j] += a[i, j]
     return out
 
