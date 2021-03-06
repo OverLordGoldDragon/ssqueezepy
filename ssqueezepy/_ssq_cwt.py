@@ -10,7 +10,7 @@ from ._cwt import cwt
 def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
             ssq_freqs=None, padtype='reflect', squeezing='sum', maprange='peak',
             difftype='trig', difforder=None, gamma=None, vectorized=True,
-            preserve_transform=True, order=0, patience=0,
+            preserve_transform=True, order=0, patience=0, s=0,  # TODO remove
             find_closest_parallel=None):  # TODO docs
     """Synchrosqueezed Continuous Wavelet Transform.
     Implements the algorithm described in Sec. III of [1].
@@ -226,8 +226,8 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
         # default to same scheme used by `scales`
         ssq_freqs = cwt_scaletype
 
-    Tx, ssq_freqs = ssqueeze(_Wx, w, scales=scales, fs=fs, ssq_freqs=ssq_freqs,
-                             transform='cwt', squeezing=squeezing,
+    Tx, k, ssq_freqs = ssqueeze(_Wx, w, scales=scales, fs=fs, ssq_freqs=ssq_freqs,
+                             transform='cwt', squeezing=squeezing, s=s,
                              maprange=maprange, wavelet=wavelet, padtype=padtype,
                              find_closest_parallel=find_closest_parallel)
 
@@ -235,7 +235,7 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
         Wx = Wx[:, 4:-4]
         w  = w[:,  4:-4]
         Tx = Tx[:, 4:-4]
-    return Tx, Wx, ssq_freqs, scales, w, dWx
+    return Tx, Wx, k, ssq_freqs, scales, w, dWx
 
 
 def issq_cwt(Tx, wavelet='gmw', cc=None, cw=None):

@@ -2,7 +2,6 @@
 import numpy as np
 from scipy import integrate
 from .common import WARN, assert_is_one_of, p2up
-from ..algos import _min_neglect_idx, find_maximum, find_first_occurrence
 from ..configs import gdefaults
 
 pi = np.pi
@@ -709,6 +708,7 @@ def _process_fs_and_t(fs, t, N):
 
 
 #############################################################################
+from ..algos import _min_neglect_idx, find_maximum, find_first_occurrence
 from ..wavelets import Wavelet, center_frequency
 from ..visuals import plot, scat, _viz_cwt_scalebounds, wavelet_waveforms
 from ..visuals import sweep_harea
