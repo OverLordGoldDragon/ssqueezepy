@@ -124,6 +124,7 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=None, t=None,
 
     _, fs, _ = _process_fs_and_t(fs, t, len(x))
     n_fft = n_fft or min(len(x)//hop_len, 512)
+
     if win_len is None:
         win_len = (len(window) if isinstance(window, np.ndarray) else
                    n_fft)

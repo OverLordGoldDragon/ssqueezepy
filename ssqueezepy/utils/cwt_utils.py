@@ -2,6 +2,7 @@
 import numpy as np
 from scipy import integrate
 from .common import WARN, assert_is_one_of, p2up
+from .backend import torch, asnumpy
 from ..configs import gdefaults
 
 pi = np.pi
@@ -41,7 +42,7 @@ def adm_ssq(wavelet):
         https://arxiv.org/pdf/0912.2437.pdf
     """
     wavelet = Wavelet._init_if_not_isinstance(wavelet).fn
-    Css = integrate_analytic(lambda w: np.conj(wavelet(w)) / w)
+    Css = integrate_analytic(lambda w: np.conj(asnumpy(wavelet(w))) / w)
     Css = Css.real if abs(Css.imag) < 1e-15 else Css
     return Css
 
@@ -56,7 +57,8 @@ def adm_cwt(wavelet):
     https://www.di.ens.fr/~mallat/papiers/WaveletTourChap1-2-3.pdf
     """
     wavelet = Wavelet._init_if_not_isinstance(wavelet).fn
-    Cpsi = integrate_analytic(lambda w: np.conj(wavelet(w)) * wavelet(w) / w)
+    Cpsi = integrate_analytic(lambda w: np.conj(asnumpy(wavelet(w))
+                                                ) * asnumpy(wavelet(w)) / w)
     Cpsi = Cpsi.real if abs(Cpsi.imag) < 1e-15 else Cpsi
     return Cpsi
 
@@ -217,7 +219,8 @@ def process_scales(scales, N, wavelet=None, nv=None, get_params=False,
                 raise ValueError("must set `wavelet` if `scales` isn't array")
             scaletype = scales
 
-        elif isinstance(scales, np.ndarray):
+        elif isinstance(scales, (np.ndarray, torch.Tensor)):
+            scales = asnumpy(scales)
             if scales.squeeze().ndim != 1:
                 raise ValueError("`scales`, if array, must be 1D "
                                  "(got shape %s)" % str(scales.shape))
@@ -241,7 +244,7 @@ def process_scales(scales, N, wavelet=None, nv=None, get_params=False,
         return scaletype, nv, preset
 
     scaletype, nv, preset = _process_args(scales, nv, wavelet)
-    if isinstance(scales, np.ndarray):
+    if isinstance(scales, (np.ndarray, torch.Tensor)):
         scales = scales.reshape(-1, 1)
         return (scales if not get_params else
                 (scales, scaletype, len(scales), nv))
@@ -263,6 +266,7 @@ def infer_scaletype(scales):
 
     Returns one of: 'linear', 'log', 'log-piecewise'
     """
+    scales = asnumpy(scales)
     if not isinstance(scales, np.ndarray):
         raise TypeError("`scales` must be a numpy array (got %s)" % type(scales))
     elif scales.dtype not in (np.float32, np.float64):
@@ -369,6 +373,7 @@ def make_scales(N, min_scale=None, max_scale=None, nv=32, scaletype='log',
 def logscale_transition_idx(scales):
     """Returns `idx` that splits `scales` as `[scales[:idx], scales[idx:]]`.
     """
+    scales = asnumpy(scales)
     scales_diff2 = np.abs(np.diff(np.log(scales), 2, axis=0))
     idx = np.argmax(scales_diff2) + 2
     diff2_max = scales_diff2.max()
@@ -391,6 +396,7 @@ def nv_from_scales(scales):
     """Infers `nv` from `scales` assuming `2**` scales; returns array
     of length `len(scales)` if `scaletype = 'log-piecewise'`.
     """
+    scales = asnumpy(scales)
     logdiffs = 1 / np.diff(np.log2(scales), axis=0)
     nv = np.vstack([logdiffs[:1], logdiffs])
 
@@ -419,7 +425,7 @@ def find_min_scale(wavelet, cutoff=1):
     w_cutoff, _ = find_first_occurrence(wavelet.fn, value=abs(cutoff) * peak,
                                         step_start=step_start,
                                         step_limit=step_limit)
-    min_scale = w_cutoff / np.pi
+    min_scale = w_cutoff / pi
     return min_scale
 
 
@@ -435,9 +441,9 @@ def find_max_scale(wavelet, N, bin_loc=1, bin_amp=1):
     scalec_ct = (4/pi) * wc_ct
 
     # get freq_domain wavelet, positive half (asm. analytic)
-    psih = wavelet(scale=scalec_ct, N=N)[:N//2 + 1]
+    psih = asnumpy(wavelet(scale=scalec_ct, N=N)[:N//2 + 1])
     # get (radian) frequencies at which it was sampled
-    xi = wavelet.xifn(scalec_ct, N)
+    xi = asnumpy(wavelet.xifn(scalec_ct, N))
     # get index of psih's peak
     midx = np.argmax(psih)
     # get index where `psih` attains `bin1_amp` of its max value, to left of peak
@@ -531,8 +537,9 @@ def find_downsampling_scale(wavelet, scales, span=5, tol=3, method='sum',
         wavelet = Wavelet._init_if_not_isinstance(wavelet)
 
     N = N or 2048
-    Psih = (wavelet if isinstance(wavelet, np.ndarray) else
+    Psih = (wavelet if isinstance(wavelet, (np.ndarray, torch.Tensor)) else
             wavelet(scale=scales, N=N))
+    Psih = asnumpy(Psih)
 
     if len(Psih) != len(scales):
         raise ValueError("len(Psih) != len(scales) "
@@ -680,7 +687,7 @@ def find_max_scale_alt(wavelet, N, min_cutoff=.1, max_cutoff=.8):
     div_scale = div_size[idx + 1]
 
     # div size of scale=1 (spacing between angular bins at scale=1)
-    w_1div = np.pi / (N / 2)
+    w_1div = pi / (N / 2)
 
     max_scale = div_scale / w_1div
     return max_scale

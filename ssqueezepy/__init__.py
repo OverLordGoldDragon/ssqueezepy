@@ -63,7 +63,7 @@ from .wavelets import *
 from .ridge_extraction import *
 from .utils.fft_utils import *
 
-from .configs import is_parallel
+from .configs import IS_PARALLEL
 from .utils import find_closest_parallel_is_faster
 
 

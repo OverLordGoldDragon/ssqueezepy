@@ -11,7 +11,9 @@ from scipy.special import (gamma   as gamma_fn,
                            gammaln as gammaln_fn)
 from .algos import nCk
 from .wavelets import _xifn, _process_params_dtype
-from .configs import gdefaults
+from .configs import gdefaults, USE_GPU
+from .utils.backend import torch
+from .utils import backend as S
 
 pi = np.pi
 
@@ -189,17 +191,27 @@ def gmw_l1(gamma=3., beta=60., centered_scale=False, dtype='float64'):
     _check_args(gamma=gamma, beta=beta, allow_zerobeta=False)
     wc = morsefreq(gamma, beta)
 
-    gamma, beta, wc = _process_params_dtype(gamma, beta, wc, dtype=dtype)
+    wcl = np.log(wc)
+    fn = _gmw_l1 if not USE_GPU() else _gmw_l1_gpu
+    gamma, beta, wc, wcl = _process_params_dtype(gamma, beta, wc, wcl, dtype=dtype)
+
     if centered_scale:
-        return lambda w: _gmw_l1(np.atleast_1d(w * wc), gamma, beta, wc, w < 0)
-    else:
-        return lambda w: _gmw_l1(np.atleast_1d(w), gamma, beta, wc, w < 0)
+        return lambda w: fn(S.atleast_1d(w * wc), gamma, beta, wc, wcl)
+    else:  # TODO why >=0 outside
+        return lambda w: fn(S.atleast_1d(w), gamma, beta, wc, wcl)
 
 @jit(nopython=True, cache=True, parallel=True)
-def _gmw_l1(w, gamma, beta, wc, w_negs):
-    w *= ~w_negs  # zero negative `w` to avoid nans
-    return 2 * np.exp(- beta * np.log(wc) + wc**gamma
-                      + beta * np.log(w)  - w**gamma) * (~w_negs)
+def _gmw_l1(w, gamma, beta, wc, wcl):
+    w_nonneg = (w >= 0)
+    w *= w_nonneg  # zero negative `w` to avoid nans
+    return 2 * np.exp(- beta * wcl + wc**gamma
+                      + beta * np.log(w) - w**gamma) * w_nonneg
+
+def _gmw_l1_gpu(w, gamma, beta, wc, wcl):
+    w_nonneg = (w >= 0)
+    w *= w_nonneg
+    return 2 * torch.exp(- beta * wcl + wc**gamma
+                         + beta * torch.log(w) - w**gamma) * w_nonneg
 
 
 def gmw_l2(gamma=3., beta=60., centered_scale=False, dtype='float64'):

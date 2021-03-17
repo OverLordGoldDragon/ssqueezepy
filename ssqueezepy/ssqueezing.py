@@ -1,16 +1,20 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 from types import FunctionType
-from .algos import find_closest, indexed_sum, indexed_sum_onfly, replace_at_inf
+from .algos import indexed_sum_onfly, ssq_cwt_log_gpu, ssq_cwt_log_piecewise_gpu
+from .algos import ssq_cwt_lin_gpu
 from .utils import p2up, process_scales, infer_scaletype, _process_fs_and_t
 from .utils import NOTE, pi, logscale_transition_idx, assert_is_one_of
-from .configs import gdefaults, is_parallel
-from .wavelets import center_frequency, _process_params_dtype
+from .utils.backend import Q
+from .utils import backend as S
+from .configs import IS_PARALLEL, USE_GPU
+from .wavelets import center_frequency
 
+# TODO n_outs to reduce amount of shite transferred back to CPU
 
 def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt',
              squeezing='sum', maprange='maximal', wavelet=None, padtype='',
-             find_closest_parallel=None, s=0):
+             flipud=False, gamma=None, dWx=None):  # TODO docs
     """Synchrosqueezes the CWT or STFT of `x`.
 
     # Arguments:
@@ -111,74 +115,42 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
         https://github.com/ebrevdo/synchrosqueezing/blob/master/synchrosqueezing/
         synsq_squeeze.m
     """
-    def _ssqueeze0(w, Wx, nv, ssq_freqs, scales, transform,
-                   ssq_scaletype, cwt_scaletype):
-        # incorporate threshold by zeroing out Inf values, so they get ignored
-        Wx = replace_at_inf(Wx, ref=w, replacement=0)
-        # do squeezing by finding which frequency bin each phase transform point
-        # w[a, b] lands in (i.e. to which f in ssq_freqs each w[a, b] is closest)
-        # equivalent to argmin(abs(w[a, b] - ssq_freqs)) for every a, b
-        with np.errstate(divide='ignore', invalid='ignore'):
-            ssq_logscale = ssq_scaletype.startswith('log')
-            par = find_closest_parallel
-            # ssq_freqs = ssq_freqs.astype('float32')
-            k = find_closest(w, ssq_freqs, ssq_logscale, True, smart=True)
-            # k = (find_closest(w, ssq_freqs, par) if not ssq_logscale else
-            #      find_closest(np.log2(w), np.log2(ssq_freqs), par))
-
-        # Tx[k[i, j], j] += Wx[i, j] * norm
+    def _ssqueeze(Tx, w, Wx, nv, ssq_freqs, scales, transform, ssq_scaletype,
+                  cwt_scaletype, flipud, gamma, dWx):
         if transform == 'cwt':
             # Eq 14 [2]; Eq 2.3 [1]
             if cwt_scaletype[:3] == 'log':
                 # ln(2)/nv == diff(ln(scales))[0] == ln(2**(1/nv))
-                da = np.log(2, dtype=nv.dtype) / nv
-                # da = 1  # TODO
-                # print(da, da.dtype)
-                print(da.dtype)
-                Tx = indexed_sum(Wx * da, k, is_parallel())
+                const = np.log(2) / nv
+
             elif cwt_scaletype == 'linear':
                 # omit /dw since it's cancelled by *dw in inversion anyway
-                da = (scales[1] - scales[0])
-                Tx = indexed_sum(Wx / scales * da, k, is_parallel())
-        elif transform == 'stft':
-            df = (ssq_freqs[1] - ssq_freqs[0])  # 'alpha' from [3]
-            Tx = indexed_sum(Wx * df, k, is_parallel())
-        return Tx, k
-
-    def _ssqueeze1(w, Wx, nv, ssq_freqs, scales, transform,
-                   ssq_scaletype, cwt_scaletype):
-        # incorporate threshold by zeroing out Inf values, so they get ignored
-
-        # do squeezing by finding which frequency bin each phase transform point
-        # w[a, b] lands in (i.e. to which f in ssq_freqs each w[a, b] is closest)
-        # equivalent to argmin(abs(w[a, b] - ssq_freqs)) for every a, b
-
-        # Tx[k[i, j], j] += Wx[i, j] * norm
-        if transform == 'cwt':
-            # Eq 14 [2]; Eq 2.3 [1]
-            if cwt_scaletype[:3] == 'log':
-                # ln(2)/nv == diff(ln(scales))[0] == ln(2**(1/nv))
-                const = np.log(2) / nv.squeeze()
-
-            elif cwt_scaletype == 'linear':  # TODO this ain't const
-                # omit /dw since it's cancelled by *dw in inversion anyway
-                const = (scales[1] - scales[0]) / scales
+                const = ((scales[1] - scales[0]) / scales).squeeze()
         elif transform == 'stft':
             const = (ssq_freqs[1] - ssq_freqs[0])  # 'alpha' from [3]
 
-        if not isinstance(const, np.ndarray) or len(const) != len(w):
-            const = np.array(len(w) * [const], dtype=Wx.dtype)
-        const = const.astype(Wx.dtype)
-
         ssq_logscale = ssq_scaletype.startswith('log')
-        Tx = indexed_sum_onfly(Wx, w, ssq_freqs, const, ssq_logscale,
-                               is_parallel())
-        return Tx, None
+        gpu = USE_GPU()
+        par = IS_PARALLEL() and not gpu
+        # do squeezing by finding which frequency bin each phase transform point
+        # w[a, b] lands in (i.e. to which f in ssq_freqs each w[a, b] is closest)
+        # equivalent to argmin(abs(w[a, b] - ssq_freqs)) for every a, b
+        # Tx[k[i, j], j] += Wx[i, j] * norm -- (see below method's docstring)
+        if w is None:
+            # TODO
+            ssq_cwt_lin_gpu(Wx, dWx, ssq_freqs, const, gamma, flipud,
+                                      out=Tx)
+        else:
+            indexed_sum_onfly(Wx, w, ssq_freqs, const, ssq_logscale,
+                              par, gpu, flipud, out=Tx)
 
     def _process_args(w, fs, t, N, transform, squeezing, scales, maprange,
-                      wavelet):
-        if w.min() < 0:
+                      wavelet, dWx):
+        if w is None and (dWx is None or gamma is None):
+            raise ValueError("if `w` is None, `dWx` and `gamma` must not be.")
+        elif w is not None and w.min() < 0:
             raise ValueError("found negatives in `w`")
+
         if transform not in ('cwt', 'stft'):
             raise ValueError("`transform` must be one of: cwt, stft "
                              "(got %s)" % squeezing)
@@ -190,11 +162,9 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
         dt, *_ = _process_fs_and_t(fs, t, N)
         return dt
 
-    na, N = Wx.shape
+    na, N = Wx.shape if Wx.ndim == 2 else Wx.shape[1:]
     dt = _process_args(w, fs, t, N, transform, squeezing, scales,
-                       maprange, wavelet)
-    find_closest_parallel = gdefaults('ssqueezing.ssqueeze',
-                                      find_closest_parallel=find_closest_parallel)
+                       maprange, wavelet, dWx)
 
     if transform == 'cwt':
         scales, cwt_scaletype, _, nv = process_scales(scales, N, get_params=True)
@@ -218,30 +188,27 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
             dt, na, N, transform, ssq_scaletype, maprange,
             wavelet, scales, padtype)
     else:
-        ssq_scaletype = infer_scaletype(ssq_freqs)
+        ssq_scaletype, _ = infer_scaletype(ssq_freqs)
 
     # transform `Wx` if needed
     if isinstance(squeezing, FunctionType):
         Wx = squeezing(Wx)
     elif squeezing == 'lebesgue':  # from reference [3]
-        Wx = np.ones(Wx.shape) / len(Wx)
+        Wx = S.ones(Wx.shape, dtype=Wx.dtype) / len(Wx)
     elif squeezing == 'abs':
-        Wx = np.abs(Wx)
+        Wx = Q.abs(Wx)
 
-    if nv is not None:
-        nv = _process_params_dtype(nv, dtype=Wx.dtype)
-
-    args = (nv, ssq_freqs, scales, transform, ssq_scaletype, cwt_scaletype)
-    fn = _ssqueeze0 if s == 0 else _ssqueeze1
+    # synchrosqueeze
+    Tx = S.zeros(Wx.shape, dtype=Wx.dtype)
+    args = (nv, ssq_freqs, scales, transform, ssq_scaletype,
+            cwt_scaletype, flipud, gamma, dWx)
     if Wx.ndim == 2:
-        Tx, k = fn(w, Wx, *args)
+        _ssqueeze(Tx, w, Wx, *args)
     elif Wx.ndim == 3:
-        Tx = []
-        for _w, _Wx in zip(w, Wx):
-            Tx.append(fn(_w, _Wx, *args))  # TODO fill arr instead?
-        Tx = np.vstack([Tx])
+        for _Tx, _w, _Wx in zip(w, Wx):
+            _ssqueeze(_Tx, _w, _Wx, *args)
 
-    return Tx, k, ssq_freqs
+    return Tx, ssq_freqs
 
 
 def _ssq_freqrange(maprange, dt, N, wavelet, scales, padtype):
@@ -282,7 +249,7 @@ def _compute_associated_frequencies(dt, na, N, transform, ssq_scaletype,
 
             # here we don't know what the pre-downsampled `len(scales)` was,
             # so we take a longer route by piecewising respective center freqs
-            t1 = np.arange(0, na - idx - 1) /(na - 1)
+            t1 = np.arange(0,  na - idx - 1)/(na - 1)
             t2 = np.arange(na - idx - 1, na)/(na - 1)
             # simulates effect of "endpoint" since we'd need to know `f2`
             # with `endpoint=False`
@@ -290,8 +257,7 @@ def _compute_associated_frequencies(dt, na, N, transform, ssq_scaletype,
 
             sqf1 = _exp_fm(t1, f0, f1)[:-1]
             sqf2 = _exp_fm(t2, f1, f2)
-            ssq_freqs = np.hstack([sqf1, sqf2]).astype(np.float64)  # TODO
-            # ssq_freqs = np.hstack([sqf1, sqf2]).astype(scales.dtype)
+            ssq_freqs = np.hstack([sqf1, sqf2])
             ssq_idx = logscale_transition_idx(ssq_freqs)
             assert (na - ssq_idx) == idx, "{} != {}".format(na - ssq_idx, idx)
 

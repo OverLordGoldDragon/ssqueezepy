@@ -8,6 +8,10 @@ see method/object docstrings via e.g. `help(cwt)`, `help(wavelet)`. Other README
  - Testing suite: https://overlordgolddragon.github.io/test-signals/
 
 
+## Reading `ssqueezing` code
+
+Recommended to read `v0.6.0` code as it is lot simpler while accomplishing same (except much slower).
+
 ## Selecting `scales` (CWT)
 
 We can set below values to configure `scales`; see `examples/scales_selection.py`.

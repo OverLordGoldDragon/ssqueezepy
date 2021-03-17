@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-import os
 import numpy as np
 import pyfftw
 import multiprocessing
@@ -7,13 +6,14 @@ from scipy.fft import fftshift, ifftshift
 from scipy.fft import fft as sfft, rfft as srfft, ifft as sifft, irfft as sirfft
 from pathlib import Path
 from .common import assert_is_one_of
+from .backend import asarray
+from ..configs import USE_GPU
 
 try:
-    import torch
     from torch.fft import (fft as tfft, rfft as trfft,
                            ifft as tifft, irfft as tirfft)
 except ImportError:
-    torch = None
+    pass
 
 pyfftw.interfaces.cache.enable()
 pyfftw.interfaces.cache.set_keepalive_time(600)
@@ -30,13 +30,6 @@ __all__ = [
     'FFT',
     'FFT_GLOBAL',
 ]
-
-def USE_GPU():
-    if os.environ.get('SSQ_GPU', '0') == '1':
-        if torch is None:
-            raise ImportError("'SSQ_GPU' requires PyTorch installed.")
-        return True
-    return False
 
 #############################################################################
 
@@ -70,6 +63,10 @@ class FFT():
             Set `planning_timelimit = None` to allow planning to finish,
             but beware; `patience = 1` can take hours for large inputs, and `2`
             even longer.
+
+        keeptensor: bool (default False)
+            If computing on GPU, whether to return as `torch.Tensor` (if False,
+            will move to CPU and convert to `numpy.ndarray`).
 
         n: int / None
             Only for `irfft`; length of original input. If None, will default to
@@ -143,9 +140,9 @@ class FFT():
             self._patience = value
 
     #### Main methods #########################################################
-    def fft(self, x, axis=-1, patience=None):
+    def fft(self, x, axis=-1, patience=None, keeptensor=False):
         """See `help(ssqueezepy.utils.FFT)`."""
-        out = self._maybe_gpu('fft', x, dim=axis)
+        out = self._maybe_gpu('fft', x, dim=axis, keeptensor=keeptensor)
         if out is not None:
             return out
 
@@ -156,9 +153,9 @@ class FFT():
         fft_object = self._get_save_fill(x, axis, patience, real=False)
         return fft_object()
 
-    def rfft(self, x, axis=-1, patience=None):
+    def rfft(self, x, axis=-1, patience=None, keeptensor=False):
         """See `help(ssqueezepy.utils.FFT)`."""
-        out = self._maybe_gpu('rfft', x, dim=axis)
+        out = self._maybe_gpu('rfft', x, dim=axis, keeptensor=keeptensor)
         if out is not None:
             return out
 
@@ -169,9 +166,9 @@ class FFT():
         fft_object = self._get_save_fill(x, axis, patience, real=True)
         return fft_object()
 
-    def ifft(self, x, axis=-1, patience=None):
+    def ifft(self, x, axis=-1, patience=None, keeptensor=False):
         """See `help(ssqueezepy.utils.FFT)`."""
-        out = self._maybe_gpu('ifft', x, dim=axis)
+        out = self._maybe_gpu('ifft', x, dim=axis, keeptensor=keeptensor)
         if out is not None:
             return out
 
@@ -183,9 +180,9 @@ class FFT():
                                          inverse=True)
         return fft_object()
 
-    def irfft(self, x, axis=-1, patience=None, n=None):
+    def irfft(self, x, axis=-1, patience=None, keeptensor=False, n=None):
         """See `help(ssqueezepy.utils.FFT)`."""
-        out = self._maybe_gpu('irfft', x, dim=axis, n=n)
+        out = self._maybe_gpu('irfft', x, dim=axis, keeptensor=keeptensor, n=n)
         if out is not None:
             return out
 
@@ -197,14 +194,12 @@ class FFT():
                                          inverse=True, n=n)
         return fft_object()
 
-    def _maybe_gpu(self, name, x, **kw):
+    def _maybe_gpu(self, name, x, keeptensor=False, **kw):
         if USE_GPU():
             fn = {'fft': tfft, 'ifft': tifft,
                   'rfft': trfft, 'irfft': tirfft}[name]
-            try:
-                return fn(torch.from_numpy(x).cuda(), **kw).cpu().numpy()
-            finally:
-                torch.cuda.empty_cache()  # free GPU memory
+            out = fn(asarray(x), **kw)
+            return out if keeptensor else out.cpu().numpy()
         return None
 
     #### FFT makers ###########################################################
@@ -285,8 +280,6 @@ class FFT():
             fft_out_len = n_fft
 
         if x.ndim != 1:
-            # shape = ((fft_out_len, x.shape[1]) if axis == 0 else
-            #          (x.shape[0], fft_out_len))
             shape = list(x.shape)
             shape[axis] = fft_out_len
             shape = tuple(shape)

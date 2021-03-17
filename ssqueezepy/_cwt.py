@@ -3,13 +3,22 @@ import numpy as np
 from .utils import fft, ifft, ifftshift, FFT_GLOBAL
 from .utils import WARN, adm_cwt, adm_ssq, _process_fs_and_t
 from .utils import padsignal, process_scales, logscale_transition_idx
+from .utils import backend as S
+from .utils.backend import Q
 from .algos import replace_at_inf_or_nan
 from .wavelets import Wavelet
+
+# TODO `Wavelet`:
+#  - `compute_dtype` & `storage_dtype`? Allows L2 GMW
+#  - `_xi_gpu`
+# TODO `w_negs` -> `w_nonneg`
+# TODO fft: `keep_tensor`
 
 
 def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
         l1_norm=True, derivative=False, padtype='reflect', rpadded=False,
-        vectorized=True, order=0, average=None, patience=0):  # TODO docs
+        vectorized=True, cache_wavelet=True, order=0, average=None,
+        patience=0):  # TODO docs
     """Continuous Wavelet Transform, discretized, as described in
     Sec. 4.3.3 of [1] and Sec. IIIA of [2]. Uses a form of discretized
     convolution theorem via wavelets in the Fourier domain and FFT of input.
@@ -128,21 +137,26 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
         https://github.com/ebrevdo/synchrosqueezing/blob/master/synchrosqueezing/
         cwt_fw.m
     """
-    def _vectorized(xh, scales, wavelet, derivative, is_2D):
+    # TODO cache_wavelet without `wavelet` -> warn
+    def _vectorized(xh, scales, wavelet, derivative, cache_wavelet):
         # TODO Wx *= (pn * xh) benchmark
-        Psih_xh = wavelet.Psih(scale=scales, nohalf=False) * xh
+        # Psih_xh = wavelet.Psih(scale=scales, nohalf=False) * xh
+        if cache_wavelet:
+            Psih_xh = wavelet.Psih(scale=scales, nohalf=False) * xh
+        else:
+            Psih_xh = wavelet(scale=scales, nohalf=False) * xh
 
-        Wx = ifft(Psih_xh, axis=-1)
+        Wx = ifft(Psih_xh, axis=-1, keeptensor=True)
         if derivative:
             Psih_xh *= (1j * wavelet.xi / dt)
-            dWx = ifft(Psih_xh, axis=-1)
+            dWx = ifft(Psih_xh, axis=-1, keeptensor=True)
         return (Wx, dWx) if derivative else (Wx, None)
 
     def _for_loop(xh, scales, wavelet, derivative, is_2D):
-        cdtype = 'complex128' if xh.dtype == np.float64 else 'complex64'
+        cdtype = 'complex128' if S.is_dtype(xh, 'complex128') else 'complex64'
         shape = ((len(scales), len(xh)) if not is_2D else
                  (len(xh), len(scales), len(xh)))
-        Wx = np.zeros(shape, dtype=cdtype)
+        Wx = S.zeros(shape, dtype=cdtype)
         if derivative:
             dWx = Wx.copy()
 
@@ -152,11 +166,11 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
 
             # sample FT of wavelet at scale `a`
             psih = wavelet(scale=scale, nohalf=False)
-            Wx[idx] = ifft(psih * xh, axis=-1)
+            Wx[idx] = ifft(psih * xh, axis=-1, keeptensor=True)
 
             if derivative:
                 dpsih = (1j * wavelet.xi / dt) * psih
-                dWx[idx] = ifft(dpsih * xh, axis=-1)
+                dWx[idx] = ifft(dpsih * xh, axis=-1, keeptensor=True)
         return (Wx, dWx) if derivative else (Wx, None)
 
     def _process_args(x, scales, nv, fs, t):
@@ -171,6 +185,7 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
 
         if isinstance(scales, np.ndarray):
             nv = None
+
         N = x.shape[-1]
         dt, *_ = _process_fs_and_t(fs, t, N=N)
         is_2D = (x.ndim == 2)
@@ -198,12 +213,13 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
     # zero-mean `xp`, take to freq-domain
     x_mean = xp.mean(axis=-1)
     xp -= (x_mean[:, None] if is_2D else x_mean)
-    xh = fft(xp, axis=-1)
+    xh = fft(xp, axis=-1, keeptensor=True)
     if is_2D:
         xh = xh[:, None]  # insert dim1 to broadcast wavelet `scales` along
 
     # process `scales`
-    scales = process_scales(scales, N, wavelet, nv=nv).astype(dtype)
+    scales = process_scales(scales, N, wavelet, nv=nv)
+    scales = S.asarray(scales, dtype)
 
     # temporarily adjust `wavelet.N` & `FFT_GLOBAL.patience`
     wavelet_N_orig = wavelet.N
@@ -212,8 +228,10 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
     FFT_GLOBAL.patience = patience
 
     # take CWT
-    fn = _vectorized if vectorized else _for_loop
-    Wx, dWx = fn(xh, scales, wavelet, derivative, is_2D)
+    if vectorized:
+        Wx, dWx = _vectorized(xh, scales, wavelet, derivative, cache_wavelet)
+    else:
+        Wx, dWx = _for_loop(xh, scales, wavelet, derivative, is_2D)
 
     # restore
     wavelet.N = wavelet_N_orig
@@ -228,11 +246,15 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
         Wx = Wx[idx]
         if derivative:
             dWx = dWx[idx]
+        if S.is_tensor(Wx):
+            # ensure indexing (strides) is same, else cupy will mess up
+            Wx, dWx = Wx.contiguous(), dWx.contiguous()
+            print("GOTHERE")
     if not l1_norm:
         # normalize energy per L2 wavelet norm, else already L1-normalized
-        Wx *= np.sqrt(scales)
+        Wx *= Q.sqrt(scales)  # TODO this'll botch dtype
         if derivative:
-            dWx *= np.sqrt(scales)
+            dWx *= Q.sqrt(scales)
 
     return ((Wx, scales, dWx) if derivative else
             (Wx, scales))

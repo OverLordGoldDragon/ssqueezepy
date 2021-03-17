@@ -8,7 +8,7 @@ from .ssqueezing import ssqueeze, _check_ssqueezing_args
 
 def ssq_stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=None, t=None,
              modulated=True, ssq_freqs=None, padtype='reflect', squeezing='sum',
-             gamma=None, preserve_transform=True):
+             gamma=None, preserve_transform=True, s=0): # TODO
     """Synchrosqueezed Short-Time Fourier Transform.
     Implements the algorithm described in Sec. III of [1].
 
@@ -57,7 +57,6 @@ def ssq_stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=None, t=Non
         https://arxiv.org/abs/1006.2533
     """
     _, fs, _ = _process_fs_and_t(fs, t, len(x))
-    n_fft = n_fft or len(x)
     _check_ssqueezing_args(squeezing)
 
     Sx, dSx = stft(x, window, n_fft=n_fft, win_len=win_len, hop_len=hop_len,
@@ -70,7 +69,7 @@ def ssq_stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=None, t=Non
     if ssq_freqs is None:
         ssq_freqs = Sfs
     Tx, ssq_freqs = ssqueeze(_Sx, w, transform='stft', squeezing=squeezing,
-                             ssq_freqs=ssq_freqs)
+                             ssq_freqs=ssq_freqs, s=s)
 
     return Tx, Sx, ssq_freqs, Sfs, w, dSx
 
