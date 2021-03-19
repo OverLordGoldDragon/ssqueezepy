@@ -10,13 +10,14 @@ import pytest
 import numpy as np
 import torch
 from scipy.fft import fft as sfft, rfft as srfft, ifft as sifft, irfft as sirfft
+from scipy.fft import ifftshift
 
 import ssqueezepy
 from ssqueezepy import fft, rfft, ifft, irfft, cwt, extract_ridges
-from ssqueezepy.algos import indexed_sum, indexed_sum_onfly
+from ssqueezepy.algos import indexed_sum, indexed_sum_onfly, ssqueeze_cwt
 from ssqueezepy.configs import gdefaults
 from ssqueezepy import TestSignals, Wavelet
-from ssqueezepy.utils import process_scales
+from ssqueezepy.utils import process_scales, buffer
 
 # no visuals here but 1 runs as regular script instead of pytest, for debugging
 VIZ = 1
@@ -204,14 +205,15 @@ def _make_ssq_freqs(M, scaletype):
 
 
 def test_indexed_sum_onfly():
-    for scaletype in ('log-piecewise', 'log', 'linear'):
-      for dtype in ('float32', 'float64'):
-        for flipud in (False, True):
-          Wx = np.random.randn(100, 2000).astype(dtype) * (1 + 2j)
-          w  = np.abs(np.random.randn(*Wx.shape).astype(dtype))
-          w *= (2*len(Wx) / w.max())
+    for dtype in ('float32', 'float64'):
+      Wx = np.random.randn(100, 2000).astype(dtype) * (1 + 2j)
+      w  = np.abs(np.random.randn(*Wx.shape).astype(dtype))
+      w *= (2*len(Wx) / w.max())
+      if CAN_GPU:
           Wxt, wt = [torch.tensor(g, device='cuda') for g in (Wx, w)]
 
+      for scaletype in ('log-piecewise', 'log', 'linear'):
+        for flipud in (False, True):
           ssq_freqs = _make_ssq_freqs(len(Wx), scaletype)
           ssq_logscale = scaletype.startswith('log')
           const = (np.log(2) / 32 if 1 else
@@ -221,17 +223,116 @@ def test_indexed_sum_onfly():
                                    parallel=False, gpu=False, flipud=flipud)
           out1 = indexed_sum_onfly(Wx, w, ssq_freqs, const, ssq_logscale,
                                    parallel=True,  gpu=False, flipud=flipud)
-          out2 = indexed_sum_onfly(Wxt, wt, ssq_freqs, const, ssq_logscale,
-                                   parallel=False, gpu=True,  flipud=flipud)
-          out2 = out2.cpu().numpy()
+          if CAN_GPU:
+              out2 = indexed_sum_onfly(Wxt, wt, ssq_freqs, const, ssq_logscale,
+                                       parallel=False, gpu=True,  flipud=flipud
+                                       ).cpu().numpy()
 
           adiff01 = np.abs(out0 - out1).mean()
-          adiff02 = np.abs(out0 - out2).mean()
+          if CAN_GPU:
+              adiff02 = np.abs(out0 - out2).mean()
           # this is due to `const` varying rather than 'linear'
           th = ((1e-16 if dtype == 'float64' else 1e-8) if ssq_logscale else
                 (1e-13 if dtype == 'float64' else 1e-5))
           assert adiff01 < th, (scaletype, dtype, flipud, adiff01)
-          assert adiff02 < th, (scaletype, dtype, flipud, adiff02)
+          if CAN_GPU:
+              assert adiff02 < th, (scaletype, dtype, flipud, adiff02)
+
+
+def test_ssqueeze_cwt():
+    for dtype in ('float32', 'float64'):
+      Wx  = np.random.randn(100, 2000).astype(dtype) * (1 + 2j)
+      dWx = np.random.randn(100, 2000).astype(dtype) * (2 - 1j)
+      if CAN_GPU:
+          Wxt, dWxt = [torch.tensor(g, device='cuda') for g in (Wx, dWx)]
+
+      for scaletype in ('log-piecewise', 'log', 'linear'):
+        for flipud in (False, True):
+          ssq_freqs = _make_ssq_freqs(len(Wx), scaletype)
+          ssq_logscale = scaletype.startswith('log')
+          const = (np.log(2) / 32 if 1 else
+                   ssq_freqs)
+          gamma = 1e-2
+
+          args = (ssq_freqs, const, ssq_logscale)
+          kw = dict(flipud=flipud, gamma=gamma)
+          out0 = ssqueeze_cwt(Wx, dWx, *args, **kw, parallel=False, gpu=False)
+          out1 = ssqueeze_cwt(Wx, dWx, *args, **kw, parallel=True,  gpu=False)
+          if CAN_GPU:
+              out2 = ssqueeze_cwt(Wxt, dWxt, *args, **kw,
+                                  parallel=False, gpu=True).cpu().numpy()
+
+          adiff01 = np.abs(out0 - out1).mean()
+          if CAN_GPU:
+              adiff02 = np.abs(out0 - out2).mean()
+          # this is due to `const` varying rather than 'linear'
+          th = ((1e-16 if dtype == 'float64' else 1e-8) if ssq_logscale else
+                (1e-13 if dtype == 'float64' else 1e-5))
+          assert adiff01 < th, (scaletype, dtype, flipud, adiff01)
+          if CAN_GPU:
+              assert adiff02 < th, (scaletype, dtype, flipud, adiff02)
+
+
+# TODO isinstance(, None) -> err
+def test_ssqueeze_vs_indexed_sum():
+    """Computing `Tx` in one loop vs. first computing `w` then summing."""
+    for dtype in ('float32', 'float64'):
+      Wx  = np.random.randn(100, 2000).astype(dtype) * (1 + 2j)
+      dWx = np.random.randn(100, 2000).astype(dtype) * (2 - 1j)
+      w = np.abs((dWx / Wx).imag / (2*np.pi))
+      gamma = 1e-2
+      w[np.abs(Wx) < gamma] = np.inf
+
+      for scaletype in ('log-piecewise', 'log', 'linear'):
+        for flipud in (False, True):
+          ssq_freqs = _make_ssq_freqs(len(Wx), scaletype)
+          ssq_logscale = scaletype.startswith('log')
+          const = (np.log(2) / 32 if 1 else
+                   ssq_freqs)
+
+          args = (ssq_freqs, const, ssq_logscale)
+          kw = dict(parallel=False, gpu=False, flipud=flipud)
+          out0 = indexed_sum_onfly(Wx, w, *args, **kw)
+          out1 = ssqueeze_cwt(Wx, dWx, *args, **kw, gamma=gamma)
+
+          adiff01 = np.abs(out0 - out1).mean()
+          # this is due to `const` varying rather than 'linear'
+          th = ((1e-16 if dtype == 'float64' else 1e-8) if ssq_logscale else
+                (1e-13 if dtype == 'float64' else 1e-5))
+          assert adiff01 < th, (scaletype, dtype, flipud, adiff01)
+
+
+def test_buffer():
+    """Test that CPU & GPU outputs match for `modulated=True` & `=False`,
+    and that `modulated=True` matches `ifftshift(buffer(modulated=False))`.
+    """
+    N = 128
+    tsigs = TestSignals(N=N)
+
+    for dtype in ('float64', 'float32'):
+      x = tsigs.cosine()[0].astype(dtype)
+      xt = torch.as_tensor(x, device='cuda') if CAN_GPU else 0
+      for modulated in (False, True):
+        for seg_len in (N//2, N//2 - 1):
+          for n_overlap in (N//2 - 1, N//2 - 2, N//2 - 3):
+            if seg_len == n_overlap:
+              continue
+
+            out0 = buffer(x, seg_len, n_overlap, modulated, gpu=False)
+            if modulated:
+                out00 = buffer(x, seg_len, n_overlap, modulated=False, gpu=False)
+                out00 = ifftshift(out00, axes=0)
+            if CAN_GPU:
+                out1 = buffer(xt, seg_len, n_overlap, modulated, gpu=True
+                              ).cpu().numpy()
+
+            assert_params = (dtype, modulated, seg_len, n_overlap)
+            if modulated:
+                adiff000 = np.abs(out0 - out00).mean()
+                assert adiff000 == 0, (*assert_params, adiff000)
+            if CAN_GPU:
+                adiff01 = np.abs(out0 - out1).mean()
+                assert adiff01 == 0, (*assert_params, adiff01)
 
 
 if __name__ == '__main__':
@@ -244,5 +345,8 @@ if __name__ == '__main__':
         test_phase_cwt()
         test_replace_under_abs()
         test_indexed_sum_onfly()
+        test_ssqueeze_cwt()
+        test_ssqueeze_vs_indexed_sum()
+        test_buffer()
     else:
         pytest.main([__file__, "-s"])

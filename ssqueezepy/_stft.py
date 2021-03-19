@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 import scipy.signal as sig
-from scipy.fft import fft, ifft, rfft, irfft, fftshift, ifftshift
 from .utils import WARN, padsignal, buffer, unbuffer, window_norm
 from .utils import _process_fs_and_t
+from .utils.fft_utils import fft, ifft, rfft, irfft, fftshift, ifftshift
+from .utils.backend import torch
 from .wavelets import _xifn, _process_params_dtype
+from .configs import USE_GPU
 
-# TODO float32
 
 def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=None, t=None,
          padtype='reflect', modulated=True, derivative=False, dtype=None):
@@ -103,23 +104,24 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=None, t=None,
         https://arxiv.org/abs/1006.2533
     """
     def _stft(xp, window, diff_window, n_fft, hop_len, fs, modulated, derivative):
-        Sx  = buffer(xp, n_fft, n_fft - hop_len)
-        dSx = Sx.copy()
-        Sx  *= window.reshape(-1, 1)
-        dSx *= diff_window.reshape(-1, 1)
-
+        Sx = buffer(xp, n_fft, n_fft - hop_len, modulated, USE_GPU())
+        if derivative:
+            dSx = Sx.copy() if not USE_GPU() else Sx.detach().clone()
         if modulated:
-            # TODO this can be made more efficient; buffer(modulated=True)
-            # shift windowed slices so they're always DFT-centered (about n=0),
-            # thus shifting bases (cisoids) along the window: e^(-j*(w - u))
-            Sx = ifftshift(Sx, axes=0)
-            if derivative:
-                dSx = ifftshift(dSx, axes=0)
+            window, diff_window = [ifftshift(g, axes=0, astensor=True)
+                                   for g in (window, diff_window)]
+        Sx *= window.reshape(-1, 1)
+        if derivative:
+            dSx *= diff_window.reshape(-1, 1)
+
+        # TODO move docs elsewhere
+        # shift windowed slices so they're always DFT-centered (about n=0),
+        # thus shifting bases (cisoids) along the window: e^(-j*(w - u))
 
         # keep only positive frequencies (Hermitian symmetry assuming real `x`)
-        Sx = rfft(Sx, axis=0)
+        Sx = rfft(Sx, axis=0, astensor=True)
         if derivative:
-            dSx = rfft(dSx, axis=0) * fs
+            dSx = rfft(dSx, axis=0, astensor=True) * fs
         return (Sx, dSx) if derivative else (Sx, None)
 
     _, fs, _ = _process_fs_and_t(fs, t, len(x))
@@ -130,12 +132,16 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=None, t=None,
                    n_fft)
     window, diff_window = get_window(window, win_len, n_fft, derivative=True)
     _check_NOLA(window, hop_len)
-    # x, window, diff_window = _process_params_dtype(x, window, diff_window,
-    #                                                dtype=dtype)
+
+    x, window, diff_window = _process_params_dtype(x, window, diff_window,
+                                                   dtype=dtype, auto_gpu=False)
 
     padlength = len(x) + n_fft - 1  # pad `x` to length `padlength`
     xp = padsignal(x, padtype, padlength=padlength)
 
+    if USE_GPU():
+        xp, window, diff_window = [torch.as_tensor(g, device='cuda') for g in
+                                   (xp, window, diff_window)]
     Sx, dSx = _stft(xp, window, diff_window, n_fft, hop_len, fs, modulated,
                     derivative)
 

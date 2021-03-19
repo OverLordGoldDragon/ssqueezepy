@@ -2,9 +2,8 @@
 import numpy as np
 from numba import jit, prange
 from functools import reduce
-from collections import namedtuple
-from string import Template
 from .utils.backend import asnumpy, cp, torch
+from .utils.gpu_utils import _run_on_gpu, _get_kernel_params
 from .utils import backend as S
 
 
@@ -40,32 +39,37 @@ def _indexed_sum_par(a, k, out):
     return out
 
 
-def _process_ssq_params(Wx, w_or_dWx, ssq_freqs, const, logscale, gamma,
-                        parallel, flipud, out, complex_out):
+def _process_ssq_params(Wx, w_or_dWx, ssq_freqs, const, logscale, parallel,
+                        flipud, out, gamma, complex_out):
     gpu = S.is_tensor(Wx)
 
     # process `Wx`, `w_or_dWx`, `out`
     if out is None:
-        out_shape = (*Wx.shape, 2) if complex_out else Wx.shape
+        out_shape = (*Wx.shape, 2) if (gpu and complex_out) else Wx.shape
         if gpu:
-            out = torch.zeros(out_shape, dtype=Wx.dtype, device=Wx.device)
+            out_dtype = (torch.float32 if Wx.dtype == torch.complex64 else
+                         torch.float64)
+            out = torch.zeros(out_shape, dtype=out_dtype, device=Wx.device)
         else:
             out = np.zeros(out_shape, dtype=Wx.dtype)
-    elif complex_out:
+    elif complex_out and gpu:
         out = torch.view_as_real(out)
     if gpu:
         Wx = torch.view_as_real(Wx)
-        w_or_dWx = torch.view_as_real(w_or_dWx)
+        if 'complex' in str(w_or_dWx.dtype):
+            w_or_dWx = torch.view_as_real(w_or_dWx)
 
     # process `const`
     if not isinstance(const, (np.ndarray, torch.Tensor)) or len(const) != len(Wx):
         if gpu:
             const_arr = torch.tensor(len(Wx) * [const], dtype=Wx.dtype,
-                                     device=Wx.dtype)
+                                     device=Wx.device)
         else:
             const_arr = np.array(len(Wx) * [const])
     elif gpu and isinstance(const, np.ndarray):
         const_arr = torch.as_tensor(const, dtype=Wx.dtype, device=Wx.device)
+    else:
+        const_arr = const
     const_arr = const_arr.squeeze()
 
     # process other constants
@@ -89,17 +93,71 @@ def _process_ssq_params(Wx, w_or_dWx, ssq_freqs, const, logscale, gamma,
                        const_arr.data_ptr(), *list(params.values())]
         if gamma is not None:
             kernel_args.insert(4, cp.asarray(gamma, dtype=str_dtype))
+
+        ssq_scaletype = (('log_piecewise' if 'idx1' in params else 'log')
+                         if logscale else 'lin')
     else:
+        # cpu function params
         params.update(dict(const=const_arr, flipud=flipud, omax=len(out) - 1))
+        if gamma is not None:
+            params['gamma'] = gamma
+        fn_name_suffix = (('log_piecewise' if 'idx1' in params else 'log')
+                          if logscale else 'lin')
+        fn_name_suffix += '_par' if parallel else ''
 
     if gpu:
-        return Wx, w_or_dWx, out, kernel_args, kernel_kw
+        args = (blockspergrid, threadsperblock, *kernel_args)
+        return (out, params, args, kernel_kw, ssq_scaletype)
+    return (Wx, w_or_dWx, out, params, fn_name_suffix)
+
+
+def ssqueeze_cwt(Wx, dWx, ssq_freqs, const, logscale=False, parallel=None,
+                 gpu=None, flipud=False, gamma=None, out=None):
+    if gpu and parallel:
+        WARN("`gpu` overrides `parallel`.")
+        parallel = False
+
+    outs = _process_ssq_params(Wx, dWx, ssq_freqs, const, logscale, parallel,
+                               flipud, out, gamma, complex_out=True)
+    if gpu:
+        out, params, args, kernel_kw, ssq_scaletype = outs
+        kernel = _kernel_codes[f'ssq_cwt_{ssq_scaletype}']
+        _run_on_gpu(kernel, *args, **kernel_kw)
+        out = torch.view_as_complex(out)
     else:
-        return Wx, w_or_dWx, out, params
+        Wx, w, out, params, fn_name_suffix = outs
+        fn = _cpu_fns[f'ssq_cwt_{fn_name_suffix}']
+        fn(Wx, w, out, **params)
+
+    return out
 
 
-def indexed_sum_onfly(Wx, w, v, const=1, logscale=False, parallel=None,
+def indexed_sum_onfly(Wx, w, ssq_freqs, const=1, logscale=False, parallel=None,
                       gpu=None, flipud=False, out=None):
+    """`indexed_sum` and `find_closest` within same loop, sparing an array;
+    see `help(algos.find_closest)` on how `k` is computed.
+    """
+    if gpu and parallel:
+        WARN("`gpu` overrides `parallel`.")
+        parallel = False
+
+    outs = _process_ssq_params(Wx, w, ssq_freqs, const, logscale, parallel,
+                               flipud, out, gamma=None, complex_out=True)
+    if gpu:
+        out, params, args, kernel_kw, ssq_scaletype = outs
+        kernel = _kernel_codes[f'indexed_sum_{ssq_scaletype}']
+        _run_on_gpu(kernel, *args, **kernel_kw)
+        out = torch.view_as_complex(out)
+    else:
+        Wx, w, out, params, fn_name_suffix = outs
+        fn = _cpu_fns[f'indexed_sum_{fn_name_suffix}']
+        fn(Wx, w, out, **params)
+
+    return out
+
+
+def _indexed_sum_onfly(Wx, w, v, const=1, logscale=False, parallel=None,
+                       gpu=None, flipud=False, out=None):
     """`indexed_sum` and `find_closest` within same loop, sparing an array;
     see `help(algos.find_closest)` on how `k` is computed.
     """
@@ -148,7 +206,7 @@ def _indexed_sum_log(Wx, w, out, const, vlmin, dvl, omax, flipud=False):
         for j in range(Wx.shape[1]):
             if np.isinf(w[i, j]):
                 continue
-            k = int(min(round(max((np.log2(w[i, j]) - vlmin) / dvl, 0)), omax))
+            k = min(round(max((np.log2(w[i, j]) - vlmin) / dvl, 0)), omax)
             if flipud:
                 k = omax - k
             out[k, j] += Wx[i, j] * const[i]
@@ -159,7 +217,7 @@ def _indexed_sum_log_par(Wx, w, out, const, vlmin, dvl, omax, flipud=False):
         for i in range(Wx.shape[0]):
             if np.isinf(w[i, j]):
                 continue
-            k = int(min(round(max((np.log2(w[i, j]) - vlmin) / dvl, 0)), omax))
+            k = min(round(max((np.log2(w[i, j]) - vlmin) / dvl, 0)), omax)
             if flipud:
                 k = omax - k
             out[k, j] += Wx[i, j] * const[i]
@@ -958,32 +1016,6 @@ def phase_cwt_gpu(Wx, dWx, gamma):
 
 
 #### gpu utils ###############################################################
-@cp._util.memoize(for_each_device=True)
-def load_kernel(kernel_name, code, **kwargs):
-    code = Template(code).substitute(**kwargs)
-    kernel_code = cp.cuda.compile_with_cache(code)
-    return kernel_code.get_function(kernel_name)
-
-
-def _get_kernel_params(x, dim=2, threadsperblock=None):
-    M, N = x.shape
-
-    if dim == 1:
-        threadsperblock = threadsperblock or (1024,)
-        blockspergrid = (int(np.ceil(M * N / threadsperblock[0])),)  # TODO M * N?
-    elif dim == 2:
-        threadsperblock = threadsperblock or (32, 32)
-        blockspergrid_x = int(np.ceil(M / threadsperblock[0]))
-        blockspergrid_y = int(np.ceil(N / threadsperblock[1]))
-        blockspergrid = (blockspergrid_x, blockspergrid_y)
-
-    dtype = ('double' if x.dtype in (torch.float64, torch.complex128) else
-             'float')
-    kernel_kw = dict(dtype=dtype, M=M, N=N)
-    str_dtype = 'float32' if dtype == 'float' else 'float64'
-    return blockspergrid, threadsperblock, kernel_kw, str_dtype
-
-
 def _gpu_run_indexed_sum(kernel, Wx, w, out, const, *more_consts, flipud=False):
     blockspergrid, threadsperblock, kernel_kw, _ = _get_kernel_params(Wx, dim=1)
     M = kernel_kw['M']
@@ -1006,6 +1038,106 @@ def _gpu_run_indexed_sum(kernel, Wx, w, out, const, *more_consts, flipud=False):
 
     out = torch.view_as_complex(out)
     return out
+
+
+# TODO _cpu_fns
+@jit(nopython=True, cache=True)
+def _ssq_cwt_log_piecewise(Wx, dWx, out, const, gamma, vlmin0, vlmin1,
+                           dvl0, dvl1, idx1, omax, flipud=False):
+    for i in range(Wx.shape[0]):
+        for j in range(Wx.shape[1]):
+            if abs(Wx[i, j]) > gamma:
+                A, B = dWx[i, j].real, dWx[i, j].imag
+                C, D = Wx[i, j].real,  Wx[i, j].imag
+                w_ij = abs((B*C - A*D) / ((C**2 + D**2) * 6.283185307179586))
+
+                wl = np.log2(w_ij)
+                if wl > vlmin1:
+                    k = min(round((wl - vlmin1) / dvl1) + idx1, omax)
+                else:
+                    k = max(round((wl - vlmin0) / dvl0), 0)
+                if flipud:
+                    k = omax - k
+
+                out[k, j] += Wx[i, j] * const[i]
+
+@jit(nopython=True, cache=True, parallel=True)
+def _ssq_cwt_log_piecewise_par(Wx, dWx, out, const, gamma, vlmin0, vlmin1,
+                               dvl0, dvl1, idx1, omax, flipud=False):
+    for j in prange(Wx.shape[1]):
+        for i in range(Wx.shape[0]):
+            if abs(Wx[i, j]) > gamma:
+                A, B = dWx[i, j].real, dWx[i, j].imag
+                C, D = Wx[i, j].real,  Wx[i, j].imag
+                w_ij = abs((B*C - A*D) / ((C**2 + D**2) * 6.283185307179586))
+
+                wl = np.log2(w_ij)
+                if wl > vlmin1:
+                    k = min(round((wl - vlmin1) / dvl1) + idx1, omax)
+                else:
+                    k = max(round((wl - vlmin0) / dvl0), 0)
+                if flipud:
+                    k = omax - k
+
+                out[k, j] += Wx[i, j] * const[i]
+
+
+@jit(nopython=True, cache=True)
+def _ssq_cwt_log(Wx, dWx, out, const, gamma, vlmin, dvl, omax, flipud=False):
+    for i in range(Wx.shape[0]):
+        for j in range(Wx.shape[1]):
+            if abs(Wx[i, j]) > gamma:
+                A, B = dWx[i, j].real, dWx[i, j].imag
+                C, D = Wx[i, j].real,  Wx[i, j].imag
+                w_ij = abs((B*C - A*D) / ((C**2 + D**2) * 6.283185307179586))
+
+                k = int(min(round(max((np.log2(w_ij) - vlmin) / dvl, 0)), omax))
+                if flipud:
+                    k = omax - k
+                out[k, j] += Wx[i, j] * const[i]
+
+@jit(nopython=True, cache=True, parallel=True)
+def _ssq_cwt_log_par(Wx, dWx, out, const, gamma, vlmin, dvl, omax, flipud=False):
+    for j in prange(Wx.shape[1]):
+        for i in range(Wx.shape[0]):
+            if abs(Wx[i, j]) > gamma:
+                A, B = dWx[i, j].real, dWx[i, j].imag
+                C, D = Wx[i, j].real,  Wx[i, j].imag
+                w_ij = abs((B*C - A*D) / ((C**2 + D**2) * 6.283185307179586))
+
+                k = int(min(round(max((np.log2(w_ij) - vlmin) / dvl, 0)), omax))
+                if flipud:
+                    k = omax - k
+                out[k, j] += Wx[i, j] * const[i]
+
+
+@jit(nopython=True, cache=True)
+def _ssq_cwt_lin(Wx, dWx, out, const, gamma, vmin, dv, omax, flipud=False):
+    for i in range(Wx.shape[0]):
+        for j in range(Wx.shape[1]):
+            if abs(Wx[i, j]) > gamma:
+                A, B = dWx[i, j].real, dWx[i, j].imag
+                C, D = Wx[i, j].real,  Wx[i, j].imag
+                w_ij = abs((B*C - A*D) / ((C**2 + D**2) * 6.283185307179586))
+
+                k = int(min(round(max((w_ij - vmin) / dv, 0)), omax))
+                if flipud:
+                    k = omax - k
+                out[k, j] += Wx[i, j] * const[i]
+
+@jit(nopython=True, cache=True, parallel=True)
+def _ssq_cwt_lin_par(Wx, dWx, out, const, gamma, vmin, dv, omax, flipud=False):
+    for j in prange(Wx.shape[1]):
+        for i in range(Wx.shape[0]):
+            if abs(Wx[i, j]) > gamma:
+                A, B = dWx[i, j].real, dWx[i, j].imag
+                C, D = Wx[i, j].real,  Wx[i, j].imag
+                w_ij = abs((B*C - A*D) / ((C**2 + D**2) * 6.283185307179586))
+
+                k = int(min(round(max((w_ij - vmin) / dv, 0)), omax))
+                if flipud:
+                    k = omax - k
+                out[k, j] += Wx[i, j] * const[i]
 
 
 def _gpu_run_ssq(kernel, Wx, dWx, ssq_freqs, const, gamma, flipud=False,
@@ -1046,14 +1178,22 @@ def _gpu_run_ssq(kernel, Wx, dWx, ssq_freqs, const, gamma, flipud=False,
     return out
 
 
-Stream = namedtuple('Stream', ['ptr'])
+#### CPU funcs & GPU kernel codes ############################################
+_cpu_fns = {
+    'ssq_cwt_log_piecewise':     _ssq_cwt_log_piecewise,
+    'ssq_cwt_log_piecewise_par': _ssq_cwt_log_piecewise_par,
+    'ssq_cwt_log':               _ssq_cwt_log,
+    'ssq_cwt_log_par':           _ssq_cwt_log_par,
+    'ssq_cwt_lin':               _ssq_cwt_lin,
+    'ssq_cwt_lin_par':           _ssq_cwt_lin_par,
 
-def _run_on_gpu(kernel, grid, block, *args, **kwargs):
-    kernel_name = kernel.split('void ')[1].split('(')[0]
-    fn = load_kernel(kernel_name, kernel, **kwargs)
-    fn(grid=grid, block=block, args=args,
-       stream=Stream(ptr=torch.cuda.current_stream().cuda_stream))
-
+    'indexed_sum_log_piecewise':     _indexed_sum_log_piecewise,
+    'indexed_sum_log_piecewise_par': _indexed_sum_log_piecewise_par,
+    'indexed_sum_log':               _indexed_sum_log,
+    'indexed_sum_log_par':           _indexed_sum_log_par,
+    'indexed_sum_lin':               _indexed_sum_lin,
+    'indexed_sum_lin_par':           _indexed_sum_lin_par,
+}
 
 _kernel_codes = dict(
     ssq_cwt_log_piecewise = '''
@@ -1248,7 +1388,6 @@ _kernel_codes = dict(
     }
     ''',
 
-
     indexed_sum_lin = '''
     extern "C" __global__
     void indexed_sum_lin(${dtype} Wx[${M}][${N}][2],
@@ -1304,9 +1443,6 @@ _kernel_codes = dict(
         out[i][j] = abs((B*C - A*D) / ((C*C + D*D) * 6.283185307179586));
     }
     ''',
-
-
-
 )
 
 ###############################################################################

@@ -2,16 +2,17 @@
 import numpy as np
 import pyfftw
 import multiprocessing
-from scipy.fft import fftshift, ifftshift
+from scipy.fft import fftshift as sfftshift, ifftshift as sifftshift
 from scipy.fft import fft as sfft, rfft as srfft, ifft as sifft, irfft as sirfft
 from pathlib import Path
 from .common import assert_is_one_of
-from .backend import asarray
+from . import backend as S
 from ..configs import USE_GPU
 
 try:
     from torch.fft import (fft as tfft, rfft as trfft,
-                           ifft as tifft, irfft as tirfft)
+                           ifft as tifft, irfft as tirfft,
+                           fftshift as tfftshift, ifftshift as tifftshift)
 except ImportError:
     pass
 
@@ -64,7 +65,7 @@ class FFT():
             but beware; `patience = 1` can take hours for large inputs, and `2`
             even longer.
 
-        keeptensor: bool (default False)
+        astensor: bool (default False)
             If computing on GPU, whether to return as `torch.Tensor` (if False,
             will move to CPU and convert to `numpy.ndarray`).
 
@@ -140,9 +141,9 @@ class FFT():
             self._patience = value
 
     #### Main methods #########################################################
-    def fft(self, x, axis=-1, patience=None, keeptensor=False):
+    def fft(self, x, axis=-1, patience=None, astensor=False):
         """See `help(ssqueezepy.utils.FFT)`."""
-        out = self._maybe_gpu('fft', x, dim=axis, keeptensor=keeptensor)
+        out = self._maybe_gpu('fft', x, dim=axis, astensor=astensor)
         if out is not None:
             return out
 
@@ -153,9 +154,9 @@ class FFT():
         fft_object = self._get_save_fill(x, axis, patience, real=False)
         return fft_object()
 
-    def rfft(self, x, axis=-1, patience=None, keeptensor=False):
+    def rfft(self, x, axis=-1, patience=None, astensor=False):
         """See `help(ssqueezepy.utils.FFT)`."""
-        out = self._maybe_gpu('rfft', x, dim=axis, keeptensor=keeptensor)
+        out = self._maybe_gpu('rfft', x, dim=axis, astensor=astensor)
         if out is not None:
             return out
 
@@ -166,9 +167,9 @@ class FFT():
         fft_object = self._get_save_fill(x, axis, patience, real=True)
         return fft_object()
 
-    def ifft(self, x, axis=-1, patience=None, keeptensor=False):
+    def ifft(self, x, axis=-1, patience=None, astensor=False):
         """See `help(ssqueezepy.utils.FFT)`."""
-        out = self._maybe_gpu('ifft', x, dim=axis, keeptensor=keeptensor)
+        out = self._maybe_gpu('ifft', x, dim=axis, astensor=astensor)
         if out is not None:
             return out
 
@@ -180,9 +181,9 @@ class FFT():
                                          inverse=True)
         return fft_object()
 
-    def irfft(self, x, axis=-1, patience=None, keeptensor=False, n=None):
+    def irfft(self, x, axis=-1, patience=None, astensor=False, n=None):
         """See `help(ssqueezepy.utils.FFT)`."""
-        out = self._maybe_gpu('irfft', x, dim=axis, keeptensor=keeptensor, n=n)
+        out = self._maybe_gpu('irfft', x, dim=axis, astensor=astensor, n=n)
         if out is not None:
             return out
 
@@ -194,12 +195,25 @@ class FFT():
                                          inverse=True, n=n)
         return fft_object()
 
-    def _maybe_gpu(self, name, x, keeptensor=False, **kw):
-        if USE_GPU():
+    def fftshift(self, x, axes=-1, astensor=False):
+        out = self._maybe_gpu('fftshift', x, dim=axes, astensor=astensor)
+        if out is not None:
+            return out
+        return sfftshift(x, axes=axes)
+
+    def ifftshift(self, x, axes=-1, astensor=False):
+        out = self._maybe_gpu('ifftshift', x, dim=axes, astensor=astensor)
+        if out is not None:
+            return out
+        return sifftshift(x, axes=axes)
+
+    def _maybe_gpu(self, name, x, astensor=False, **kw):
+        if S.is_tensor(x):
             fn = {'fft': tfft, 'ifft': tifft,
-                  'rfft': trfft, 'irfft': tirfft}[name]
-            out = fn(asarray(x), **kw)
-            return out if keeptensor else out.cpu().numpy()
+                  'rfft': trfft, 'irfft': tirfft,
+                  'fftshift': tfftshift, 'ifftshift': tifftshift}[name]
+            out = fn(S.asarray(x), **kw)
+            return out if astensor else out.cpu().numpy()
         return None
 
     #### FFT makers ###########################################################
@@ -334,3 +348,5 @@ fft   = FFT_GLOBAL.fft
 rfft  = FFT_GLOBAL.rfft
 ifft  = FFT_GLOBAL.ifft
 irfft = FFT_GLOBAL.irfft
+fftshift  = FFT_GLOBAL.fftshift
+ifftshift = FFT_GLOBAL.ifftshift

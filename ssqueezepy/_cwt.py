@@ -11,8 +11,7 @@ from .wavelets import Wavelet
 # TODO `Wavelet`:
 #  - `compute_dtype` & `storage_dtype`? Allows L2 GMW
 #  - `_xi_gpu`
-# TODO `w_negs` -> `w_nonneg`
-# TODO fft: `keep_tensor`
+#  - higher-order
 
 
 def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
@@ -98,6 +97,13 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
             Whether to compute quantities for all scales at once, which is
             faster but uses more memory.
 
+        cache_wavelet: bool (default None) / None
+            If True, will store `wavelet` computations for all `scales` in
+            `wavelet._Psih` (only if `vectorized`).
+                - Defaults to True if `wavelet` is passed that's a `Wavelet`,
+                throws warning if True with non-`Wavelet` `wavelet` and sets self
+                to False (since the array's discarded at `return` anyway).
+
         order: int (default 0) / tuple[int] / range
             > 0 computes `cwt` with higher-order GMWs. If tuple, computes
             `cwt` at each specified order. See `help(_cwt.cwt_higher_order)`.
@@ -110,8 +116,7 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
             CWT of `x`. (rows=scales, cols=timeshifts)
         scales: [na] np.ndarray
             Scales at which CWT was computed.
-        dWx: [na x n] np.ndarray
-            Returned only if `derivative=True`.
+        dWx: [na x n] np.ndarray  (if `derivative=True`)
             Time-derivative of the CWT of `x`, computed via frequency-domain
             differentiation (effectively, derivative of trigonometric
             interpolation; see [4]). Implements as described in Sec IIIB of [2].
@@ -137,19 +142,16 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
         https://github.com/ebrevdo/synchrosqueezing/blob/master/synchrosqueezing/
         cwt_fw.m
     """
-    # TODO cache_wavelet without `wavelet` -> warn
     def _vectorized(xh, scales, wavelet, derivative, cache_wavelet):
-        # TODO Wx *= (pn * xh) benchmark
-        # Psih_xh = wavelet.Psih(scale=scales, nohalf=False) * xh
         if cache_wavelet:
             Psih_xh = wavelet.Psih(scale=scales, nohalf=False) * xh
         else:
             Psih_xh = wavelet(scale=scales, nohalf=False) * xh
 
-        Wx = ifft(Psih_xh, axis=-1, keeptensor=True)
+        Wx = ifft(Psih_xh, axis=-1, astensor=True)
         if derivative:
             Psih_xh *= (1j * wavelet.xi / dt)
-            dWx = ifft(Psih_xh, axis=-1, keeptensor=True)
+            dWx = ifft(Psih_xh, axis=-1, astensor=True)
         return (Wx, dWx) if derivative else (Wx, None)
 
     def _for_loop(xh, scales, wavelet, derivative, is_2D):
@@ -166,14 +168,14 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
 
             # sample FT of wavelet at scale `a`
             psih = wavelet(scale=scale, nohalf=False)
-            Wx[idx] = ifft(psih * xh, axis=-1, keeptensor=True)
+            Wx[idx] = ifft(psih * xh, axis=-1, astensor=True)
 
             if derivative:
                 dpsih = (1j * wavelet.xi / dt) * psih
-                dWx[idx] = ifft(dpsih * xh, axis=-1, keeptensor=True)
+                dWx[idx] = ifft(dpsih * xh, axis=-1, astensor=True)
         return (Wx, dWx) if derivative else (Wx, None)
 
-    def _process_args(x, scales, nv, fs, t):
+    def _process_args(x, scales, nv, fs, t, wavelet, cache_wavelet):
         if not isinstance(x, np.ndarray):
             raise TypeError("`x` must be a numpy array (got %s)" % type(x))
         elif x.ndim not in (1, 2):
@@ -183,13 +185,26 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
             WARN("found NaN or inf values in `x`; will zero")
             replace_at_inf_or_nan(x, replacement=0.)
 
+        if cache_wavelet:
+            if isinstance(wavelet, (str, tuple)):
+                # only check str/tuple since it'll error anyway upon other types
+                WARN("`cache_wavelet=True` requires a `wavelet` that's instance "
+                     "of `Wavelet`; setting to False.")
+                cache_wavelet = False
+            elif not vectorized:
+                WARN("`cache_wavelet=True` requires `vectorized=True`; "
+                     "setting to False.")
+                cache_wavelet = False
+        elif cache_wavelet is None:
+            cache_wavelet = (not isinstance(wavelet, (str, tuple)) and vectorized)
+
         if isinstance(scales, np.ndarray):
             nv = None
 
         N = x.shape[-1]
         dt, *_ = _process_fs_and_t(fs, t, N=N)
         is_2D = (x.ndim == 2)
-        return N, nv, dt, is_2D
+        return N, nv, dt, is_2D, cache_wavelet
 
     if isinstance(order, (tuple, list, range)) or order > 0:
         kw = dict(wavelet=wavelet, scales=scales, fs=fs, t=t, nv=nv,
@@ -197,7 +212,8 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
                   rpadded=rpadded, vectorized=vectorized)
         return cwt_higher_order(x, order=order, average=average, **kw)
 
-    N, nv, dt, is_2D = _process_args(x, scales, nv, fs, t)
+    (N, nv, dt, is_2D, cache_wavelet
+     ) = _process_args(x, scales, nv, fs, t, wavelet, cache_wavelet)
 
     # process `wavelet`, get its `dtype`
     wavelet = _process_gmw_wavelet(wavelet, l1_norm)
@@ -213,7 +229,7 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
     # zero-mean `xp`, take to freq-domain
     x_mean = xp.mean(axis=-1)
     xp -= (x_mean[:, None] if is_2D else x_mean)
-    xh = fft(xp, axis=-1, keeptensor=True)
+    xh = fft(xp, axis=-1, astensor=True)
     if is_2D:
         xh = xh[:, None]  # insert dim1 to broadcast wavelet `scales` along
 
@@ -249,12 +265,11 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
         if S.is_tensor(Wx):
             # ensure indexing (strides) is same, else cupy will mess up
             Wx, dWx = Wx.contiguous(), dWx.contiguous()
-            print("GOTHERE")
     if not l1_norm:
         # normalize energy per L2 wavelet norm, else already L1-normalized
-        Wx *= Q.sqrt(scales)  # TODO this'll botch dtype
+        Wx *= S.astype(Q.sqrt(scales), Wx.dtype)
         if derivative:
-            dWx *= Q.sqrt(scales)
+            dWx *= S.astype(Q.sqrt(scales), Wx.dtype)
 
     return ((Wx, scales, dWx) if derivative else
             (Wx, scales))

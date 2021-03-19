@@ -142,7 +142,9 @@ class Wavelet():
         """
         pN = getattr(self, '_Psih_N', S.array([-1]))
         ps = getattr(self, '_Psih_scale', S.array([-1]))
-        if ((scale is None and N is None) or
+        N_is_None = N is None
+        N = N or self.N
+        if ((scale is None and N_is_None) or
                 (N == pN and (len(scale) == len(ps) and S.allclose(scale, ps)))):
             return self._Psih
 
@@ -391,8 +393,7 @@ class Wavelet():
                 return getattr(Q, dtype)
         elif not isinstance(dtype, (type, np.dtype, torch.dtype)):
             raise TypeError("`dtype` must be string or type (np./torch.dtype)")
-        else:
-            return dtype if not as_str else str(dtype).split('.')[-1]
+        return dtype if not as_str else str(dtype).split('.')[-1]
 
     #### Init ################################################################
     @classmethod
@@ -475,9 +476,13 @@ def _xifn(scale, N, dtype=np.float64):
         xi[i] = (i - N) * h
     return xi
 
-def _process_params_dtype(*params, dtype):
-    dtype = Wavelet._process_dtype(dtype, as_str=False)
-    params = [S.asarray(p, dtype=dtype) for p in params]
+def _process_params_dtype(*params, dtype, auto_gpu=True):
+    if auto_gpu:
+        dtype = Wavelet._process_dtype(dtype, as_str=False)
+        params = [S.astype(S.asarray(p), dtype) for p in params]
+    else:
+        dtype = Wavelet._process_dtype(dtype, as_str=True)
+        params = [np.asarray(p).astype(dtype) for p in params]
     return params if len(params) > 1 else params[0]
 
 #### Wavelet functions ######################################################

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 import logging
-from numpy.fft import fft, ifft, fftshift, ifftshift
+from numpy.fft import fft, ifft
 from textwrap import wrap
 
 
@@ -164,8 +164,8 @@ def trigdiff(A, fs=1, padtype=None, rpadded=None, N=None, n1=None):
 
     xi = _xifn(1, A.shape[-1])[None]
 
-    A_freqdom = fft(fftshift(A, axes=-1), axis=-1)
-    A_diff = ifftshift(ifft(A_freqdom * 1j * xi * fs, axis=-1), axes=-1)
+    A_freqdom = fft(A, axis=-1)
+    A_diff = ifft(A_freqdom * 1j * xi * fs, axis=-1)
 
     if rpadded:
         A_diff = A_diff[:, n1:n1+N]

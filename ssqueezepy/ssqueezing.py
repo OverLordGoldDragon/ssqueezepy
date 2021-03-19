@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 from types import FunctionType
-from .algos import indexed_sum_onfly, ssq_cwt_log_gpu, ssq_cwt_log_piecewise_gpu
-from .algos import ssq_cwt_lin_gpu
+from .algos import indexed_sum_onfly, ssqueeze_cwt
 from .utils import p2up, process_scales, infer_scaletype, _process_fs_and_t
 from .utils import NOTE, pi, logscale_transition_idx, assert_is_one_of
 from .utils.backend import Q
@@ -10,7 +9,6 @@ from .utils import backend as S
 from .configs import IS_PARALLEL, USE_GPU
 from .wavelets import center_frequency
 
-# TODO n_outs to reduce amount of shite transferred back to CPU
 
 def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt',
              squeezing='sum', maprange='maximal', wavelet=None, padtype='',
@@ -79,15 +77,12 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
             and computes `maprange` accordingly. Used only with `transform='cwt'`
             and non-tuple `maprange`.
 
-        find_closest_parallel: bool (default False) / None
-            Whether to use parallel version of `algos.find_closest`, which is
-            faster than the "smart" version depending on size of `w` and
-            CPU hardware.
-                - Note, parallel version may take much longer for very large `w`,
-                and "smart" should be faster or as fast in most cases.
-                - Use `ssqueezepy.find_closest_parallel_is_faster` to figure
-                whether this is worth setting True.
-                - None (default): draws value from `configs.ini`
+        flipud: bool (default False)
+            Whether to fill `Tx` equivalently to `flipud(Tx)` (faster & less
+            memory than calling `Tx = np.flipud(Tx)` afterwards).
+
+        gamma, dWx: float, np.ndarray
+            Used internally by `_ssq_cwt.ssq_cwt`.
 
     # Returns:
         Tx: np.ndarray [nf x n]
@@ -138,8 +133,8 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
         # Tx[k[i, j], j] += Wx[i, j] * norm -- (see below method's docstring)
         if w is None:
             # TODO
-            ssq_cwt_lin_gpu(Wx, dWx, ssq_freqs, const, gamma, flipud,
-                                      out=Tx)
+            ssqueeze_cwt(Wx, dWx, ssq_freqs, const, ssq_logscale, par, gpu,
+                         flipud, gamma, out=Tx)
         else:
             indexed_sum_onfly(Wx, w, ssq_freqs, const, ssq_logscale,
                               par, gpu, flipud, out=Tx)

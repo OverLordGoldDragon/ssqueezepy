@@ -86,8 +86,11 @@ def _torch_dtype(dtype):
 class TorchDummy():
     """Dummy class with dummy attributes."""
     def __init__(self):
-        self.Tensor = None
+        self.Tensor = __TensorDummy
 
+
+class __TensorDummy():
+    pass
 
 class _Util():
     """For wrapper: `@cp._util.memoize`."""

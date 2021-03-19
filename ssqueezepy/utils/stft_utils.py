@@ -3,6 +3,8 @@ import numpy as np
 from numpy.fft import fft, fftshift
 from numba import jit
 from scipy import integrate
+from .gpu_utils import _run_on_gpu, _get_kernel_params
+from .backend import torch
 
 __all__ = [
     "buffer",
@@ -13,7 +15,7 @@ __all__ = [
 ]
 
 
-def buffer(x, seg_len, n_overlap):
+def buffer(x, seg_len, n_overlap, modulated=False, gpu=False):
     """Build 2D array where each column is a successive slice of `x` of length
     `seg_len` and overlapping by `n_overlap` (or equivalently incrementing
     starting index of each slice by `hop_len = seg_len - n_overlap`).
@@ -29,12 +31,65 @@ def buffer(x, seg_len, n_overlap):
     """
     hop_len = seg_len - n_overlap
     n_segs = (len(x) - seg_len) // hop_len + 1
-    out = np.zeros((seg_len, n_segs), dtype=x.dtype)
+    s20 = int(np.ceil(seg_len / 2))
+    s21 = s20 - 1 if (seg_len % 2 == 1) else s20
 
+    if gpu:
+        return _buffer_gpu(x, seg_len, n_segs, hop_len, s20, s21, modulated)
+
+    out = np.zeros((seg_len, n_segs), dtype=x.dtype)
     for i in range(n_segs):
-        start = i * hop_len
-        end   = start + seg_len
-        out[:, i] = x[start:end]
+        start = hop_len * i
+        if not modulated:
+            start = hop_len * i
+            end   = start + seg_len
+            out[:, i] = x[start:end]
+        else:
+            start0 = hop_len * i
+            end0   = start0 + s21
+            start1 = end0
+            end1   = start1 + s20
+            out[:s20, i] = x[start1:end1]
+            out[s20:, i] = x[start0:end0]
+    return out
+
+
+def _buffer_gpu(x, seg_len, n_segs, hop_len, s20, s21, modulated=False):
+    kernel = '''
+    extern "C" __global__
+    void buffer(${dtype} x[${N}],
+                ${dtype} out[${L}][${W}],
+                bool modulated,
+                int hop_len, int seg_len,
+                int s20, int s21)
+    {
+      int i = blockIdx.x * blockDim.x + threadIdx.x;
+      if (i >= ${W})
+        return;
+
+      int start = hop_len * i;
+      for (int j=start; j < start + seg_len; ++j){
+        if (!modulated){
+          out[j - start][i] = x[j];
+        } else {
+          if (j < start + s20){
+            out[j - start][i] = x[j + s21];
+          } else{
+            out[j - start][i] = x[j - s20];
+          }
+        }
+      }
+    }
+    '''
+    if not isinstance(x, torch.Tensor):
+        x = torch.as_tensor(x, device='cuda')
+    out = x.new_zeros((seg_len, n_segs))
+
+    blockspergrid, threadsperblock, kernel_kw, _ = _get_kernel_params(out, dim=1)
+    kernel_kw.update(dict(N=len(x), L=len(out), W=out.shape[1]))
+    kernel_args = [x.data_ptr(), out.data_ptr(), bool(modulated), hop_len,
+                   seg_len, s20, s21]
+    _run_on_gpu(kernel, blockspergrid, threadsperblock, *kernel_args, **kernel_kw)
     return out
 
 

@@ -15,7 +15,7 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
             ssq_freqs=None, padtype='reflect', squeezing='sum', maprange='peak',
             difftype='trig', difforder=None, gamma=None, vectorized=True,
             preserve_transform=None, astensor=True, order=0, patience=0,
-            flipud=False, cache_wavelet=True, return_w=True):
+            flipud=False, cache_wavelet=True, get_w=False, get_dWx=False):
     # TODO docs
     """Synchrosqueezed Continuous Wavelet Transform.
     Implements the algorithm described in Sec. III of [1].
@@ -102,18 +102,39 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
             Whether to vectorize CWT, i.e. compute quantities for all scales at
             once, which is faster but uses more memory.
 
-        preserve_transform: bool (default True) # TODO
+        preserve_transform: bool (default None) / None
             Whether to return `Wx` as directly output from `cwt` (it might be
             altered by `ssqueeze` or `phase_transform`). Uses more memory
             per storing extra copy of `Wx`.
+                - Defaults to True if `'SSQ_GPU' == '0'`, else False.
 
         order: int (default 0) / tuple[int]
             `order > 0` computes ssq of `cwt` taken with higher-order GMWs.
             If tuple, computes ssq of average of `cwt`s taken at each specified
             order. See `help(_cwt.cwt_higher_order)`.
 
-        find_closest_parallel: bool (default False) / None
-            See `help(ssqueezing.ssqueeze)`.
+        astensor: bool (default True)
+            If `'SSQ_GPU' == '1'`, whether to return arrays as on-GPU tensors
+            or move them back to CPU & convert to Numpy arrays.
+
+        flipud: bool (default True)
+            See `help(ssqueeze)`.
+
+        cache_wavelet: bool (default None) / None
+            See `help(cwt)`.
+
+        get_w, get_dWx: bool (default False)
+            `get_w`:
+                True: will compute phase transform separately, assign it to
+                array `w` and return it.
+                False: will compute synchrosqueezing directly from `Wx` and
+                `dWx` without assigning to intermediate array, which is faster
+                and takes less memory.
+            `get_dWx`:
+                True: will return dWx
+                False: discards dWx after computing `w` or synchrosqueezing.
+                `get_dWx=True` with `get_w=True` uses most memory.
+            These options do not affect `Tx`.
 
     # Returns:
         Tx: np.ndarray [nf x n]
@@ -126,9 +147,9 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
             Frequencies associated with rows of `Tx`.
         scales: np.ndarray [na]
             Scales associated with rows of `Wx`.
-        w: np.ndarray [na x n]
+        w: np.ndarray [na x n]  (if `get_w=True`)
             Phase transform for each element of `Wx`.
-        dWx: [na x n] np.ndarray
+        dWx: [na x n] np.ndarray (if `get_dWx=True`)
             See `help(_cwt.cwt)`.
 
     # References:
@@ -247,9 +268,12 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
         ssq_freqs = cwt_scaletype
     if gamma is None:
         gamma = np.sqrt(EPS64 if S.is_dtype(Wx, 'complex128') else EPS32)
-    if return_w:
+
+    if get_w:
         _Wx, w = _phase_transform(_Wx, dWx, N, dt, gamma, difftype, difforder)
         _dWx = None
+        if not get_dWx:
+            dWx = None
     else:
         w = None
         _dWx = dWx
@@ -267,7 +291,15 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
     if not astensor and S.is_tensor(Tx):
         Tx, Wx, w, dWx = [g.cpu().numpy() if g is not None else g
                           for g in (Tx, Wx, w, dWx)]
-    return Tx, Wx, ssq_freqs, scales, w, dWx
+
+    if get_w and get_dWx:
+        return Tx, Wx, ssq_freqs, scales, w, dWx
+    elif get_w:
+        return Tx, Wx, ssq_freqs, scales, w
+    elif get_dWx:
+        return Tx, Wx, ssq_freqs, scales, dWx
+    else:
+        return Tx, Wx, ssq_freqs, scales
 
 
 def issq_cwt(Tx, wavelet='gmw', cc=None, cw=None):
