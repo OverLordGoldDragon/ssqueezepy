@@ -808,8 +808,7 @@ class TestSignals():
         fig, axes = plt.subplots(len(wavelets), 2, figsize=(w * 12, h * 12))
 
         for i, wavelet in enumerate(wavelets):
-            Tx, Wx, *_ = ssq_cwt(x, wavelet, t=t)
-            Tx = np.flipud(Tx)
+            Tx, Wx, *_ = ssq_cwt(x, wavelet, t=t, flipud=1, astensor=False)
 
             name, fparams, aparams = params
             title1, title2 = self._title_cwt(wavelet, name, x, fparams, aparams)
@@ -852,9 +851,10 @@ class TestSignals():
             return (.13 + .05*(max_rows - 2)) * (.9 / h)
 
         fs = 1 / (t[1] - t[0])
-        Tsx, Sx, *_ = ssq_stft(x, window, n_fft=n_fft, win_len=win_len, fs=fs)
-        Twx, Wx, *_ = ssq_cwt(x, wavelet, t=t)
-        Twx, Tsx, Sx = np.flipud(Twx), np.flipud(Tsx), np.flipud(Sx)
+        Tsx, Sx, *_ = ssq_stft(x, window, n_fft=n_fft, win_len=win_len, fs=fs,
+                               astensor=False)
+        Twx, Wx, *_ = ssq_cwt(x, wavelet, t=t, flipud=1, astensor=False)
+        Tsx, Sx = np.flipud(Tsx), np.flipud(Sx)
 
         name, fparams, aparams = params
         ctitle1, ctitle2 = self._title_cwt( wavelet, name, x, fparams, aparams)
@@ -930,6 +930,8 @@ class TestSignals():
     def _ridgecomp_fn(self, x, t, params, penalty=20, n_ridges=2, bw=None,
                       transform='cwt', w=1.2, h=.4, **transform_kw):
         transform_fn = ssq_cwt if transform == 'cwt' else ssq_stft
+        transform_kw = transform_kw.copy()
+        transform_kw['astensor'] = False
         Tfs, Tf, ssq_freqs, scales, *_ = transform_fn(x, t=t, **transform_kw)
 
         if bw is None:

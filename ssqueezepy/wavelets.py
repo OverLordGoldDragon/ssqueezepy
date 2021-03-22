@@ -8,7 +8,7 @@ from .algos import find_maximum
 from .configs import gdefaults, USE_GPU
 from .utils import backend as S
 from .utils.fft_utils import ifft, fftshift, ifftshift
-from .utils.backend import torch, Q
+from .utils.backend import torch, Q, atleast_1d
 
 
 class Wavelet():
@@ -392,7 +392,8 @@ class Wavelet():
             if not as_str:
                 return getattr(Q, dtype)
         elif not isinstance(dtype, (type, np.dtype, torch.dtype)):
-            raise TypeError("`dtype` must be string or type (np./torch.dtype)")
+            raise TypeError("`dtype` must be string or type (np./torch.dtype) "
+                            "(got %s)" % dtype)
         return dtype if not as_str else str(dtype).split('.')[-1]
 
     #### Init ################################################################
@@ -411,13 +412,23 @@ class Wavelet():
                 if user_passed_float32:
                     WARN("`norm='energy'` w/ `dtype='float32'` is unsupported; "
                          "will use 'float64' instead.")
+                wavopts['dtype'] = 'float64'
                 self._dtype = 'float64'
-                wavopts['dtype'] = np.float64
             elif self.dtype is not None:
                 wavopts['dtype'] = self.dtype
 
+        def set_dtype_from_out():
+            # 32 will promote to 64 if other params are 64
+            out_dtype = self.fn(S.asarray([1.], dtype='float32')).dtype
+            if S.is_dtype(out_dtype, ('complex64', 'complex128')):
+                # 'bump' wavelet case
+                out_dtype = ('float32' if 'complex64' in str(out_dtype) else
+                             'float64')
+            self._dtype = self._process_dtype(out_dtype, as_str=True)
+
         if isinstance(wavelet, FunctionType):
             self.fn = wavelet
+            set_dtype_from_out()
             self.config = {}
             return
 
@@ -453,13 +464,7 @@ class Wavelet():
         }[wavelet](**wavopts)
 
         if self.dtype is None:
-            # 32 will promote to 64 if other params are 64
-            out_dtype = self.fn(S.asarray([1.], dtype='float32')).dtype
-            if S.is_dtype(out_dtype, ('complex64', 'complex128')):
-                # 'bump' wavelet case
-                out_dtype = (Q.float32 if out_dtype == Q.complex64 else
-                             Q.float64)
-            self._dtype = self._process_dtype(out_dtype, as_str=True)
+            set_dtype_from_out()
         self.config = wavopts
 
 
@@ -477,8 +482,10 @@ def _xifn(scale, N, dtype=np.float64):
     return xi
 
 def _process_params_dtype(*params, dtype, auto_gpu=True):
+    if dtype is None:
+        dtype = S.asarray(params[0]).dtype
     if auto_gpu:
-        dtype = Wavelet._process_dtype(dtype, as_str=False)
+        dtype = Wavelet._process_dtype(dtype, as_str=True)
         params = [S.astype(S.asarray(p), dtype) for p in params]
     else:
         dtype = Wavelet._process_dtype(dtype, as_str=True)
@@ -502,16 +509,19 @@ def morlet(mu=None, dtype=None):
     ks = np.exp(-.5 * mu**2)
     mu, cs, ks = _process_params_dtype(mu, cs, ks, dtype=dtype)
 
-    const = S.asarray(np.sqrt(2) * cs * pi**.25, dtype=dtype)
+    # all other consts go to `C`; needed for numba.jit to not type promote to
+    # float64 due to Python floats (e.g. `2.`)
+    C = S.asarray([-.5, np.sqrt(2) * cs * pi**.25], dtype=dtype)
+
     fn = _morlet if not USE_GPU() else _morlet_gpu
-    return lambda w: fn(w, mu, const, ks)
+    return lambda w: fn(atleast_1d(w, dtype), mu, ks, C)
 
 @jit(nopython=True, cache=True, parallel=True)
-def _morlet(w, mu, const, ks):
-    return const * (np.exp(-.5 * (w - mu)**2) - ks * np.exp(-.5 * w**2))
+def _morlet(w, mu, ks, C):
+    return C[1]* (np.exp(C[0] * (w - mu)**2) - ks * np.exp(C[0] * w**2))
 
-def _morlet_gpu(w, mu, const, ks):
-    return const * (torch.exp(-.5 * (w - mu)**2) - ks * torch.exp(-.5 * w**2))
+def _morlet_gpu(w, mu, ks, C):
+    return C[1] * (torch.exp(C[0] * (w - mu)**2) - ks * torch.exp(C[0] * w**2))
 
 
 def bump(mu=None, s=None, om=None, dtype=None):
@@ -519,20 +529,26 @@ def bump(mu=None, s=None, om=None, dtype=None):
     https://www.mathworks.com/help/wavelet/gs/choose-a-wavelet.html
     """
     mu, s, om, dtype = gdefaults('wavelets.bump', mu=mu, s=s, om=om, dtype=dtype)
-    mu, s, om = _process_params_dtype(mu, s, om, dtype=dtype)
+    if 'float' in dtype:
+        dtype = 'complex' + str(2 * int(dtype.strip('float')))
+    mu, s, om = [S.asarray(g, dtype) for g in (mu, s, om)]
+    C = S.asarray([2 * pi * 1j * om, .443993816053287], dtype=dtype)
+    C0 = S.asarray(.999, dtype='float' + str(int(dtype.strip('complex'))//2))
+
     fn = _bump if not USE_GPU() else _bump_gpu
-    return lambda w: fn(w, (w - mu) / s, om, s)
+    return lambda w: fn(atleast_1d(w, dtype), (atleast_1d(w, dtype) - mu) / s,
+                        s, C, C0)
 
 @jit(nopython=True, cache=True, parallel=True)
-def _bump(w, _w, om, s):
-    return np.exp(2 * pi * 1j * om * w) / s * (
-        np.abs(_w) < .999) * np.exp(
-            -1. / (1 - (_w * (np.abs(_w) < .999))**2)) / .443993816053287
+def _bump(w, _w, s, C, C0):
+    return np.exp(C[0] * w) / s * (
+        np.abs(_w) < C0) * np.exp(
+            -1 / (1 - (_w * (np.abs(_w) < C0))**2)) / C[1]
 
-def _bump_gpu(w, _w, om, s):
-    return torch.exp(2 * pi * 1j * om * w) / s * (
-        torch.abs(_w) < .999) * torch.exp(
-            -1. / (1 - (_w * (torch.abs(_w) < .999))**2)) / .443993816053287
+def _bump_gpu(w, _w, s, C, C0):
+    return torch.exp(C[0] * w) / s * (
+        torch.abs(_w) < C0) * torch.exp(
+            -1 / (1 - (_w * (torch.abs(_w) < C0))**2)) / C[1]
 
 
 def cmhat(mu=None, s=None, dtype=None):
@@ -541,30 +557,34 @@ def cmhat(mu=None, s=None, dtype=None):
     """
     mu, s, dtype = gdefaults('wavelets.cmhat', mu=mu, s=s, dtype=dtype)
     mu, s = _process_params_dtype(mu, s, dtype=dtype)
-    const = S.asarray(2 * np.sqrt(2/3) * pi**(-1/4), dtype=dtype)
-    return lambda w: _cmhat(w - mu, s, const)
+    C = S.asarray([5/2, 2 * np.sqrt(2/3) * pi**(-1/4)], dtype=dtype)
+
+    fn = _cmhat if not USE_GPU() else _cmhat_gpu
+    return lambda w: fn(atleast_1d(w, dtype) - mu, s, C)
 
 @jit(nopython=True, cache=True, parallel=True)
-def _cmhat(_w, s, const):
-    return const * (s**(5/2) * _w**2 * np.exp(-s**2 * _w**2 / 2) * (_w >= 0))
+def _cmhat(_w, s, C):
+    return C[1] * (s**C[0] * _w**2 * np.exp(-s**2 * _w**2 / 2) * (_w >= 0))
 
-def _cmhat_gpu(_w, s, const):
-    return const * (s**(5/2) * _w**2 * torch.exp(-s**2 * _w**2 / 2) * (_w >= 0))
+def _cmhat_gpu(_w, s, C):
+    return C[1] * (s**C[0] * _w**2 * torch.exp(-s**2 * _w**2 / 2) * (_w >= 0))
 
 
 def hhhat(mu=None, dtype=None):
     """Hilbert analytic function of Hermitian Hat."""
     mu, dtype = gdefaults('wavelets.hhhat', mu=mu, dtype=dtype)
     mu = _process_params_dtype(mu, dtype=dtype)
-    const = S.asarray(2 / np.sqrt(5) * pi**(-1/4), dtype=dtype)
-    return lambda w: _hhhat(w - mu, const)
+    C = S.asarray([-1/2, 2 / np.sqrt(5) * pi**(-1/4)], dtype=dtype)
+
+    fn = _hhhat if not USE_GPU() else _hhhat_gpu
+    return lambda w: fn(atleast_1d(w, dtype) - mu, C)
 
 @jit(nopython=True, cache=True, parallel=True)
-def _hhhat(_w, const):
-    return const * (_w * (1 + _w) * np.exp(-1/2 * _w**2)) * (1 + np.sign(_w))
+def _hhhat(_w, C):
+    return C[1] * (_w * (1 + _w) * np.exp(C[0] * _w**2)) * (1 + np.sign(_w))
 
-def _hhhat_gpu(_w, const):
-    return const * (_w * (1 + _w) * torch.exp(-1/2 * _w**2)) * (1 + np.sign(_w))
+def _hhhat_gpu(_w, C):
+    return C[1] * (_w * (1 + _w) * torch.exp(C[0] * _w**2)) * (1 + torch.sign(_w))
 
 
 #### Wavelet properties ######################################################
@@ -640,8 +660,9 @@ def center_frequency(wavelet, scale=None, N=1024, kind='energy', force_int=None,
 
     def _params(wavelet, scale, N):
         w = S.asarray(aifftshift(_xifn(1, N)))
-        psih = asnumpy(wavelet(scale * w))
+        psih = asnumpy(wavelet(S.asarray(scale) * w))
         apsih2 = np.abs(psih)**2
+        w = asnumpy(w)
         return w, psih, apsih2
 
     def _energy_wc(wavelet, scale, N, force_int):
@@ -668,7 +689,7 @@ def center_frequency(wavelet, scale=None, N=1024, kind='energy', force_int=None,
         wc, _ = find_maximum(wavelet.fn)
         # need `scale` such that `wavelet` peaks at `scale * xi.max()/4`
         # thus: `wc = scale * (pi/2)` --> `scale = (4/pi)*wc`
-        scale = (4/pi) * wc
+        scale = S.asarray((4/pi) * wc)
         w, psih, apsih2 = _params(wavelet, scale, N)
         return float(wc), (w, psih, apsih2)
 

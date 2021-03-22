@@ -2,7 +2,6 @@
 import numpy as np
 from .utils import WARN, EPS32, EPS64, pi, p2up, adm_ssq, process_scales
 from .utils import trigdiff, _process_fs_and_t
-from .utils.backend import torch
 from .utils import backend as S
 from .configs import USE_GPU, IS_PARALLEL
 from .algos import replace_under_abs, phase_cwt_cpu, phase_cwt_gpu
@@ -15,7 +14,7 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
             ssq_freqs=None, padtype='reflect', squeezing='sum', maprange='peak',
             difftype='trig', difforder=None, gamma=None, vectorized=True,
             preserve_transform=None, astensor=True, order=0, patience=0,
-            flipud=False, cache_wavelet=True, get_w=False, get_dWx=False):
+            flipud=False, cache_wavelet=None, get_w=False, get_dWx=False):
     # TODO docs
     """Synchrosqueezed Continuous Wavelet Transform.
     Implements the algorithm described in Sec. III of [1].
@@ -222,7 +221,7 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
             w = phase_cwt_num(Wx, dt, difforder, gamma)
         return Wx, w
 
-    N = len(x)
+    N = x.shape[-1]
     dt, fs, difforder, nv = _process_args(N, scales, fs, t, nv, difftype,
                                           difforder, squeezing, maprange, wavelet)
     wavelet = Wavelet._init_if_not_isinstance(wavelet, N=N)
@@ -232,13 +231,15 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
         # keep padding for `trigdiff`
         kw = dict(wavelet=wavelet, scales=scales, fs=fs, t=t, nv=nv,
                   l1_norm=True, derivative=False, padtype=padtype, rpadded=True,
-                  vectorized=vectorized)
+                  vectorized=vectorized, cache_wavelet=cache_wavelet)
         _, n1, _ = p2up(N)
         average = isinstance(order, (tuple, list, range))
 
         Wx, scales = cwt(x, order=order, average=average, **kw)
         dWx = trigdiff(Wx, fs, rpadded=True, N=N, n1=n1)
         Wx = Wx[:, n1:n1 + N]
+        if S.is_tensor(Wx):
+            Wx = Wx.contiguous()
 
     scales, cwt_scaletype, *_ = process_scales(scales, N, wavelet, nv=nv,
                                                get_params=True)
@@ -257,7 +258,7 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
         preserve_transform = not USE_GPU()
     if preserve_transform:
         if S.is_tensor(Wx):
-            _Wx = torch.Tensor(Wx, device=Wx.device)
+            _Wx = Wx.detach().clone()
         else:
             _Wx = Wx.copy()
     else:
@@ -271,7 +272,7 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
 
     if get_w:
         _Wx, w = _phase_transform(_Wx, dWx, N, dt, gamma, difftype, difforder)
-        _dWx = None
+        _dWx = None  # don't use in `ssqueeze`
         if not get_dWx:
             dWx = None
     else:
@@ -285,11 +286,11 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
 
     if difftype == 'numeric':
         Wx = Wx[:, 4:-4]
-        w  = w[:,  4:-4]
         Tx = Tx[:, 4:-4]
+        w  = w[:,  4:-4] if w is not None else w
 
     if not astensor and S.is_tensor(Tx):
-        Tx, Wx, w, dWx = [g.cpu().numpy() if g is not None else g
+        Tx, Wx, w, dWx = [g.cpu().numpy() if S.is_tensor(g) else g
                           for g in (Tx, Wx, w, dWx)]
 
     if get_w and get_dWx:
@@ -469,6 +470,7 @@ def phase_cwt(Wx, dWx, difftype='trig', gamma=None, parallel=None, gpu=None):
         https://github.com/ebrevdo/synchrosqueezing/blob/master/synchrosqueezing/
         phase_cwt.m
     """
+    # TODO rid of `gpu`, infer from `Sx`
     if parallel and gpu:
         pass  # TODO warn and infer `None`s from os.environ
     if gamma is None:

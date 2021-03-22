@@ -11,12 +11,11 @@ from .wavelets import Wavelet
 # TODO `Wavelet`:
 #  - `compute_dtype` & `storage_dtype`? Allows L2 GMW
 #  - `_xi_gpu`
-#  - higher-order
 
 
 def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
         l1_norm=True, derivative=False, padtype='reflect', rpadded=False,
-        vectorized=True, cache_wavelet=True, order=0, average=None,
+        vectorized=True, astensor=True, cache_wavelet=None, order=0, average=None,
         patience=0):  # TODO docs
     """Continuous Wavelet Transform, discretized, as described in
     Sec. 4.3.3 of [1] and Sec. IIIA of [2]. Uses a form of discretized
@@ -103,6 +102,7 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
                 - Defaults to True if `wavelet` is passed that's a `Wavelet`,
                 throws warning if True with non-`Wavelet` `wavelet` and sets self
                 to False (since the array's discarded at `return` anyway).
+                - Ignored with `order > 2`, defaults to False.
 
         order: int (default 0) / tuple[int] / range
             > 0 computes `cwt` with higher-order GMWs. If tuple, computes
@@ -156,11 +156,12 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
 
     def _for_loop(xh, scales, wavelet, derivative, is_2D):
         cdtype = 'complex128' if S.is_dtype(xh, 'complex128') else 'complex64'
-        shape = ((len(scales), len(xh)) if not is_2D else
-                 (len(xh), len(scales), len(xh)))
+        shape = ((len(scales), xh.shape[-1]) if not is_2D else
+                 (len(xh), len(scales), xh.shape[-1]))
         Wx = S.zeros(shape, dtype=cdtype)
         if derivative:
-            dWx = Wx.copy()
+            dWx = (Wx.copy() if isinstance(Wx, np.ndarray) else
+                   Wx.detach().clone())
 
         for i, scale in enumerate(scales):
             idx = (slice(i, i + 1) if not is_2D else  # Wx[i]
@@ -209,8 +210,10 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
     if isinstance(order, (tuple, list, range)) or order > 0:
         kw = dict(wavelet=wavelet, scales=scales, fs=fs, t=t, nv=nv,
                   l1_norm=l1_norm, derivative=derivative, padtype=padtype,
-                  rpadded=rpadded, vectorized=vectorized)
-        return cwt_higher_order(x, order=order, average=average, **kw)
+                  rpadded=rpadded, vectorized=vectorized, patience=patience,
+                  cache_wavelet=cache_wavelet)
+        return cwt_higher_order(x, order=order, average=average,
+                                astensor=astensor, **kw)
 
     (N, nv, dt, is_2D, cache_wavelet
      ) = _process_args(x, scales, nv, fs, t, wavelet, cache_wavelet)
@@ -227,6 +230,7 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
         xp = x
 
     # zero-mean `xp`, take to freq-domain
+    xp = S.asarray(xp)
     x_mean = xp.mean(axis=-1)
     xp -= (x_mean[:, None] if is_2D else x_mean)
     xh = fft(xp, axis=-1, astensor=True)
@@ -264,12 +268,18 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
             dWx = dWx[idx]
         if S.is_tensor(Wx):
             # ensure indexing (strides) is same, else cupy will mess up
-            Wx, dWx = Wx.contiguous(), dWx.contiguous()
+            Wx = Wx.contiguous()
+            if derivative:
+                dWx = dWx.contiguous()
     if not l1_norm:
         # normalize energy per L2 wavelet norm, else already L1-normalized
-        Wx *= S.astype(Q.sqrt(scales), Wx.dtype)
+        Wx *= S.astype(Q.sqrt(scales), Wx.dtype)  # TODO device?
         if derivative:
             dWx *= S.astype(Q.sqrt(scales), Wx.dtype)
+
+    if not astensor and S.is_tensor(Wx):
+        Wx, scales, dWx = [g.cpu().numpy() if S.is_tensor(g) else g
+                           for g in (Wx, scales, dWx)]
 
     return ((Wx, scales, dWx) if derivative else
             (Wx, scales))
@@ -453,7 +463,8 @@ def _process_gmw_wavelet(wavelet, l1_norm):
     return wavelet
 
 
-def cwt_higher_order(x, wavelet='gmw', order=1, average=None, **kw):
+def cwt_higher_order(x, wavelet='gmw', order=1, average=None, astensor=True,
+                     **kw):
     """Compute `cwt` with GMW wavelets of order 0 to `order`. See `help(cwt)`.
 
     Yields lower variance and more noise robust representation. See VI in ref[1].
@@ -494,9 +505,7 @@ def cwt_higher_order(x, wavelet='gmw', order=1, average=None, **kw):
 
         wavopts = wavelet.config.copy()
         wavopts.pop('order')
-        print(wavopts)
         wavelets = [Wavelet(('gmw', dict(order=k, **wavopts))) for k in order]
-        _=[print(w.dtype) for w in wavelets]
         return wavelets, wavopts
 
     def _process_args(wavelet, order, average, kw):
@@ -515,36 +524,37 @@ def cwt_higher_order(x, wavelet='gmw', order=1, average=None, **kw):
             wav = Wavelet(('gmw', dict(order=0, **wavopts)))
             scales = process_scales(scales, len(x), wavelet=wav,
                                     nv=kw.get('nv', 32))
+            scales = S.asarray(scales, wav.dtype)
         kw['scales'] = scales
 
         return wavelets, order, average
 
     wavelets, order, average = _process_args(wavelet, order, average, kw)
-    for i, w in enumerate(wavelets):
-        print(i, w.dtype)
 
-    Wx_all = []
+    Wx_all, dWx_all = [], []
     derivative = kw.get('derivative', False)
-    if derivative:
-        dWx_all = []
 
     # take the CWTs
     for k in range(len(order)):
         out = cwt(x, wavelets[k], order=0, **kw)
-        print("out", out[0].dtype)
         Wx_all.append(out[0])
         if derivative:
             dWx_all.append(out[-1])
 
     # handle averaging; strip `Wx_all` of list container if only one array
     if average or (average is None and isinstance(order, tuple)):
-        Wx_all = np.mean(np.vstack([Wx_all]), axis=0)
+        Wx_all = Q.mean(S.vstack(Wx_all), axis=0)
         if derivative:
-            dWx_all = np.mean(np.vstack([dWx_all]), axis=0)
+            dWx_all = Q.mean(S.vstack(dWx_all), axis=0)
     elif len(Wx_all) == 1:
         Wx_all = Wx_all[0]
         if derivative:
             dWx_all = dWx_all[0]
 
-    return ((Wx_all, kw['scales'], dWx_all) if derivative else
-            (Wx_all, kw['scales']))
+    if not astensor and S.is_tensor(Wx_all):
+        Wx_all, scales, dWx_all = [g.cpu().numpy() if S.is_tensor(g) else g
+                                   for g in (Wx_all, kw['scales'], dWx_all)]
+    else:
+        scales = kw['scales']
+    return ((Wx_all, scales, dWx_all) if derivative else
+            (Wx_all, scales))

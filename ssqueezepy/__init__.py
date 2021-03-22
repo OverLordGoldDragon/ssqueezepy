@@ -69,3 +69,10 @@ from .utils import find_closest_parallel_is_faster
 
 def wavs():
     return wavelets.Wavelet.SUPPORTED
+
+
+_modules_toplevel = [
+    '_cwt', '_gmw', '_ssq_cwt', '_ssq_stft', '_stft', '_test_signals', 'algos',
+    'configs', 'experimental', 'ridge_extraction', 'ssqueezing', 'toolkit',
+    'visuals', 'wavelets', 'utils'
+]

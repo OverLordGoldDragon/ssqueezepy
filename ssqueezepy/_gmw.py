@@ -132,7 +132,7 @@ def gmw(gamma=None, beta=None, norm=None, order=None, centered_scale=None,
 
 
 def compute_gmw(N, scale, gamma=3, beta=60, time=False, norm='bandpass',
-                order=0, centered_scale=False, norm_scale=True):
+                order=0, centered_scale=False, norm_scale=True, dtype=None):
     """Evaluates GMWs, returning as arrays. See `help(_gmw.gmw)` for full docs.
 
     # Arguments
@@ -162,7 +162,7 @@ def compute_gmw(N, scale, gamma=3, beta=60, time=False, norm='bandpass',
             Time-domain wavelet, returned if `time=True`.
     """
     _check_args(gamma=gamma, beta=beta, norm=norm, scale=scale)
-    gmw_fn = gmw(gamma, beta, norm, order, centered_scale)
+    gmw_fn = gmw(gamma, beta, norm, order, centered_scale, dtype)
 
     w = _xifn(scale, N)
     X = np.zeros(N)
@@ -192,16 +192,18 @@ def gmw_l1(gamma=3., beta=60., centered_scale=False, dtype='float64'):
     wc = morsefreq(gamma, beta)
 
     wcl = np.log(wc)
-    fn = _gmw_l1 if not USE_GPU() else _gmw_l1_gpu
     gamma, beta, wc, wcl = _process_params_dtype(gamma, beta, wc, wcl, dtype=dtype)
 
+    fn = _gmw_l1 if not USE_GPU() else _gmw_l1_gpu
     if centered_scale:
-        return lambda w: fn(S.atleast_1d(w * wc), gamma, beta, wc, wcl)
-    else:  # TODO why >=0 outside
-        return lambda w: fn(S.atleast_1d(w), gamma, beta, wc, wcl)
+        return lambda w: fn(S.atleast_1d(w * wc, dtype), gamma, beta, wc, wcl)
+    else:
+        return lambda w: fn(S.atleast_1d(w, dtype), gamma, beta, wc, wcl)
 
 @jit(nopython=True, cache=True, parallel=True)
 def _gmw_l1(w, gamma, beta, wc, wcl):
+    # NOTE: numba.jit, unlike numpy & torch, will promote to float64 with
+    # array float32 and scalar float64
     w_nonneg = (w >= 0)
     w *= w_nonneg  # zero negative `w` to avoid nans
     return 2 * np.exp(- beta * wcl + wc**gamma
@@ -222,21 +224,28 @@ def gmw_l2(gamma=3., beta=60., centered_scale=False, dtype='float64'):
     wc = morsefreq(gamma, beta)
     r = (2*beta + 1) / gamma
     rgamma = gamma_fn(r)
-
     (gamma, beta, wc, r, rgamma
      ) = _process_params_dtype(gamma, beta, wc, r, rgamma, dtype=dtype)
-    if centered_scale:
-        return lambda w: _gmw_l2(np.atleast_1d(w * wc), gamma, beta, wc,
-                                 r, rgamma, w < 0)
-    else:
-        return lambda w: _gmw_l2(np.atleast_1d(w), gamma, beta, wc,
-                                 r, rgamma, w < 0)
 
-@jit(nopython=True, cache=True, parallel=True)
-def _gmw_l2(w, gamma, beta, wc, r, rgamma, w_negs):
-    w *= ~w_negs  # zero negative `w` to avoid nans
+    fn = _gmw_l2 if not USE_GPU() else _gmw_l2_gpu
+    if centered_scale:
+        return lambda w: fn(S.atleast_1d(w * wc, dtype), gamma, beta, wc,
+                            r, rgamma)
+    else:
+        return lambda w: fn(S.atleast_1d(w, dtype), gamma, beta, wc, r, rgamma)
+
+@jit(nopython=True, cache=True, parallel=True)  # TODO w_negs
+def _gmw_l2(w, gamma, beta, wc, r, rgamma):
+    w_nonneg = (w >= 0)
+    w *= w_nonneg  # zero negative `w` to avoid nans
     return np.sqrt(2.*pi * gamma * 2.**r / rgamma
-                   ) * w**beta * np.exp(-w**gamma) * (~w_negs)
+                   ) * w**beta * np.exp(-w**gamma) * w_nonneg
+
+def _gmw_l2_gpu(w, gamma, beta, wc, r, rgamma):
+    w_nonneg = (w >= 0)
+    w *= w_nonneg  # zero negative `w` to avoid nans
+    return torch.sqrt(2.*pi * gamma * 2.**r / rgamma
+                      ) * w**beta * torch.exp(-w**gamma) * w_nonneg
 
 
 def gmw_l1_k(gamma=3., beta=60., k=1, centered_scale=False, dtype='float64'):
@@ -249,23 +258,33 @@ def gmw_l1_k(gamma=3., beta=60., k=1, centered_scale=False, dtype='float64'):
     k_consts = _gmw_k_constants(gamma, beta, k, norm='bandpass', dtype=dtype)
     gamma, beta, wc = _process_params_dtype(gamma, beta, wc, dtype=dtype)
 
+    fn = _gmw_l1_k if not USE_GPU() else _gmw_l1_k_gpu
     if centered_scale:
-        return lambda w: _gmw_l1_k(np.atleast_1d(w * wc), gamma, beta, wc, w < 0,
-                                   k_consts)
+        return lambda w: fn(S.atleast_1d(w * wc, dtype), gamma, beta, wc,
+                            k_consts)
     else:
-        return lambda w: _gmw_l1_k(np.atleast_1d(w), gamma, beta, wc, w < 0,
-                                   k_consts)
+        return lambda w: fn(S.atleast_1d(w, dtype), gamma, beta, wc, k_consts)
 
-@jit(nopython=True, cache=True, parallel=True)
-def _gmw_l1_k(w, gamma, beta, wc, w_negs, k_consts):
-    w *= ~w_negs  # zero negative `w` to avoid nans
+@jit(nopython=True, cache=True, parallel=True)  # TODO GPU
+def _gmw_l1_k(w, gamma, beta, wc, k_consts):
+    w_nonneg = (w >= 0)
+    w *= w_nonneg  # zero negative `w` to avoid nans
 
-    C = np.zeros(w.shape)
+    C = np.zeros(w.shape, dtype=w.dtype)
     for m in range(len(k_consts)):
         C += k_consts[m] * (2*w**gamma)**m
-
     return C * np.exp(- beta * np.log(wc) + wc**gamma
-                      + beta * np.log(w)  - w**gamma) * (~w_negs)
+                      + beta * np.log(w)  - w**gamma) * w_nonneg
+
+def _gmw_l1_k_gpu(w, gamma, beta, wc, k_consts):
+    w_nonneg = (w >= 0)
+    w *= w_nonneg  # zero negative `w` to avoid nans
+
+    C = w.new_zeros(w.shape)
+    for m in range(len(k_consts)):
+        C += k_consts[m] * (2*w**gamma)**m
+    return C * torch.exp(- beta * torch.log(wc) + wc**gamma
+                         + beta * torch.log(w)  - w**gamma) * w_nonneg
 
 
 def gmw_l2_k(gamma=3., beta=60., k=1, centered_scale=False, dtype='float64'):
@@ -278,22 +297,31 @@ def gmw_l2_k(gamma=3., beta=60., k=1, centered_scale=False, dtype='float64'):
     k_consts = _gmw_k_constants(gamma, beta, k, norm='energy', dtype=dtype)
     gamma, beta, wc = _process_params_dtype(gamma, beta, wc, dtype=dtype)
 
+    fn = _gmw_l2_k if not USE_GPU() else _gmw_l2_k_gpu
     if centered_scale:
-        return lambda w: _gmw_l2_k(np.atleast_1d(w * wc), gamma, beta, wc, w < 0,
-                                   k_consts)
+        return lambda w: fn(S.atleast_1d(w * wc, dtype), gamma, beta, wc,
+                            k_consts)
     else:
-        return lambda w: _gmw_l2_k(np.atleast_1d(w), gamma, beta, wc, w < 0,
-                                   k_consts)
+        return lambda w: fn(S.atleast_1d(w, dtype), gamma, beta, wc, k_consts)
 
 @jit(nopython=True, cache=True, parallel=True)
-def _gmw_l2_k(w, gamma, beta, wc, w_negs, k_consts):
-    w *= ~w_negs  # zero negative `w` to avoid nans
+def _gmw_l2_k(w, gamma, beta, wc, k_consts):
+    w_nonneg = (w >= 0)
+    w *= w_nonneg  # zero negative `w` to avoid nans
 
-    C = np.zeros(w.shape)
+    C = np.zeros(w.shape, dtype=w.dtype)
     for m in range(len(k_consts)):
         C += k_consts[m] * (2*w**gamma)**m
+    return C * np.exp(beta * np.log(w) - w**gamma) * w_nonneg
 
-    return C * np.exp(beta * np.log(w) - w**gamma) * (~w_negs)
+def _gmw_l2_k_gpu(w, gamma, beta, wc, k_consts):
+    w_nonneg = (w >= 0)
+    w *= w_nonneg  # zero negative `w` to avoid nans
+
+    C = w.new_zeros(w.shape)
+    for m in range(len(k_consts)):
+        C += k_consts[m] * (2*w**gamma)**m
+    return C * torch.exp(beta * torch.log(w) - w**gamma) * w_nonneg
 
 
 def _gmw_k_constants(gamma, beta, k, norm='bandpass', dtype='float64'):

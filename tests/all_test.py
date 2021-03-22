@@ -3,8 +3,6 @@
 """
 #### Disable Numba JIT during testing, as pytest can't measure its coverage ##
 # TODO find shorter way to do this
-print("numba.njit is now monke")
-print("numba.jit  is now monke")
 def njit(fn):
     def decor(*args, **kw):
         return fn(*args, **kw)
@@ -22,6 +20,8 @@ njit_orig = numba.njit
 jit_orig  = numba.jit
 numba.njit = njit
 numba.jit  = jit
+print("numba.njit is now monke")
+print("numba.jit  is now monke")
 ##############################################################################
 import pytest
 import numpy as np
@@ -39,11 +39,15 @@ import ssqueezepy
 reload(numba)
 numba.njit = njit
 numba.jit  = jit
-reload(ssqueezepy)
-for name in dir(ssqueezepy):
-    obj = getattr(ssqueezepy, name)
-    if isinstance(obj, ModuleType):
-        reload(obj)
+
+def reload_all():
+    reload(ssqueezepy)
+    for name in dir(ssqueezepy):
+        obj = getattr(ssqueezepy, name)
+        if isinstance(obj, ModuleType) and name in ssqueezepy._modules_toplevel:
+            reload(obj)
+
+reload_all()
 ##############################################################################
 
 # no visuals here but 1 runs as regular script instead of pytest, for debugging
@@ -51,6 +55,7 @@ VIZ = 0
 
 
 def test_ssq_cwt():
+    np.random.seed(5)
     x = np.random.randn(64)
     for wavelet in ('morlet', ('morlet', {'mu': 20}), 'bump'):
         Tx, *_ = ssq_cwt(x, wavelet)
@@ -60,7 +65,7 @@ def test_ssq_cwt():
     params = dict(
         squeezing=('lebesgue',),
         scales=('linear', 'log:minimal', 'linear:naive',
-                np.power(2**(1/16), np.arange(1, 32))),
+                np.power(2**(1/8), np.arange(1, 32))),
         difftype=('phase', 'numeric'),
         padtype=('zero', 'replicate'),
         maprange=('maximal', 'energy', 'peak', (1, 32)),
@@ -368,10 +373,19 @@ def test_dtype():
     outs64    = {k: v for k, v in zip(names, outs64)}
 
     for k, v in outs32.items():
+        if k == 'ssq_freqs':
+            assert v.dtype == np.float64, ("float32", k, v.dtype)
+            continue
         assert v.dtype in (np.float32, np.complex64),  ("float32", k, v.dtype)
     for k, v in outs32_o2.items():
+        if k == 'ssq_freqs':
+            assert v.dtype == np.float64, ("float32", k, v.dtype)
+            continue
         assert v.dtype in (np.float32, np.complex64),  ("float32", k, v.dtype)
     for k, v in outs64.items():
+        if k == 'ssq_freqs':
+            assert v.dtype == np.float64, ("float32", k, v.dtype)
+            continue
         assert v.dtype in (np.float64, np.complex128), ("float64", k, v.dtype)
 
 
@@ -412,10 +426,6 @@ if __name__ == '__main__':
     reload(numba)
     numba.njit = njit_orig
     numba.jit  = jit_orig
-    reload(ssqueezepy)
-    for name in dir(ssqueezepy):
-        obj = getattr(ssqueezepy, name)
-        if isinstance(obj, ModuleType):
-            reload(obj)
+    reload_all()
     print("numba.njit is no longer monke")
     print("numba.jit  is no longer monke")

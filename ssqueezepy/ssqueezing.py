@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 from types import FunctionType
-from .algos import indexed_sum_onfly, ssqueeze_cwt
+from .algos import indexed_sum_onfly, ssqueeze_fast
 from .utils import p2up, process_scales, infer_scaletype, _process_fs_and_t
 from .utils import NOTE, pi, logscale_transition_idx, assert_is_one_of
 from .utils.backend import Q
@@ -12,7 +12,7 @@ from .wavelets import center_frequency
 
 def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt',
              squeezing='sum', maprange='maximal', wavelet=None, padtype='',
-             flipud=False, gamma=None, dWx=None):  # TODO docs
+             flipud=False, gamma=None, dWx=None, Sfs=None):  # TODO docs
     """Synchrosqueezes the CWT or STFT of `x`.
 
     # Arguments:
@@ -110,8 +110,8 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
         https://github.com/ebrevdo/synchrosqueezing/blob/master/synchrosqueezing/
         synsq_squeeze.m
     """
-    def _ssqueeze(Tx, w, Wx, nv, ssq_freqs, scales, transform, ssq_scaletype,
-                  cwt_scaletype, flipud, gamma, dWx):
+    def _ssqueeze(Tx, w, Wx, dWx, nv, ssq_freqs, scales, transform, ssq_scaletype,
+                  cwt_scaletype, flipud, gamma, Sfs):
         if transform == 'cwt':
             # Eq 14 [2]; Eq 2.3 [1]
             if cwt_scaletype[:3] == 'log':
@@ -132,9 +132,8 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
         # equivalent to argmin(abs(w[a, b] - ssq_freqs)) for every a, b
         # Tx[k[i, j], j] += Wx[i, j] * norm -- (see below method's docstring)
         if w is None:
-            # TODO
-            ssqueeze_cwt(Wx, dWx, ssq_freqs, const, ssq_logscale, par, gpu,
-                         flipud, gamma, out=Tx)
+            ssqueeze_fast(Wx, dWx, ssq_freqs, const, ssq_logscale, par, gpu,
+                          flipud, gamma, out=Tx, Sfs=Sfs)
         else:
             indexed_sum_onfly(Wx, w, ssq_freqs, const, ssq_logscale,
                               par, gpu, flipud, out=Tx)
@@ -167,7 +166,7 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
         cwt_scaletype, nv = None, None
 
     # handle `ssq_freqs` & `ssq_scaletype`
-    if not isinstance(ssq_freqs, np.ndarray):
+    if not (isinstance(ssq_freqs, np.ndarray) or S.is_tensor(ssq_freqs)):
         if isinstance(ssq_freqs, str):
             ssq_scaletype = ssq_freqs
         else:
@@ -196,12 +195,14 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
     # synchrosqueeze
     Tx = S.zeros(Wx.shape, dtype=Wx.dtype)
     args = (nv, ssq_freqs, scales, transform, ssq_scaletype,
-            cwt_scaletype, flipud, gamma, dWx)
+            cwt_scaletype, flipud, gamma, Sfs)
     if Wx.ndim == 2:
-        _ssqueeze(Tx, w, Wx, *args)
+        _ssqueeze(Tx, w, Wx, dWx, *args)
     elif Wx.ndim == 3:
-        for _Tx, _w, _Wx in zip(w, Wx):
-            _ssqueeze(_Tx, _w, _Wx, *args)
+        w, dWx = [(g if g is not None else [None]*len(Tx))
+                  for g in (w, dWx)]
+        for _Tx, _w, _Wx, _dWx in zip(Tx, w, Wx, dWx):
+            _ssqueeze(_Tx, _w, _Wx, _dWx, *args)
 
     return Tx, ssq_freqs
 
@@ -239,6 +240,8 @@ def _compute_associated_frequencies(dt, na, N, transform, ssq_scaletype,
             ssq_freqs = fm * np.power(fM / fm, np.arange(na)/(na - 1))
         else:
             f0, f2 = fm, fM
+            # note that it's possible for f1 == f0 per discretization limitations,
+            # in which case `sqf1` will contain the same value repeated
             f1 = _get_center_frequency(wavelet, N, maprange, dt, scales[idx],
                                        padtype)
 
@@ -254,7 +257,10 @@ def _compute_associated_frequencies(dt, na, N, transform, ssq_scaletype,
             sqf2 = _exp_fm(t2, f1, f2)
             ssq_freqs = np.hstack([sqf1, sqf2])
             ssq_idx = logscale_transition_idx(ssq_freqs)
-            assert (na - ssq_idx) == idx, "{} != {}".format(na - ssq_idx, idx)
+            try:
+                assert (na - ssq_idx) == idx, "{} != {}".format(na - ssq_idx, idx)
+            except:
+                1==1
 
     else:
         if transform == 'cwt':

@@ -4,7 +4,7 @@ import scipy.signal as sig
 from .utils import WARN, padsignal, buffer, unbuffer, window_norm
 from .utils import _process_fs_and_t
 from .utils.fft_utils import fft, ifft, rfft, irfft, fftshift, ifftshift
-from .utils.backend import torch
+from .utils.backend import torch, is_tensor
 from .wavelets import _xifn, _process_params_dtype
 from .configs import USE_GPU
 
@@ -106,7 +106,7 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=None, t=None,
     def _stft(xp, window, diff_window, n_fft, hop_len, fs, modulated, derivative):
         Sx = buffer(xp, n_fft, n_fft - hop_len, modulated, USE_GPU())
         if derivative:
-            dSx = Sx.copy() if not USE_GPU() else Sx.detach().clone()
+            dSx = Sx.copy() if not is_tensor(Sx) else Sx.detach().clone()
         if modulated:
             window, diff_window = [ifftshift(g, axes=0, astensor=True)
                                    for g in (window, diff_window)]
@@ -145,6 +145,8 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=None, t=None,
     Sx, dSx = _stft(xp, window, diff_window, n_fft, hop_len, fs, modulated,
                     derivative)
 
+    Sx  = Sx.contiguous()  if is_tensor(Sx)  else Sx
+    dSx = dSx.contiguous() if is_tensor(dSx) else dSx
     return (Sx, dSx) if derivative else Sx
 
 

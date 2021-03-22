@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 import logging
-from numpy.fft import fft, ifft
+from .fft_utils import fft, ifft
 from textwrap import wrap
 
 
@@ -150,9 +150,10 @@ def trigdiff(A, fs=1, padtype=None, rpadded=None, N=None, n1=None):
     `help(ssq_cwt)`. Used internally by `ssq_cwt` with `order > 0`.
     """
     from ..wavelets import _xifn
+    from . import backend as S
 
-    assert isinstance(A, np.ndarray)
-    assert A.ndim == 2
+    assert isinstance(A, np.ndarray) or S.is_tensor(A), type(A)
+    assert A.ndim == 2, getattr(A, 'ndim', 'no-ndim')
 
     rpadded = rpadded or False
     padtype = padtype or ('reflect' if not rpadded else None)
@@ -162,13 +163,15 @@ def trigdiff(A, fs=1, padtype=None, rpadded=None, N=None, n1=None):
     if padtype is not None:
         A, _, n1, *_ = padsignal(A, padtype, get_params=True)
 
-    xi = _xifn(1, A.shape[-1])[None]
+    xi = S.asarray(_xifn(1, A.shape[-1])[None], A.dtype)
 
-    A_freqdom = fft(A, axis=-1)
-    A_diff = ifft(A_freqdom * 1j * xi * fs, axis=-1)
+    A_freqdom = fft(A, axis=-1, astensor=True)
+    A_diff = ifft(A_freqdom * 1j * xi * fs, axis=-1, astensor=True)
 
     if rpadded:
         A_diff = A_diff[:, n1:n1+N]
+    if S.is_tensor(A_diff):
+        A_diff = A_diff.contiguous()
     return A_diff
 
 

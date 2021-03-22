@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Test ssqueezepy/_test_signals.py"""
+import os
 import pytest
 import numpy as np
 import scipy.signal as sig
@@ -7,6 +8,7 @@ from ssqueezepy import Wavelet, TestSignals
 from ssqueezepy.utils import window_resolution
 
 VIZ = 0
+os.environ['SSQ_GPU'] = '0'  # in case concurrent tests set it to '1'
 
 
 def test_demo():
@@ -25,6 +27,7 @@ def test_demo():
 
 
 def test_wavcomp():
+    os.environ['SSQ_GPU'] = '0'
     tsigs = TestSignals(N=256)
     wavelets = [Wavelet(('gmw', {'beta': 5})),
                 Wavelet(('gmw', {'beta': 22})),
@@ -40,6 +43,7 @@ def test_wavcomp():
 
 
 def test_cwt_vs_stft():
+    os.environ['SSQ_GPU'] = '0'
     # (N, beta, NW): (512, 42.5, 255); (256, 21.5, 255)
     N = 256#512
     signals = 'all'
@@ -67,6 +71,7 @@ def test_cwt_vs_stft():
 
 
 def test_ridgecomp():
+    os.environ['SSQ_GPU'] = '0'
     N = 256
     n_ridges = 3
     penalty = 25
@@ -78,10 +83,31 @@ def test_ridgecomp():
     tsigs.ridgecomp(transform='stft', **kw)
 
 
+def test_gpu():
+    """Test that TestSignals can run on GPU."""
+    try:
+        import torch
+        torch.tensor(1., device='cuda')
+    except:
+        return
+
+    N = 256
+    tsigs = TestSignals(N=N)
+    window = np.abs(sig.windows.dpss(N, N//2 - 1))
+    signals = 'par-lchirp'
+
+    os.environ['SSQ_GPU'] = '1'
+    wavelet = Wavelet()
+    tsigs.cwt_vs_stft(wavelet, window, signals=signals, N=N)
+    os.environ['SSQ_GPU'] = '0'
+
+
 if __name__ == '__main__':
     if VIZ:
         test_demo()
         test_wavcomp()
         test_cwt_vs_stft()
+        test_ridgecomp()
+        test_gpu()
     else:
         pytest.main([__file__, "-s"])

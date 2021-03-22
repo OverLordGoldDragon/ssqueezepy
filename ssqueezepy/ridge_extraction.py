@@ -174,7 +174,7 @@ def __accumulated_penalty_energy_fw(penalized_energy, penalty_matrix):
                                           penalty_matrix[idx_freq, :])
     return penalized_energy
 
-@jit(nopython=True, cache=True, parallel=True)
+@jit(nopython=True, cache=True, parallel=True)  # TODO parallel_level
 def __accumulated_penalty_energy_fwp(penalized_energy, penalty_matrix):
     for idx_time in range(1, penalized_energy.shape[1]):
         for idx_freq in prange(0, penalized_energy.shape[0]):

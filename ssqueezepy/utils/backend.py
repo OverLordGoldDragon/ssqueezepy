@@ -59,8 +59,8 @@ def is_dtype(x, str_dtype):
     return any(str(x).split('.')[-1] == dtype for dtype in str_dtype)
 
 
-def atleast_1d(x, device='cuda'):
-    return Q.atleast_1d(asarray(x, device=device))
+def atleast_1d(x, dtype=None, device='cuda'):
+    return Q.atleast_1d(asarray(x, dtype=dtype, device=device))
 
 
 def asnumpy(x):
@@ -79,8 +79,20 @@ def arange(a, b=None, dtype=None, device='cuda'):
     return np.arange(a, b, dtype=dtype)
 
 
+def vstack(x):
+    if is_tensor(x) or (isinstance(x, list) and is_tensor(x[0])):
+        if isinstance(x, list):
+            # stack arrays as elements in extended dim0
+            return torch.vstack([_x[None] for _x in x])
+        return torch.vstack(x)
+    return np.vstack([x])
+
 def _torch_dtype(dtype):
-    return dtype if not isinstance(dtype, str) else getattr(torch, dtype)
+    if isinstance(dtype, str):
+        return getattr(torch, dtype)
+    elif isinstance(dtype, np.dtype):
+        return getattr(torch, str(dtype).split('.')[-1])
+    return dtype  # assume torch.dtype
 
 
 class TorchDummy():

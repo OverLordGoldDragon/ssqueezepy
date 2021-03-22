@@ -5,9 +5,7 @@ import multiprocessing
 from scipy.fft import fftshift as sfftshift, ifftshift as sifftshift
 from scipy.fft import fft as sfft, rfft as srfft, ifft as sifft, irfft as sirfft
 from pathlib import Path
-from .common import assert_is_one_of
 from . import backend as S
-from ..configs import USE_GPU
 
 try:
     from torch.fft import (fft as tfft, rfft as trfft,
@@ -339,6 +337,7 @@ class FFT():
             raise TypeError("`patience` must be int or tuple "
                             "(got %s)" % type(patience))
         elif isinstance(patience, int):
+            from .common import assert_is_one_of
             assert_is_one_of(patience, 'patience', (0, 1, 2))
 
 
