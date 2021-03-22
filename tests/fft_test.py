@@ -22,7 +22,7 @@ from ssqueezepy.configs import gdefaults
 from ssqueezepy.utils import process_scales, buffer
 
 # no visuals here but 1 runs as regular script instead of pytest, for debugging
-VIZ = 1
+VIZ = 0
 try:
     torch.tensor(1, device='cuda')
     CAN_GPU = True
@@ -556,13 +556,13 @@ def test_cwt_for_loop():
 
 def test_ssq_cwt_batched():
     """Ensure batched (2D `x`) inputs output same as if samples fed separately,
-    and agreement between CPU & GPU. Also ensure handling by `vectorized=False`.
+    and agreement between CPU & GPU.
     """
     np.random.seed(0)
     x = np.random.randn(4, 256)
     kw = dict(astensor=False)
 
-    for dtype in ('float64', 'float32')[:1]:
+    for dtype in ('float64', 'float32'):
         os.environ['SSQ_GPU'] = '0'
         Tx0, Wx0, *_ = ssq_cwt(x, _wavelet(dtype=dtype), **kw)
 
@@ -572,18 +572,59 @@ def test_ssq_cwt_batched():
             out = ssq_cwt(_x, _wavelet(dtype=dtype), **kw)
             Tx00[i], Wx00[i] = out[0], out[1]
 
-        os.environ['SSQ_GPU'] = '1'
-        Tx1, Wx1, *_ = ssq_cwt(x, _wavelet(dtype=dtype), **kw)
+        if CAN_GPU:
+            os.environ['SSQ_GPU'] = '1'
+            Tx1, Wx1, *_ = ssq_cwt(x, _wavelet(dtype=dtype), **kw)
 
-        adiff_Tx000 = np.abs(Tx00 - Tx0)
-        adiff_Wx000 = np.abs(Wx00 - Wx0)
-        adiff_Tx01  = np.abs(Tx0 - Tx1)
-        adiff_Wx01  = np.abs(Wx0 - Wx1)
-        atol = 1e-12 if dtype == 'float64' else 1e-4
-        assert np.allclose(Wx00, Wx0), (dtype, adiff_Wx000.mean())
-        assert np.allclose(Tx00, Tx0), (dtype, adiff_Tx000.mean())
-        assert np.allclose(Wx0, Wx1, atol=atol), (dtype, adiff_Wx01.mean())
-        assert np.allclose(Tx0, Tx1, atol=atol), (dtype, adiff_Tx01.mean())
+        atol = 1e-12 if dtype == 'float64' else 1e-2
+        adiff_Tx000 = np.abs(Tx00 - Tx0).mean()
+        adiff_Wx000 = np.abs(Wx00 - Wx0).mean()
+        assert np.allclose(Wx00, Wx0), (dtype, adiff_Wx000)
+        assert np.allclose(Tx00, Tx0), (dtype, adiff_Tx000)
+        if CAN_GPU:
+            adiff_Tx01  = np.abs(Tx0 - Tx1).mean()
+            adiff_Wx01  = np.abs(Wx0 - Wx1).mean()
+            assert np.allclose(Wx0, Wx1, atol=atol), (dtype, adiff_Wx01)
+            assert np.allclose(Tx0, Tx1, atol=atol), (dtype, adiff_Tx01)
+
+            # didn't investigate float32, and `allclose` threshold is pretty bad,
+            # so check MAE
+            if dtype == 'float32':
+                assert adiff_Tx01 < 1e-6, (dtype, adiff_Tx01)
+
+
+def test_ssq_stft_batched():
+    """Ensure batched (2D `x`) inputs output same as if samples fed separately,
+    and agreement between CPU & GPU.
+    """
+    np.random.seed(0)
+    x = np.random.randn(4, 256)
+
+    for dtype in ('float64', 'float32'):
+        os.environ['SSQ_GPU'] = '0'
+        kw = dict(astensor=False, dtype=dtype)
+        Tx0, Sx0, *_ = ssq_stft(x, **kw)
+
+        Tx00 = np.zeros(Tx0.shape, dtype=Tx0.dtype)
+        Sx00 = Tx00.copy()
+        for i, _x in enumerate(x):
+            out = ssq_stft(_x, **kw)
+            Tx00[i], Sx00[i] = out[0], out[1]
+
+        if CAN_GPU:
+            os.environ['SSQ_GPU'] = '1'
+            Tx1, Sx1, *_ = ssq_stft(x, **kw)
+
+        atol = 1e-12 if dtype == 'float64' else 1e-6
+        adiff_Tx000 = np.abs(Tx00 - Tx0).mean()
+        adiff_Sx000 = np.abs(Sx00 - Sx0).mean()
+        assert np.allclose(Sx00, Sx0), (dtype, adiff_Sx000)
+        assert np.allclose(Tx00, Tx0), (dtype, adiff_Tx000)
+        if CAN_GPU:
+            adiff_Tx01  = np.abs(Tx0 - Tx1)
+            adiff_Sx01  = np.abs(Sx0 - Sx1)
+            assert np.allclose(Sx0, Sx1, atol=atol), (dtype, adiff_Sx01)
+            assert np.allclose(Tx0, Tx1, atol=atol), (dtype, adiff_Tx01)
 
 
 def test_cwt_batched_for_loop():
@@ -602,25 +643,26 @@ def test_cwt_batched_for_loop():
 
 if __name__ == '__main__':
     if VIZ:
-        # test_1D()
-        # test_2D()
-        # test_indexed_sum()
-        # test_parallel_setting()
-        # test_phase_cwt()
-        # test_phase_stft()
-        # test_replace_under_abs()
-        # test_indexed_sum_onfly()
-        # test_ssqueeze_cwt()
-        # test_ssqueeze_stft()
-        # test_ssqueeze_vs_indexed_sum()
+        test_1D()
+        test_2D()
+        test_indexed_sum()
+        test_parallel_setting()
+        test_phase_cwt()
+        test_phase_stft()
+        test_replace_under_abs()
+        test_indexed_sum_onfly()
+        test_ssqueeze_cwt()
+        test_ssqueeze_stft()
+        test_ssqueeze_vs_indexed_sum()
         test_buffer()
-        # test_ssq_stft()
-        # test_ssq_cwt()
-        # test_wavelet_dtype_gmw()
-        # test_wavelet_dtype()
-        # test_higher_order()
-        # test_cwt_for_loop()
-        # test_ssq_cwt_batched()
-        # test_cwt_batched_for_loop()
+        test_ssq_stft()
+        test_ssq_cwt()
+        test_wavelet_dtype_gmw()
+        test_wavelet_dtype()
+        test_higher_order()
+        test_cwt_for_loop()
+        test_ssq_cwt_batched()
+        test_ssq_stft_batched()
+        test_cwt_batched_for_loop()
     else:
         pytest.main([__file__, "-s"])

@@ -234,7 +234,7 @@ def gmw_l2(gamma=3., beta=60., centered_scale=False, dtype='float64'):
     else:
         return lambda w: fn(S.atleast_1d(w, dtype), gamma, beta, wc, r, rgamma)
 
-@jit(nopython=True, cache=True, parallel=True)  # TODO w_negs
+@jit(nopython=True, cache=True, parallel=True)
 def _gmw_l2(w, gamma, beta, wc, r, rgamma):
     w_nonneg = (w >= 0)
     w *= w_nonneg  # zero negative `w` to avoid nans
@@ -265,7 +265,7 @@ def gmw_l1_k(gamma=3., beta=60., k=1, centered_scale=False, dtype='float64'):
     else:
         return lambda w: fn(S.atleast_1d(w, dtype), gamma, beta, wc, k_consts)
 
-@jit(nopython=True, cache=True, parallel=True)  # TODO GPU
+@jit(nopython=True, cache=True, parallel=True)
 def _gmw_l1_k(w, gamma, beta, wc, k_consts):
     w_nonneg = (w >= 0)
     w *= w_nonneg  # zero negative `w` to avoid nans

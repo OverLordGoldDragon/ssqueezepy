@@ -6,22 +6,23 @@ from .utils import p2up, process_scales, infer_scaletype, _process_fs_and_t
 from .utils import NOTE, pi, logscale_transition_idx, assert_is_one_of
 from .utils.backend import Q
 from .utils import backend as S
-from .configs import IS_PARALLEL, USE_GPU
 from .wavelets import center_frequency
 
 
-def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt',
-             squeezing='sum', maprange='maximal', wavelet=None, padtype='',
-             flipud=False, gamma=None, dWx=None, Sfs=None):  # TODO docs
+def ssqueeze(Wx, w=None, ssq_freqs=None, scales=None, fs=None, t=None,
+             transform='cwt', squeezing='sum', maprange='maximal', wavelet=None,
+             padtype='', flipud=False, gamma=None, dWx=None, Sfs=None):
     """Synchrosqueezes the CWT or STFT of `x`.
 
     # Arguments:
         Wx or Sx: np.ndarray
             CWT or STFT of `x`. CWT is assumed L1-normed, and STFT with
-            `modulated=True`.
+            `modulated=True`. If 3D, will treat elements along dim0 as independent
+            inputs, synchrosqueezing one-by-one (but memory-efficiently).
 
-        w: np.ndarray
+        w: np.ndarray / None
             Phase transform of `Wx` or `Sx`. Must be >=0.
+            If None, `gamma` & `dWx` must be supplied (and `Sfs` for SSQ_STFT).
 
         ssq_freqs: str['log', 'log-piecewise', 'linear'] / np.ndarray / None
             Frequencies to synchrosqueeze CWT scales onto. Scale-frequency
@@ -81,8 +82,8 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
             Whether to fill `Tx` equivalently to `flipud(Tx)` (faster & less
             memory than calling `Tx = np.flipud(Tx)` afterwards).
 
-        gamma, dWx: float, np.ndarray
-            Used internally by `_ssq_cwt.ssq_cwt`.
+        gamma, dWx, Sfs: float, np.ndarray, np.ndarray
+            Used internally by `ssq_cwt` / `ssq_stft`.
 
     # Returns:
         Tx: np.ndarray [nf x n]
@@ -125,18 +126,16 @@ def ssqueeze(Wx, w, ssq_freqs=None, scales=None, fs=None, t=None, transform='cwt
             const = (ssq_freqs[1] - ssq_freqs[0])  # 'alpha' from [3]
 
         ssq_logscale = ssq_scaletype.startswith('log')
-        gpu = USE_GPU()
-        par = IS_PARALLEL() and not gpu
         # do squeezing by finding which frequency bin each phase transform point
         # w[a, b] lands in (i.e. to which f in ssq_freqs each w[a, b] is closest)
         # equivalent to argmin(abs(w[a, b] - ssq_freqs)) for every a, b
         # Tx[k[i, j], j] += Wx[i, j] * norm -- (see below method's docstring)
         if w is None:
-            ssqueeze_fast(Wx, dWx, ssq_freqs, const, ssq_logscale, par, gpu,
-                          flipud, gamma, out=Tx, Sfs=Sfs)
+            ssqueeze_fast(Wx, dWx, ssq_freqs, const, ssq_logscale, flipud,
+                          gamma, out=Tx, Sfs=Sfs)
         else:
-            indexed_sum_onfly(Wx, w, ssq_freqs, const, ssq_logscale,
-                              par, gpu, flipud, out=Tx)
+            indexed_sum_onfly(Wx, w, ssq_freqs, const, ssq_logscale, flipud,
+                              out=Tx)
 
     def _process_args(w, fs, t, N, transform, squeezing, scales, maprange,
                       wavelet, dWx):
@@ -256,11 +255,12 @@ def _compute_associated_frequencies(dt, na, N, transform, ssq_scaletype,
             sqf1 = _exp_fm(t1, f0, f1)[:-1]
             sqf2 = _exp_fm(t2, f1, f2)
             ssq_freqs = np.hstack([sqf1, sqf2])
+
             ssq_idx = logscale_transition_idx(ssq_freqs)
-            try:
-                assert (na - ssq_idx) == idx, "{} != {}".format(na - ssq_idx, idx)
-            except:
-                1==1
+            if ssq_idx is None:
+                raise Exception("couldn't find logscale transition index of "
+                                "generated `ssq_freqs`; something went wrong")
+            assert (na - ssq_idx) == idx, "{} != {}".format(na - ssq_idx, idx)
 
     else:
         if transform == 'cwt':

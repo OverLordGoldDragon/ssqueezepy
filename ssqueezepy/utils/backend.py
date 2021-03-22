@@ -1,13 +1,6 @@
 # -*- coding: utf-8 -*-
 import numpy as np
-try:
-    import torch
-    import cupy as cp
-except:
-    get_torch_dummy = lambda: TorchDummy()
-    get_cupy_dummy  = lambda: CupyDummy()
-    torch = get_torch_dummy()
-    cp    = get_cupy_dummy()
+# torch & cupy imported at bottom
 
 
 def allclose(a, b, device='cuda'):
@@ -18,9 +11,12 @@ def allclose(a, b, device='cuda'):
     return np.allclose(a, b)
 
 
-def astype(x, dtype):
+def astype(x, dtype, device=None):
     if is_tensor(x):
-        return x.type(_torch_dtype(dtype))
+        if not isinstance(device, (str, type(None))):
+            device = device.type
+        out = x.type(_torch_dtype(dtype))
+        return out.cuda() if 'cuda' in device else out
     return x.astype(dtype)
 
 
@@ -87,6 +83,14 @@ def vstack(x):
         return torch.vstack(x)
     return np.vstack([x])
 
+
+#### misc + dummies ##########################################################
+def warn_if_tensor_and_par(x, parallel):
+    if parallel and is_tensor(x):
+        from .common import WARN
+        WARN("`parallel` ignored with tensor input.")
+
+
 def _torch_dtype(dtype):
     if isinstance(dtype, str):
         return getattr(torch, dtype)
@@ -106,8 +110,10 @@ class __TensorDummy():
 
 class _Util():
     """For wrapper: `@cp._util.memoize`."""
-    def memoize(self, fn):
-        return fn
+    def memoize(self, *args, **kwargs):
+        def wrap(fn):
+            return fn
+        return wrap
 
 
 class CupyDummy():
@@ -124,7 +130,14 @@ class _Q():
             return getattr(torch, name)
         return getattr(np, name)
 
+##############################################################################
 Q = _Q()
 
-##############################################################################
+try:
+    import torch
+    import cupy as cp
+except:
+    torch = TorchDummy()
+    cp    = CupyDummy()
+
 from ..configs import USE_GPU

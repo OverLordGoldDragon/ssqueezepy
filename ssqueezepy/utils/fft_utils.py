@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import numpy as np
-import pyfftw
 import multiprocessing
 from scipy.fft import fftshift as sfftshift, ifftshift as sifftshift
 from scipy.fft import fft as sfft, rfft as srfft, ifft as sifft, irfft as sirfft
@@ -14,8 +13,12 @@ try:
 except ImportError:
     pass
 
-pyfftw.interfaces.cache.enable()
-pyfftw.interfaces.cache.set_keepalive_time(600)
+try:
+    import pyfftw
+    pyfftw.interfaces.cache.enable()
+    pyfftw.interfaces.cache.set_keepalive_time(600)
+except ImportError:
+    pyfftw = None
 
 UTILS_DIR = Path(__file__).parent
 
@@ -37,8 +40,9 @@ class FFT():
     """Global class for ssqueezepy FFT methods.
 
     Will use GPU via PyTorch if environment flag `'SSQ_GPU'` is set to `'1'`.
-    Will use `scipy.fft` or `pyfftw` depending on `patience` argument. Both
-    will use `threads` CPUs to accelerate computing.
+    Will use `scipy.fft` or `pyfftw` depending on `patience` argument (and
+    whether `pyfftw` is installed).
+    Both will use `threads` CPUs to accelerate computing.
 
     In a nutshell, if you plan on re-running FFT on input of same shape and dtype,
     prefer `patience=1`, which introduces a lengthy first-time overhead but may
@@ -115,15 +119,18 @@ class FFT():
         self.threads = (multiprocessing.cpu_count() if threads == -1 else
                         threads)
         self._patience = patience  # default patience
+        self._process_patience(patience)  # error if !=0 and pyfftw not installed
         self.cache_fft_objects = cache_fft_objects
         self.verbose = verbose
-        pyfftw.config.NUM_THREADS = self.threads
 
-        self._wisdom32_path = str(Path(self.wisdom_dir, 'wisdom32'))
-        self._wisdom64_path = str(Path(self.wisdom_dir, 'wisdom64'))
-        self._wisdom32, self._wisdom64 = b'', b''
-        self._input_history = {}
-        self.load_wisdom()
+        if pyfftw is not None:
+            pyfftw.config.NUM_THREADS = self.threads
+
+            self._wisdom32_path = str(Path(self.wisdom_dir, 'wisdom32'))
+            self._wisdom64_path = str(Path(self.wisdom_dir, 'wisdom64'))
+            self._wisdom32, self._wisdom64 = b'', b''
+            self._input_history = {}
+            self.load_wisdom()
 
     @property
     def patience(self):
@@ -145,7 +152,7 @@ class FFT():
         if out is not None:
             return out
 
-        patience = patience if (patience is not None) else self.patience
+        patience = self._process_patience(patience)
         if patience == 0:
             return sfft(x, axis=axis, workers=self.threads)
 
@@ -158,7 +165,7 @@ class FFT():
         if out is not None:
             return out
 
-        patience = patience if (patience is not None) else self.patience
+        patience = self._process_patience(patience)
         if patience == 0:
             return srfft(x, axis=axis, workers=self.threads)
 
@@ -171,7 +178,7 @@ class FFT():
         if out is not None:
             return out
 
-        patience = patience if (patience is not None) else self.patience
+        patience = self._process_patience(patience)
         if patience == 0:
             return sifft(x, axis=axis, workers=self.threads)
 
@@ -185,7 +192,7 @@ class FFT():
         if out is not None:
             return out
 
-        patience = patience if (patience is not None) else self.patience
+        patience = self._process_patience(patience)
         if patience == 0:
             return sirfft(x, axis=axis, workers=self.threads, n=n)
 
@@ -339,6 +346,12 @@ class FFT():
         elif isinstance(patience, int):
             from .common import assert_is_one_of
             assert_is_one_of(patience, 'patience', (0, 1, 2))
+
+    def _process_patience(self, patience):
+        patience = patience if (patience is not None) else self.patience
+        if pyfftw is None and patience != 0:
+            raise ValueError("`patience != 0` requires `pyfftw` installed.")
+        return patience
 
 
 FFT_GLOBAL = FFT()

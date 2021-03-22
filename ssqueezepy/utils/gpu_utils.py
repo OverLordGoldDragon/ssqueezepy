@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 import numpy as np
-import cupy as cp
 from collections import namedtuple
 from string import Template
-from .backend import torch
+from .backend import torch, cp
 
 
 Stream = namedtuple('Stream', ['ptr'])

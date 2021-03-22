@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 import logging
-from .fft_utils import fft, ifft
 from textwrap import wrap
+from .fft_utils import fft, ifft
 
 
 logging.basicConfig(format='')
@@ -59,7 +59,7 @@ def padsignal(x, padtype='reflect', padlength=None, get_params=False):
 
     # Arguments:
         x: np.ndarray
-            Input vector, 1D or 2D. 2D has time in dim1, e.g. `(n_signals, time)`.
+            Input vector, 1D or 2D. 2D has time in dim1, e.g. `(n_inputs, time)`.
 
         padtype: str
             Pad scheme to apply on input. One of:
@@ -153,7 +153,7 @@ def trigdiff(A, fs=1, padtype=None, rpadded=None, N=None, n1=None):
     from . import backend as S
 
     assert isinstance(A, np.ndarray) or S.is_tensor(A), type(A)
-    assert A.ndim == 2, getattr(A, 'ndim', 'no-ndim')
+    assert A.ndim == 2
 
     rpadded = rpadded or False
     padtype = padtype or ('reflect' if not rpadded else None)

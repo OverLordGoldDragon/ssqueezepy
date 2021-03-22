@@ -5,6 +5,7 @@ from functools import reduce
 from .utils.backend import asnumpy, cp, torch
 from .utils.gpu_utils import _run_on_gpu, _get_kernel_params
 from .utils import backend as S
+from .configs import IS_PARALLEL
 
 
 def nCk(n, k):
@@ -16,32 +17,33 @@ def nCk(n, k):
     return numer / denom
 
 #### `indexed_sum` ###########################################################
-def indexed_sum(a, k, parallel=True):
-    """Sum `a` into rows of 2D array according to indices given by 2D `k`"""
+def indexed_sum(a, k, parallel=None):
+    """Sum `a` into rows of 2D array according to indices given by 2D `k`."""
     out = np.zeros(a.shape, dtype=a.dtype)
-    if parallel:
-        return _indexed_sum_par(a, k, out)
-    return _indexed_sum(a, k, out)
-
+    if parallel or (parallel is None and IS_PARALLEL()):
+        _indexed_sum_par(a, k, out)
+    else:
+        _indexed_sum(a, k, out)
+    return out
 
 @jit(nopython=True, cache=True)
 def _indexed_sum(a, k, out):
     for i in range(a.shape[0]):
         for j in range(a.shape[1]):
             out[k[i, j], j] += a[i, j]
-    return out
 
 @jit(nopython=True, cache=True, parallel=True)
 def _indexed_sum_par(a, k, out):
     for j in prange(a.shape[1]):
         for i in range(a.shape[0]):
             out[k[i, j], j] += a[i, j]
-    return out
 
 
-def _process_ssq_params(Wx, w_or_dWx, ssq_freqs, const, logscale, parallel,
-                        flipud, out, gamma, complex_out, Sfs=None):
+def _process_ssq_params(Wx, w_or_dWx, ssq_freqs, const, logscale, flipud, out,
+                        gamma, parallel, complex_out=True, Sfs=None):
+    S.warn_if_tensor_and_par(Wx, parallel)
     gpu = S.is_tensor(Wx)
+    parallel = (parallel or IS_PARALLEL()) and not gpu
 
     # process `Wx`, `w_or_dWx`, `out`
     if out is None:
@@ -119,20 +121,20 @@ def _process_ssq_params(Wx, w_or_dWx, ssq_freqs, const, logscale, parallel,
     return (Wx, w_or_dWx, out, params, ssq_scaletype)
 
 
-def ssqueeze_fast(Wx, dWx, ssq_freqs, const, logscale=False, parallel=None,
-                  gpu=None, flipud=False, gamma=None, out=None, Sfs=None):
+def ssqueeze_fast(Wx, dWx, ssq_freqs, const, logscale=False, flipud=False,
+                  gamma=None, out=None, Sfs=None, parallel=None):
+    """`indexed_sum`, `find_closest`, and `phase_transform` within same loop,
+    sparing two arrays and intermediate elementwise conditionals; see
+    `help(algos.find_closest)` on how `k` is computed.
+    """
     def fn_name(transform, ssq_scaletype):
         return ('ssq_stft' if transform == 'stft' else
                 f'ssq_cwt_{ssq_scaletype}')
 
-    if gpu and parallel:  # TODO don't use `gpu`
-        WARN("`gpu` overrides `parallel`.")
-        parallel = False
-
-    outs = _process_ssq_params(Wx, dWx, ssq_freqs, const, logscale, parallel,
-                               flipud, out, gamma, complex_out=True, Sfs=Sfs)
+    outs = _process_ssq_params(Wx, dWx, ssq_freqs, const, logscale, flipud, out,
+                               gamma, parallel, complex_out=True, Sfs=Sfs)
     transform = 'cwt' if Sfs is None else 'stft'
-    if gpu:
+    if S.is_tensor(Wx):
         out, params, args, kernel_kw, ssq_scaletype = outs
         kernel = _kernel_codes[fn_name(transform, ssq_scaletype)]
         _run_on_gpu(kernel, *args, **kernel_kw)
@@ -143,22 +145,17 @@ def ssqueeze_fast(Wx, dWx, ssq_freqs, const, logscale=False, parallel=None,
         args = ([Wx, dWx, out] if transform == 'cwt' else
                 [Wx, dWx, params.pop('Sfs'), out])
         fn(*args, **params)
-
     return out
 
 
-def indexed_sum_onfly(Wx, w, ssq_freqs, const=1, logscale=False, parallel=None,
-                      gpu=None, flipud=False, out=None):
+def indexed_sum_onfly(Wx, w, ssq_freqs, const=1, logscale=False, flipud=False,
+                      out=None, parallel=None):
     """`indexed_sum` and `find_closest` within same loop, sparing an array;
     see `help(algos.find_closest)` on how `k` is computed.
     """
-    if gpu and parallel:
-        WARN("`gpu` overrides `parallel`.")
-        parallel = False
-
-    outs = _process_ssq_params(Wx, w, ssq_freqs, const, logscale, parallel,
-                               flipud, out, gamma=None, complex_out=True)
-    if gpu:
+    outs = _process_ssq_params(Wx, w, ssq_freqs, const, logscale, flipud, out,
+                               gamma=None, parallel=parallel, complex_out=True)
+    if S.is_tensor(Wx):
         out, params, args, kernel_kw, ssq_scaletype = outs
         kernel = _kernel_codes[f'indexed_sum_{ssq_scaletype}']
         _run_on_gpu(kernel, *args, **kernel_kw)
@@ -167,51 +164,6 @@ def indexed_sum_onfly(Wx, w, ssq_freqs, const=1, logscale=False, parallel=None,
         Wx, w, out, params, ssq_scaletype = outs
         fn = _cpu_fns[f'indexed_sum_{ssq_scaletype}']
         fn(Wx, w, out, **params)
-
-    return out
-
-
-def _indexed_sum_onfly(Wx, w, v, const=1, logscale=False, parallel=None,
-                       gpu=None, flipud=False, out=None):
-    """`indexed_sum` and `find_closest` within same loop, sparing an array;
-    see `help(algos.find_closest)` on how `k` is computed.
-    """
-    if gpu and parallel:
-        WARN("`gpu` overrides `parallel`.")
-        parallel = False
-    fn_num = 2 if gpu else (1 if parallel else 0)
-
-    if out is None:
-        if gpu:
-            out = torch.zeros(Wx.shape, dtype=Wx.dtype, device='cuda')
-        else:
-            out = np.zeros(Wx.shape, dtype=Wx.dtype)
-
-    if not isinstance(const, (np.ndarray, torch.Tensor)) or len(const) != len(Wx):
-        const = np.array(len(Wx) * [const]).squeeze()
-    const = const.squeeze()
-    if not gpu:
-        const = const.astype(Wx.dtype)
-
-    if logscale:  # TODO move
-        idx, params = _get_params_find_closest_log(v)
-        if idx is None:
-            fns = (_indexed_sum_log, _indexed_sum_log_par, _indexed_sum_log_gpu)
-        else:
-            fns = (_indexed_sum_log_piecewise, _indexed_sum_log_piecewise_par,
-                   _indexed_sum_log_piecewise_gpu)
-    else:
-        params = dict(vmin=v[0], dv=(v[1] - v[0]))
-        fns = (_indexed_sum_lin, _indexed_sum_lin_par, _indexed_sum_lin_gpu)
-    params['const'] = const
-    params['flipud'] = flipud
-    if not gpu:
-        params['omax'] = len(out) - 1
-    elif 'idx1' in params:
-        params['idx1'] = int(params['idx1'])
-
-    fn = fns[fn_num]
-    fn(Wx, w, out, **params)
     return out
 
 
@@ -236,40 +188,6 @@ def _indexed_sum_log_par(Wx, w, out, const, vlmin, dvl, omax, flipud=False):
             if flipud:
                 k = omax - k
             out[k, j] += Wx[i, j] * const[i]
-
-def _indexed_sum_log_gpu(Wx, w, out, const, vlmin, dvl, flipud=False):
-    kernel = '''
-    extern "C" __global__
-    void indexed_sum_log(${dtype} Wx[${M}][${N}][2],
-                         ${dtype} w[${M}][${N}],
-                         ${dtype} out[${M}][${N}][2],
-                         ${dtype} const_arr[${M}],
-                         double vlmin, double dvl)
-    {
-      int j = blockIdx.x * blockDim.x + threadIdx.x;
-
-      if (j >= ${N})
-        return;
-
-      int k;
-      for (int i=0; i < ${M}; ++i){
-        if (!isinf(w[i][j])){
-          k = (int)round(((double)log2${f}(w[i][j]) - vlmin) / dvl);
-
-          if (k >= ${M})
-              k = ${M} - 1;
-          else if (k < 0)
-              k = 0;
-          ${extra}
-
-          out[k][j][0] += Wx[i][j][0] * const_arr[i];
-          out[k][j][1] += Wx[i][j][1] * const_arr[i];
-        }
-      }
-    }
-    '''
-    return _gpu_run_indexed_sum(kernel, Wx, w, out, const, vlmin, dvl,
-                                flipud=flipud)
 
 
 @jit(nopython=True, cache=True)
@@ -306,49 +224,6 @@ def _indexed_sum_log_piecewise_par(Wx, w, out, const, vlmin0, vlmin1, dvl0, dvl1
                 k = omax - k
             out[k, j] += Wx[i, j] * const[i]
 
-def _indexed_sum_log_piecewise_gpu(Wx, w, out, const, vlmin0, vlmin1,
-                                   dvl0, dvl1, idx1, flipud=False):
-    kernel = '''
-    extern "C" __global__
-    void indexed_sum_log_piecewise(${dtype} Wx[${M}][${N}][2],
-                                   ${dtype} w[${M}][${N}],
-                                   ${dtype} out[${M}][${N}][2],
-                                   ${dtype} const_arr[${M}],
-                                   double vlmin0, double vlmin1,
-                                   double dvl0, double dvl1,
-                                   int idx1)
-    {
-      int j = blockIdx.x * blockDim.x + threadIdx.x;
-
-      if (j >= ${N})
-        return;
-
-      int k;
-      double wl;
-      for (int i=0; i < ${M}; ++i){
-        if (!isinf(w[i][j])){
-          wl = (double)log2${f}(w[i][j]);
-
-          if (wl > vlmin1){
-              k = (int)round((wl - vlmin1) / dvl1) + idx1;
-              if (k >= ${M})
-                  k = ${M} - 1;
-          } else {
-              k = (int)round((wl - vlmin0) / dvl0);
-              if (k < 0)
-                  k = 0;
-          }
-          ${extra}
-
-          out[k][j][0] += Wx[i][j][0] * const_arr[i];
-          out[k][j][1] += Wx[i][j][1] * const_arr[i];
-        }
-      }
-    }
-    '''
-    return _gpu_run_indexed_sum(kernel, Wx, w, out, const, vlmin0, vlmin1,
-                                dvl0, dvl1, idx1, flipud=flipud)
-
 
 @jit(nopython=True, cache=True)
 def _indexed_sum_lin(Wx, w, out, const, vmin, dv, omax, flipud=False):
@@ -372,39 +247,6 @@ def _indexed_sum_lin_par(Wx, w, out, const, vmin, dv, omax, flipud=False):
                 k = omax - k
             out[k, j] += Wx[i, j] * const[i]
 
-def _indexed_sum_lin_gpu(Wx, w, out, const, vmin, dv, flipud=False):
-    kernel = '''
-    extern "C" __global__
-    void indexed_sum_lin(${dtype} Wx[${M}][${N}][2],
-                         ${dtype} w[${M}][${N}],
-                         ${dtype} out[${M}][${N}][2],
-                         ${dtype} const_arr[${M}],
-                         double vmin, double dv)
-    {
-      int j = blockIdx.x * blockDim.x + threadIdx.x;
-
-      if (j >= ${N})
-        return;
-
-      int k;
-      for (int i=0; i < ${M}; ++i){
-        if (!isinf(w[i][j])){
-          k = (int)round(((double)(w[i][j]) - vmin) / dv);
-
-          if (k >= ${M})
-              k = ${M} - 1;
-          else if (k < 0)
-              k = 0;
-          ${extra}
-
-          out[k][j][0] += Wx[i][j][0] * const_arr[i];
-          out[k][j][1] += Wx[i][j][1] * const_arr[i];
-        }
-      }
-    }
-    '''
-    return _gpu_run_indexed_sum(kernel, Wx, w, out, const, vmin, dv,
-                                flipud=flipud)
 
 #### `find_closest` algorithms ###############################################
 def find_closest(a, v, logscale=False, parallel=None, smart=None):
@@ -836,16 +678,21 @@ def find_first_occurrence(fn, value, step_size=1e-3, steps_per_search=1e4,
     return input_value, output_value
 
 
-def phase_cwt_cpu(Wx, dWx, gamma, parallel=False):
+def phase_cwt_cpu(Wx, dWx, gamma, parallel=None):
+    """Computes only the imaginary part of `dWx / Wx` while dividing by 2*pi
+    in same operation; doesn't compute division at all if `abs(Wx) < gamma`.
+    Less memory & less computation than `(dWx / Wx).imag / (2*pi)`, same result.
+    """
     dtype = 'float32' if Wx.dtype == np.complex64 else 'float64'
     out = np.zeros(Wx.shape, dtype=dtype)
     gamma = np.asarray(gamma, dtype=dtype)
 
+    parallel = parallel or IS_PARALLEL()
     fn = _phase_cwt_par if parallel else _phase_cwt
     fn(Wx, dWx, out, gamma)
     return out
 
-@jit(nopython=True)
+@jit(nopython=True, cache=True)
 def _phase_cwt(Wx, dWx, out, gamma):
     for i in range(Wx.shape[0]):
         for j in range(Wx.shape[1]):
@@ -856,7 +703,7 @@ def _phase_cwt(Wx, dWx, out, gamma):
                 C, D = Wx[i, j].real,  Wx[i, j].imag
                 out[i, j] = abs((B*C - A*D) / ((C**2 + D**2) * 6.283185307179586))
 
-@jit(nopython=True, parallel=True)  # TODO cache
+@jit(nopython=True, cache=True, parallel=True)
 def _phase_cwt_par(Wx, dWx, out, gamma):
     for i in prange(Wx.shape[0]):
         for j in prange(Wx.shape[1]):
@@ -867,13 +714,9 @@ def _phase_cwt_par(Wx, dWx, out, gamma):
                 C, D = Wx[i, j].real,  Wx[i, j].imag
                 out[i, j] = abs((B*C - A*D) / ((C**2 + D**2) * 6.283185307179586))
 
+
 def phase_cwt_gpu(Wx, dWx, gamma):
-    """Computes only the imaginary part of `dWx / Wx` while dividing by 2*pi
-    in same operation; doesn't compute division at all if `abs(Wx) < gamma`.
-    Less memory & less computation.
-    """
-    # TODO they all do ^; update main docs instead
-    # TODO move all this to own module?
+    """Same as `phase_cwt_cpu`, but on GPU."""
     kernel = '''
     extern "C" __global__
     void phase_cwt(${dtype} Wx[${M}][${N}][2],
@@ -913,16 +756,17 @@ def phase_cwt_gpu(Wx, dWx, gamma):
     return out
 
 
-def phase_stft_cpu(Wx, dWx, Sfs, gamma, parallel=False):
+def phase_stft_cpu(Wx, dWx, Sfs, gamma, parallel=None):
     dtype = 'float32' if Wx.dtype == np.complex64 else 'float64'
     out = np.zeros(Wx.shape, dtype=dtype)
     gamma = np.asarray(gamma, dtype=dtype)
 
+    parallel = parallel or IS_PARALLEL()
     fn = _phase_stft_par if parallel else _phase_stft
     fn(Wx, dWx, Sfs, out, gamma)
     return out
 
-@jit(nopython=True)
+@jit(nopython=True, cache=True)
 def _phase_stft(Wx, dWx, Sfs, out, gamma):
     for i in range(Wx.shape[0]):
         for j in range(Wx.shape[1]):
@@ -934,7 +778,7 @@ def _phase_stft(Wx, dWx, Sfs, out, gamma):
                 out[i, j] = abs(
                     Sfs[i] - (B*C - A*D) / ((C**2 + D**2) * 6.283185307179586))
 
-@jit(nopython=True, parallel=True)  # TODO cache
+@jit(nopython=True, cache=True, parallel=True)
 def _phase_stft_par(Wx, dWx, Sfs, out, gamma):
     for i in prange(Wx.shape[0]):
         for j in prange(Wx.shape[1]):
@@ -987,187 +831,6 @@ def phase_stft_gpu(Wx, dWx, Sfs, gamma):
     return out
 
 
-def ssq_cwt_log_gpu(Wx, dWx, ssq_freqs, const, gamma, flipud=False, out=None):
-    """Complete synchrosqueezing pipeline without intermediate assignment to `w`.
-    """
-    kernel = '''
-    extern "C" __global__
-    void ssq_cwt_log(${dtype} Wx[${M}][${N}][2],
-                     ${dtype} dWx[${M}][${N}][2],
-                     ${dtype} out[${M}][${N}][2],
-                     ${dtype} const_arr[${M}],
-                     ${dtype} *gamma,
-                     double vlmin, double dvl) {
-        int j = blockIdx.x * blockDim.x + threadIdx.x;
-        if (j >= ${N})
-            return;
-
-        int k;
-        ${dtype} w_ij, A, B, C, D;
-
-        for (int i=0; i < ${M}; ++i){
-          if (norm${f}(2, Wx[i][j]) > *gamma){
-
-            A = dWx[i][j][0];
-            B = dWx[i][j][1];
-            C = Wx[i][j][0];
-            D = Wx[i][j][1];
-            w_ij = abs((B*C - A*D) / ((C*C + D*D) * 6.283185307179586));
-
-            k = (int)round(((double)log2${f}(w_ij) - vlmin) / dvl);
-            if (k >= ${M})
-                k = ${M} - 1;
-            else if (k < 0)
-                k = 0;
-            ${extra}
-
-            out[k][j][0] += Wx[i][j][0] * const_arr[i];
-            out[k][j][1] += Wx[i][j][1] * const_arr[i];
-          }
-        }
-    }
-    '''
-    return _gpu_run_ssq(kernel, Wx, dWx, ssq_freqs, const, gamma, flipud, out,
-                        logscale=True)
-
-
-def ssq_cwt_log_piecewise_gpu(Wx, dWx, ssq_freqs, const, gamma, flipud=False,
-                              out=None):
-    kernel = '''
-    extern "C" __global__
-    void ssq_cwt_log_piecewise(${dtype} Wx[${M}][${N}][2],
-                               ${dtype} dWx[${M}][${N}][2],
-                               ${dtype} out[${M}][${N}][2],
-                               ${dtype} const_arr[${M}],
-                               ${dtype} *gamma,
-                               double vlmin0, double vlmin1,
-                               double dvl0, double dvl1,
-                               int idx1) {
-        int j = blockIdx.x * blockDim.x + threadIdx.x;
-        if (j >= ${N})
-            return;
-
-        int k;
-        double wl;
-        ${dtype} w_ij, A, B, C, D;
-
-        for (int i=0; i < ${M}; ++i){
-          if (norm${f}(2, Wx[i][j]) > *gamma){
-
-            A = dWx[i][j][0];
-            B = dWx[i][j][1];
-            C = Wx[i][j][0];
-            D = Wx[i][j][1];
-            w_ij = abs((B*C - A*D) / ((C*C + D*D) * 6.283185307179586));
-
-            wl = log2${f}(w_ij);
-            if (wl > vlmin1){
-                k = (int)round((wl - vlmin1) / dvl1) + idx1;
-                if (k >= ${M})
-                    k = ${M} - 1;
-            } else {
-                k = (int)round((wl - vlmin0) / dvl0);
-                if (k < 0)
-                    k = 0;
-            }
-            ${extra}
-
-            out[k][j][0] += Wx[i][j][0] * const_arr[i];
-            out[k][j][1] += Wx[i][j][1] * const_arr[i];
-          }
-        }
-    }
-    '''
-    return _gpu_run_ssq(kernel, Wx, dWx, ssq_freqs, const, gamma, flipud, out,
-                        logscale=True)
-
-
-def ssq_cwt_lin_gpu(Wx, dWx, ssq_freqs, const, gamma, flipud=False, out=None):
-    kernel = '''
-    extern "C" __global__
-    void ssq_cwt_log(${dtype} Wx[${M}][${N}][2],
-                     ${dtype} dWx[${M}][${N}][2],
-                     ${dtype} out[${M}][${N}][2],
-                     ${dtype} const_arr[${M}],
-                     ${dtype} *gamma,
-                     double vmin, double dv) {
-        int j = blockIdx.x * blockDim.x + threadIdx.x;
-        if (j >= ${N})
-            return;
-
-        int k;
-        ${dtype} w_ij, A, B, C, D;
-
-        for (int i=0; i < ${M}; ++i){
-          if (norm${f}(2, Wx[i][j]) > *gamma){
-
-            A = dWx[i][j][0];
-            B = dWx[i][j][1];
-            C = Wx[i][j][0];
-            D = Wx[i][j][1];
-            w_ij = abs((B*C - A*D) / ((C*C + D*D) * 6.283185307179586));
-
-            k = (int)round(((double)w_ij - vmin) / dv);
-            if (k >= ${M})
-                k = ${M} - 1;
-            else if (k < 0)
-                k = 0;
-            ${extra}
-
-            out[k][j][0] += Wx[i][j][0] * const_arr[i];
-            out[k][j][1] += Wx[i][j][1] * const_arr[i];
-          }
-        }
-    }
-    '''
-    return _gpu_run_ssq(kernel, Wx, dWx, ssq_freqs, const, gamma, flipud, out,
-                        logscale=False)
-
-
-def ssq_stft_gpu(Wx, dWx, Sfs, ssq_freqs, const, gamma, flipud=False, out=None):
-    kernel = '''
-    extern "C" __global__
-    void ssq_stft(${dtype} Wx[${M}][${N}][2],
-                  ${dtype} dWx[${M}][${N}][2],
-                  ${dtype} Sfs[${M}],
-                  ${dtype} out[${M}][${N}][2],
-                  ${dtype} const_arr[${M}],
-                  ${dtype} *gamma,
-                  double vmin, double dv) {
-        int j = blockIdx.x * blockDim.x + threadIdx.x;
-        if (j >= ${N})
-            return;
-
-        int k;
-        ${dtype} w_ij, A, B, C, D;
-
-        for (int i=0; i < ${M}; ++i){
-          if (norm${f}(2, Wx[i][j]) > *gamma){
-
-            A = dWx[i][j][0];
-            B = dWx[i][j][1];
-            C = Wx[i][j][0];
-            D = Wx[i][j][1];
-            w_ij = abs(Sfs[i] - (B*C - A*D) / ((C*C + D*D) * 6.283185307179586));
-
-            k = (int)round(((double)w_ij - vmin) / dv);
-            if (k >= ${M})
-                k = ${M} - 1;
-            else if (k < 0)
-                k = 0;
-            ${extra}
-
-            out[k][j][0] += Wx[i][j][0] * const_arr[i];
-            out[k][j][1] += Wx[i][j][1] * const_arr[i];
-          }
-        }
-    }
-    '''
-    return _gpu_run_ssq(kernel, Wx, dWx, ssq_freqs, const, gamma, flipud,
-                        out, logscale=False, Sfs=Sfs)
-
-
-
 @jit(nopython=True, cache=True)
 def _ssq_cwt_log_piecewise(Wx, dWx, out, const, gamma, vlmin0, vlmin1,
                            dvl0, dvl1, idx1, omax, flipud=False):
@@ -1185,7 +848,6 @@ def _ssq_cwt_log_piecewise(Wx, dWx, out, const, gamma, vlmin0, vlmin1,
                     k = int(max(round((wl - vlmin0) / dvl0), 0))
                 if flipud:
                     k = omax - k
-
                 out[k, j] += Wx[i, j] * const[i]
 
 @jit(nopython=True, cache=True, parallel=True)
@@ -1205,7 +867,6 @@ def _ssq_cwt_log_piecewise_par(Wx, dWx, out, const, gamma, vlmin0, vlmin1,
                     k = int(max(round((wl - vlmin0) / dvl0), 0))
                 if flipud:
                     k = omax - k
-
                 out[k, j] += Wx[i, j] * const[i]
 
 
@@ -1296,72 +957,6 @@ def _ssq_stft_par(Wx, dWx, Sfs, out, const, gamma, vmin, dv, omax, flipud=False)
                 if flipud:
                     k = omax - k
                 out[k, j] += Wx[i, j] * const[i]
-
-#### gpu utils ###############################################################
-def _gpu_run_indexed_sum(kernel, Wx, w, out, const, *more_consts, flipud=False):
-    blockspergrid, threadsperblock, kernel_kw, _ = _get_kernel_params(Wx, dim=1)
-    M = kernel_kw['M']
-    kernel_kw.update(dict(f='f' if kernel_kw['dtype'] == 'float' else '',
-                          extra=f"k = {M} - 1 - k;" if flipud else ""))
-
-    # (M, N) -> (M, N, 2); treat real & imag as separate arrays for CUDA
-    Wx = torch.view_as_real(Wx)
-    if out is None:
-        out = torch.zeros(Wx.shape, dtype=Wx.dtype, device=Wx.device)
-    else:
-        out = torch.view_as_real(out)
-    const_arr = torch.as_tensor(const, dtype=Wx.dtype, device=Wx.device)
-
-    kernel_args = [Wx.data_ptr(), w.data_ptr(), out.data_ptr(),
-                   const_arr.data_ptr(), *more_consts]
-    _run_on_gpu(kernel, blockspergrid, threadsperblock,
-                *kernel_args, **kernel_kw)
-
-    out = torch.view_as_complex(out)
-    return out
-
-
-def _gpu_run_ssq(kernel, Wx, dWx, ssq_freqs, const, gamma, flipud=False,
-                 out=None, logscale=True, Sfs=None):
-    (blockspergrid, threadsperblock, kernel_kw, str_dtype
-     ) = _get_kernel_params(Wx, dim=1)
-    M = kernel_kw['M']
-    kernel_kw.update(dict(f='f' if kernel_kw['dtype'] == 'float' else '',
-                          extra=f"k = {M} - 1 - k;" if flipud else ""))
-
-    # process `Wx, dWx, out`
-    Wx  = torch.view_as_real(Wx)
-    dWx = torch.view_as_real(dWx)
-    if out is None:
-        out = torch.zeros(Wx.shape, dtype=Wx.dtype, device=Wx.device)
-    else:
-        out = torch.view_as_real(out)
-
-    # process `const`
-    if not isinstance(const, (np.ndarray, torch.Tensor)) or len(const) != len(Wx):
-        const = np.array(len(Wx) * [const]).squeeze()
-    const = const.squeeze()
-    const_arr = torch.as_tensor(const, dtype=Wx.dtype, device=Wx.device)
-
-    # process other constants
-    if logscale:
-        _, params = _get_params_find_closest_log(ssq_freqs)
-        if 'idx1' in params:
-            params['idx1'] = int(params['idx1'])
-    else:
-        params = dict(vmin=ssq_freqs[0], dv=ssq_freqs[1] - ssq_freqs[0])
-
-    # collect tensors & constants, run
-    kernel_args = [Wx.data_ptr(), dWx.data_ptr(), out.data_ptr(),
-                   const_arr.data_ptr(), cp.asarray(gamma, dtype=str_dtype),
-                   *list(params.values())]
-    if Sfs is not None:
-        # stft
-        kernel_args.insert(2, Sfs.data_ptr())
-    _run_on_gpu(kernel, blockspergrid, threadsperblock, *kernel_args, **kernel_kw)
-
-    out = torch.view_as_complex(out)
-    return out
 
 
 #### CPU funcs & GPU kernel codes ############################################

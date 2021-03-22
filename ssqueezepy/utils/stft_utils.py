@@ -4,7 +4,9 @@ from numpy.fft import fft, fftshift
 from numba import jit, prange
 from scipy import integrate
 from .gpu_utils import _run_on_gpu, _get_kernel_params
+from ..configs import IS_PARALLEL
 from .backend import torch
+from . import backend as S
 
 __all__ = [
     "buffer",
@@ -15,7 +17,7 @@ __all__ = [
 ]
 
 
-def buffer(x, seg_len, n_overlap, modulated=False, gpu=False, parallel=True):
+def buffer(x, seg_len, n_overlap, modulated=False, parallel=None):
     """Build 2D array where each column is a successive slice of `x` of length
     `seg_len` and overlapping by `n_overlap` (or equivalently incrementing
     starting index of each slice by `hop_len = seg_len - n_overlap`).
@@ -23,6 +25,7 @@ def buffer(x, seg_len, n_overlap, modulated=False, gpu=False, parallel=True):
     Mimics MATLAB's `buffer`, with less functionality.
 
     Supports batched input with samples along dim 0, i.e. `(n_inputs, input_len)`.
+    See `help(stft)` on `modulated`.
 
     Ex:
         x = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
@@ -31,14 +34,16 @@ def buffer(x, seg_len, n_overlap, modulated=False, gpu=False, parallel=True):
                [2, 3, 4, 5, 6],
                [4, 5, 6, 7, 8]].T
     """
+    S.warn_if_tensor_and_par(x, parallel)
     assert x.ndim in (1, 2)
+
     hop_len = seg_len - n_overlap
     n_segs = (x.shape[-1] - seg_len) // hop_len + 1
     s20 = int(np.ceil(seg_len / 2))
     s21 = s20 - 1 if (seg_len % 2 == 1) else s20
 
     args = (seg_len, n_segs, hop_len, s20, s21, modulated)
-    if gpu:
+    if S.is_tensor(x):
         if x.ndim == 1:
             out = _buffer_gpu(x, seg_len, n_segs, hop_len, s20, s21, modulated)
 
@@ -47,7 +52,9 @@ def buffer(x, seg_len, n_overlap, modulated=False, gpu=False, parallel=True):
             for _x, _out in zip(x, out):
                 _buffer_gpu(_x,  *args, out=_out)
     else:
+        parallel = parallel or IS_PARALLEL()
         fn = _buffer_par if parallel else _buffer
+
         if x.ndim == 1:
             out = np.zeros((seg_len, n_segs), dtype=x.dtype)
             fn(x, out, *args)
@@ -62,7 +69,6 @@ def buffer(x, seg_len, n_overlap, modulated=False, gpu=False, parallel=True):
 @jit(nopython=True, cache=True)
 def _buffer(x, out, seg_len, n_segs, hop_len, s20, s21, modulated=False):
     for i in range(n_segs):
-        start = hop_len * i
         if not modulated:
             start = hop_len * i
             end   = start + seg_len
@@ -79,7 +85,6 @@ def _buffer(x, out, seg_len, n_segs, hop_len, s20, s21, modulated=False):
 @jit(nopython=True, cache=True, parallel=True)
 def _buffer_par(x, out, seg_len, n_segs, hop_len, s20, s21, modulated=False):
     for i in prange(n_segs):
-        start = hop_len * i
         if not modulated:
             start = hop_len * i
             end   = start + seg_len

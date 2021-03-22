@@ -18,18 +18,17 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
         vectorized=True, astensor=True, cache_wavelet=None, order=0, average=None,
         patience=0):  # TODO docs
     """Continuous Wavelet Transform, discretized, as described in
-    Sec. 4.3.3 of [1] and Sec. IIIA of [2]. Uses a form of discretized
-    convolution theorem via wavelets in the Fourier domain and FFT of input.
+    Sec. 4.3.3 of [1] and Sec. IIIA of [2]. Uses FFT convolution via frequency-
+    domain wavelets matching (padded) input's length.
 
     Uses `Wavelet.dtype` precision.
 
     # Arguments:
         x: np.ndarray
-            Input vector, 1D / 2D.
+            Input vector(s), 1D / 2D.
 
             2D: does *not* do 2D CWT. Instead, treats dim0 as separate inputs,
-            e.g. `(n_channels, n_samples)`, useful for speeding up FFT
-            if `vectorized=True`.
+            e.g. `(n_channels, time)`, improving speed & memory w.r.t. looping.
 
         wavelet: str / tuple[str, dict] / `wavelets.Wavelet`
             Wavelet sampled in Fourier frequency domain.
@@ -110,6 +109,9 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
 
         average: bool / None
             Only used for tuple `order`; see `help(_cwt.cwt_higher_order)`.
+
+        patience: int / tuple[int, int]
+            pyFFTW parameter for faster FFT on CPU; see `help(ssqueezepy.FFT)`.
 
     # Returns:
         Wx: [na x n] np.ndarray (na = number of scales; n = len(x))
@@ -273,9 +275,9 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
                 dWx = dWx.contiguous()
     if not l1_norm:
         # normalize energy per L2 wavelet norm, else already L1-normalized
-        Wx *= S.astype(Q.sqrt(scales), Wx.dtype)  # TODO device?
+        Wx *= S.astype(Q.sqrt(scales), Wx.dtype, Wx.device)
         if derivative:
-            dWx *= S.astype(Q.sqrt(scales), Wx.dtype)
+            dWx *= S.astype(Q.sqrt(scales), Wx.dtype, Wx.device)
 
     if not astensor and S.is_tensor(Wx):
         Wx, scales, dWx = [g.cpu().numpy() if S.is_tensor(g) else g

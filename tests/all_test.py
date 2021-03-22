@@ -10,9 +10,7 @@ def njit(fn):
 
 def jit(*args, **kw):
     def wrap(fn):
-        def decor(*_args, **_kw):
-            return fn(*_args, **_kw)
-        return decor
+        return fn
     return wrap
 
 import numba

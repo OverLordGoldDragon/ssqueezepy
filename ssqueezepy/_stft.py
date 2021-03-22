@@ -6,7 +6,7 @@ from .utils import _process_fs_and_t
 from .utils.fft_utils import fft, ifft, rfft, irfft, fftshift, ifftshift
 from .utils.backend import torch, is_tensor
 from .wavelets import _xifn, _process_params_dtype
-from .configs import USE_GPU
+from .configs import gdefaults, USE_GPU
 
 
 def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=None, t=None,
@@ -18,7 +18,7 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=None, t=None,
 
     # Arguments:
         x: np.ndarray
-            Input vector, 1D.
+            Input vector(s), 1D or 2D. See `help(cwt)`.
 
         window: str / np.ndarray / None
             STFT windowing kernel. If string, will fetch per
@@ -69,9 +69,10 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=None, t=None,
         derivative: bool (default False)
             Whether to compute and return `dSx`. Uses `fs`.
 
-        dtype: str / type (np.dtype) / None
-            Compute precision, float32 or float64. If None, uses value from
-            `configs.ini`.
+        dtype: str['float32', 'float64'] / None
+            Compute precision; use 'float32` for speed & memory at expense of
+            accuracy (negligible for most purposes).
+            If None, uses value from `configs.ini`.
 
     **Modulation**
         `True` will center DFT cisoids at the window for each shift `u`:
@@ -104,28 +105,29 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=None, t=None,
         https://arxiv.org/abs/1006.2533
     """
     def _stft(xp, window, diff_window, n_fft, hop_len, fs, modulated, derivative):
-        Sx = buffer(xp, n_fft, n_fft - hop_len, modulated, USE_GPU())
+        Sx = buffer(xp, n_fft, n_fft - hop_len, modulated)
         if derivative:
             dSx = Sx.copy() if not is_tensor(Sx) else Sx.detach().clone()
         if modulated:
-            window, diff_window = [ifftshift(g, axes=0, astensor=True)
+            window, diff_window = [ifftshift(g, astensor=True)
                                    for g in (window, diff_window)]
-        Sx *= window.reshape(-1, 1)
-        if derivative:
-            dSx *= diff_window.reshape(-1, 1)
 
-        # TODO move docs elsewhere
-        # shift windowed slices so they're always DFT-centered (about n=0),
-        # thus shifting bases (cisoids) along the window: e^(-j*(w - u))
+        reshape = (-1, 1) if xp.ndim == 1 else (1, -1, 1)
+        Sx *= window.reshape(*reshape)
+        if derivative:
+            dSx *= diff_window.reshape(*reshape)
 
         # keep only positive frequencies (Hermitian symmetry assuming real `x`)
-        Sx = rfft(Sx, axis=0, astensor=True)
+        axis = 0 if xp.ndim == 1 else 1
+        Sx = rfft(Sx, axis=axis, astensor=True)
         if derivative:
-            dSx = rfft(dSx, axis=0, astensor=True) * fs
+            dSx = rfft(dSx, axis=axis, astensor=True) * fs
         return (Sx, dSx) if derivative else (Sx, None)
 
-    _, fs, _ = _process_fs_and_t(fs, t, len(x))
-    n_fft = n_fft or min(len(x)//hop_len, 512)
+    assert x.ndim in (1, 2)
+    N = x.shape[-1]
+    _, fs, _ = _process_fs_and_t(fs, t, N)
+    n_fft = n_fft or min(N//hop_len, 512)
 
     if win_len is None:
         win_len = (len(window) if isinstance(window, np.ndarray) else
@@ -133,10 +135,11 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=None, t=None,
     window, diff_window = get_window(window, win_len, n_fft, derivative=True)
     _check_NOLA(window, hop_len)
 
+    dtype = gdefaults('_stft.stft', dtype=dtype)
     x, window, diff_window = _process_params_dtype(x, window, diff_window,
                                                    dtype=dtype, auto_gpu=False)
 
-    padlength = len(x) + n_fft - 1  # pad `x` to length `padlength`
+    padlength = N + n_fft - 1  # pad `x` to length `padlength`
     xp = padsignal(x, padtype, padlength=padlength)
 
     if USE_GPU():
