@@ -381,36 +381,40 @@ def test_buffer():
     """Test that CPU & GPU outputs match for `modulated=True` & `=False`,
     and that `modulated=True` matches `ifftshift(buffer(modulated=False))`.
     Also that single- & multi-thread CPU outputs agree.
+
+    Test both single and batched input.
     """
     N = 128
     tsigs = TestSignals(N=N)
 
     for dtype in ('float64', 'float32'):
-      x = tsigs.cosine()[0].astype(dtype)
-      xt = torch.as_tensor(x, device='cuda') if CAN_GPU else 0
-      for modulated in (False, True):
-        for seg_len in (N//2, N//2 - 1):
-          for n_overlap in (N//2 - 1, N//2 - 2, N//2 - 3):
-            if seg_len == n_overlap:
-              continue
+      for ndim in (1, 2):
+        x = (tsigs.cosine()[0].astype(dtype) if ndim == 1 else
+             np.random.randn(4, N))
+        xt = torch.as_tensor(x, device='cuda') if CAN_GPU else 0
+        for modulated in (False, True):
+          for seg_len in (N//2, N//2 - 1):
+            for n_overlap in (N//2 - 1, N//2 - 2, N//2 - 3):
+              if seg_len == n_overlap:
+                continue
 
-            out0 = buffer(x, seg_len, n_overlap, modulated, gpu=False,
-                          parallel=True)
-            if modulated:
-                out00 = buffer(x, seg_len, n_overlap, modulated=False, gpu=False,
-                               parallel=False)
-                out00 = ifftshift(out00, axes=0)
-            if CAN_GPU:
-                out1 = buffer(xt, seg_len, n_overlap, modulated, gpu=True
-                              ).cpu().numpy()
+              out0 = buffer(x, seg_len, n_overlap, modulated, gpu=False,
+                            parallel=True)
+              if modulated:
+                  out00 = buffer(x, seg_len, n_overlap, modulated=False,
+                                 gpu=False, parallel=False)
+                  out00 = ifftshift(out00, axes=0 if ndim == 1 else 1)
+              if CAN_GPU:
+                  out1 = buffer(xt, seg_len, n_overlap, modulated, gpu=True
+                                ).cpu().numpy()
 
-            assert_params = (dtype, modulated, seg_len, n_overlap)
-            if modulated:
-                adiff000 = np.abs(out0 - out00).mean()
-                assert adiff000 == 0, (*assert_params, adiff000)
-            if CAN_GPU:
-                adiff01 = np.abs(out0 - out1).mean()
-                assert adiff01 == 0, (*assert_params, adiff01)
+              assert_params = (dtype, modulated, seg_len, n_overlap)
+              if modulated:
+                  adiff000 = np.abs(out0 - out00).mean()
+                  assert adiff000 == 0, (*assert_params, adiff000)
+              if CAN_GPU:
+                  adiff01 = np.abs(out0 - out1).mean()
+                  assert adiff01 == 0, (*assert_params, adiff01)
 
 
 def test_ssq_stft():
@@ -609,14 +613,14 @@ if __name__ == '__main__':
         # test_ssqueeze_cwt()
         # test_ssqueeze_stft()
         # test_ssqueeze_vs_indexed_sum()
-        # test_buffer()
+        test_buffer()
         # test_ssq_stft()
         # test_ssq_cwt()
         # test_wavelet_dtype_gmw()
         # test_wavelet_dtype()
         # test_higher_order()
         # test_cwt_for_loop()
-        test_ssq_cwt_batched()
-        test_cwt_batched_for_loop()
+        # test_ssq_cwt_batched()
+        # test_cwt_batched_for_loop()
     else:
         pytest.main([__file__, "-s"])

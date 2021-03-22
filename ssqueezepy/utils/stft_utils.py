@@ -22,6 +22,8 @@ def buffer(x, seg_len, n_overlap, modulated=False, gpu=False, parallel=True):
 
     Mimics MATLAB's `buffer`, with less functionality.
 
+    Supports batched input with samples along dim 0, i.e. `(n_inputs, input_len)`.
+
     Ex:
         x = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
         xb = buffer(x, seg_len=5, n_overlap=3)
@@ -29,17 +31,31 @@ def buffer(x, seg_len, n_overlap, modulated=False, gpu=False, parallel=True):
                [2, 3, 4, 5, 6],
                [4, 5, 6, 7, 8]].T
     """
+    assert x.ndim in (1, 2)
     hop_len = seg_len - n_overlap
-    n_segs = (len(x) - seg_len) // hop_len + 1
+    n_segs = (x.shape[-1] - seg_len) // hop_len + 1
     s20 = int(np.ceil(seg_len / 2))
     s21 = s20 - 1 if (seg_len % 2 == 1) else s20
 
+    args = (seg_len, n_segs, hop_len, s20, s21, modulated)
     if gpu:
-        return _buffer_gpu(x, seg_len, n_segs, hop_len, s20, s21, modulated)
+        if x.ndim == 1:
+            out = _buffer_gpu(x, seg_len, n_segs, hop_len, s20, s21, modulated)
 
-    out = np.zeros((seg_len, n_segs), dtype=x.dtype)
-    fn = _buffer_par2 if parallel else _buffer
-    fn(x, out, seg_len, n_segs, hop_len, s20, s21, modulated)
+        elif x.ndim == 2:
+            out = x.new_zeros((len(x), seg_len, n_segs))
+            for _x, _out in zip(x, out):
+                _buffer_gpu(_x,  *args, out=_out)
+    else:
+        fn = _buffer_par if parallel else _buffer
+        if x.ndim == 1:
+            out = np.zeros((seg_len, n_segs), dtype=x.dtype)
+            fn(x, out, *args)
+
+        elif x.ndim == 2:
+            out = np.zeros((len(x), seg_len, n_segs), dtype=x.dtype)
+            for _x, _out in zip(x, out):
+                fn(_x, _out, *args)
     return out
 
 
@@ -61,7 +77,7 @@ def _buffer(x, out, seg_len, n_segs, hop_len, s20, s21, modulated=False):
 
 
 @jit(nopython=True, cache=True, parallel=True)
-def _buffer_par2(x, out, seg_len, n_segs, hop_len, s20, s21, modulated=False):
+def _buffer_par(x, out, seg_len, n_segs, hop_len, s20, s21, modulated=False):
     for i in prange(n_segs):
         start = hop_len * i
         if not modulated:
@@ -77,7 +93,7 @@ def _buffer_par2(x, out, seg_len, n_segs, hop_len, s20, s21, modulated=False):
             out[s20:, i] = x[start0:end0]
 
 
-def _buffer_gpu(x, seg_len, n_segs, hop_len, s20, s21, modulated=False):
+def _buffer_gpu(x, seg_len, n_segs, hop_len, s20, s21, modulated=False, out=None):
     kernel = '''
     extern "C" __global__
     void buffer(${dtype} x[${N}],
@@ -106,7 +122,8 @@ def _buffer_gpu(x, seg_len, n_segs, hop_len, s20, s21, modulated=False):
     '''
     if not isinstance(x, torch.Tensor):
         x = torch.as_tensor(x, device='cuda')
-    out = x.new_zeros((seg_len, n_segs))
+    if out is None:
+        out = x.new_zeros((seg_len, n_segs))
 
     blockspergrid, threadsperblock, kernel_kw, _ = _get_kernel_params(out, dim=1)
     kernel_kw.update(dict(N=len(x), L=len(out), W=out.shape[1]))
