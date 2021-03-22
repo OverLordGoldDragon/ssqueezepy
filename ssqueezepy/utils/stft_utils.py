@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 from numpy.fft import fft, fftshift
-from numba import jit
+from numba import jit, prange
 from scipy import integrate
 from .gpu_utils import _run_on_gpu, _get_kernel_params
 from .backend import torch
@@ -15,7 +15,7 @@ __all__ = [
 ]
 
 
-def buffer(x, seg_len, n_overlap, modulated=False, gpu=False):
+def buffer(x, seg_len, n_overlap, modulated=False, gpu=False, parallel=True):
     """Build 2D array where each column is a successive slice of `x` of length
     `seg_len` and overlapping by `n_overlap` (or equivalently incrementing
     starting index of each slice by `hop_len = seg_len - n_overlap`).
@@ -38,6 +38,13 @@ def buffer(x, seg_len, n_overlap, modulated=False, gpu=False):
         return _buffer_gpu(x, seg_len, n_segs, hop_len, s20, s21, modulated)
 
     out = np.zeros((seg_len, n_segs), dtype=x.dtype)
+    fn = _buffer_par2 if parallel else _buffer
+    fn(x, out, seg_len, n_segs, hop_len, s20, s21, modulated)
+    return out
+
+
+@jit(nopython=True, cache=True)
+def _buffer(x, out, seg_len, n_segs, hop_len, s20, s21, modulated=False):
     for i in range(n_segs):
         start = hop_len * i
         if not modulated:
@@ -51,7 +58,23 @@ def buffer(x, seg_len, n_overlap, modulated=False, gpu=False):
             end1   = start1 + s20
             out[:s20, i] = x[start1:end1]
             out[s20:, i] = x[start0:end0]
-    return out
+
+
+@jit(nopython=True, cache=True, parallel=True)
+def _buffer_par2(x, out, seg_len, n_segs, hop_len, s20, s21, modulated=False):
+    for i in prange(n_segs):
+        start = hop_len * i
+        if not modulated:
+            start = hop_len * i
+            end   = start + seg_len
+            out[:, i] = x[start:end]
+        else:
+            start0 = hop_len * i
+            end0   = start0 + s21
+            start1 = end0
+            end1   = start1 + s20
+            out[:s20, i] = x[start1:end1]
+            out[s20:, i] = x[start0:end0]
 
 
 def _buffer_gpu(x, seg_len, n_segs, hop_len, s20, s21, modulated=False):

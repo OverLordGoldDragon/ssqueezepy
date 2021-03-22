@@ -380,6 +380,7 @@ def test_ssqueeze_vs_indexed_sum():
 def test_buffer():
     """Test that CPU & GPU outputs match for `modulated=True` & `=False`,
     and that `modulated=True` matches `ifftshift(buffer(modulated=False))`.
+    Also that single- & multi-thread CPU outputs agree.
     """
     N = 128
     tsigs = TestSignals(N=N)
@@ -393,9 +394,11 @@ def test_buffer():
             if seg_len == n_overlap:
               continue
 
-            out0 = buffer(x, seg_len, n_overlap, modulated, gpu=False)
+            out0 = buffer(x, seg_len, n_overlap, modulated, gpu=False,
+                          parallel=True)
             if modulated:
-                out00 = buffer(x, seg_len, n_overlap, modulated=False, gpu=False)
+                out00 = buffer(x, seg_len, n_overlap, modulated=False, gpu=False,
+                               parallel=False)
                 out00 = ifftshift(out00, axes=0)
             if CAN_GPU:
                 out1 = buffer(xt, seg_len, n_overlap, modulated, gpu=True
