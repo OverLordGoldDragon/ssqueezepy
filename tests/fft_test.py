@@ -219,10 +219,10 @@ def test_replace_under_abs():
             wt  = torch.tensor(w0, device='cuda')
             Wxt = torch.tensor(Wx, device='cuda')
 
-        replace_under_abs(w0, Wx, gamma, np.inf, parallel=False, gpu=False)
-        replace_under_abs(w1, Wx, gamma, np.inf, parallel=True,  gpu=False)
+        replace_under_abs(w0, Wx, gamma, np.inf, parallel=False)
+        replace_under_abs(w1, Wx, gamma, np.inf, parallel=True)
         if CAN_GPU:
-            replace_under_abs(wt, Wxt, gamma, np.inf, parallel=False, gpu=True)
+            replace_under_abs(wt, Wxt, gamma, np.inf)
             wt = wt.cpu().numpy()
 
         assert np.allclose(w0, w1), ("parallel", dtype)
@@ -260,13 +260,12 @@ def test_indexed_sum_onfly():
                    ssq_freqs)
 
           out0 = indexed_sum_onfly(Wx, w, ssq_freqs, const, ssq_logscale,
-                                   parallel=False, gpu=False, flipud=flipud)
+                                   flipud=flipud, parallel=False)
           out1 = indexed_sum_onfly(Wx, w, ssq_freqs, const, ssq_logscale,
-                                   parallel=True,  gpu=False, flipud=flipud)
+                                   flipud=flipud, parallel=True)
           if CAN_GPU:
               out2 = indexed_sum_onfly(Wxt, wt, ssq_freqs, const, ssq_logscale,
-                                       parallel=False, gpu=True,  flipud=flipud
-                                       ).cpu().numpy()
+                                       flipud=flipud).cpu().numpy()
 
           adiff01 = np.abs(out0 - out1).mean()
           if CAN_GPU:
@@ -297,11 +296,10 @@ def test_ssqueeze_cwt():
 
           args = (ssq_freqs, const, ssq_logscale)
           kw = dict(flipud=flipud, gamma=gamma)
-          out0 = ssqueeze_fast(Wx, dWx, *args, **kw, parallel=False, gpu=False)
-          out1 = ssqueeze_fast(Wx, dWx, *args, **kw, parallel=True,  gpu=False)
+          out0 = ssqueeze_fast(Wx, dWx, *args, **kw, parallel=False)
+          out1 = ssqueeze_fast(Wx, dWx, *args, **kw, parallel=True)
           if CAN_GPU:
-              out2 = ssqueeze_fast(Wxt, dWxt, *args, **kw,
-                                   parallel=False, gpu=True).cpu().numpy()
+              out2 = ssqueeze_fast(Wxt, dWxt, *args, **kw).cpu().numpy()
 
           adiff01 = np.abs(out0 - out1).mean()
           if CAN_GPU:
@@ -332,11 +330,10 @@ def test_ssqueeze_stft():
 
         args = (ssq_freqs, const, ssq_logscale)
         kw = dict(flipud=flipud, gamma=gamma)
-        out0 = ssqueeze_fast(Sx, dSx, *args, **kw, parallel=False, gpu=False)
-        out1 = ssqueeze_fast(Sx, dSx, *args, **kw, parallel=True,  gpu=False)
+        out0 = ssqueeze_fast(Sx, dSx, *args, **kw, parallel=False)
+        out1 = ssqueeze_fast(Sx, dSx, *args, **kw, parallel=True)
         if CAN_GPU:
-          out2 = ssqueeze_fast(Sxt, dSxt, *args, **kw,
-                               parallel=False, gpu=True).cpu().numpy()
+          out2 = ssqueeze_fast(Sxt, dSxt, *args, **kw).cpu().numpy()
 
         adiff01 = np.abs(out0 - out1).mean()
         if CAN_GPU:
@@ -366,7 +363,7 @@ def test_ssqueeze_vs_indexed_sum():
                    ssq_freqs)
 
           args = (ssq_freqs, const, ssq_logscale)
-          kw = dict(parallel=False, gpu=False, flipud=flipud)
+          kw = dict(parallel=False, flipud=flipud)
           out0 = indexed_sum_onfly(Wx, w, *args, **kw)
           out1 = ssqueeze_fast(Wx, dWx, *args, **kw, gamma=gamma)
 
@@ -398,15 +395,13 @@ def test_buffer():
               if seg_len == n_overlap:
                 continue
 
-              out0 = buffer(x, seg_len, n_overlap, modulated, gpu=False,
-                            parallel=True)
+              out0 = buffer(x, seg_len, n_overlap, modulated, parallel=True)
               if modulated:
                   out00 = buffer(x, seg_len, n_overlap, modulated=False,
-                                 gpu=False, parallel=False)
+                                 parallel=False)
                   out00 = ifftshift(out00, axes=0 if ndim == 1 else 1)
               if CAN_GPU:
-                  out1 = buffer(xt, seg_len, n_overlap, modulated, gpu=True
-                                ).cpu().numpy()
+                  out1 = buffer(xt, seg_len, n_overlap, modulated).cpu().numpy()
 
               assert_params = (dtype, modulated, seg_len, n_overlap)
               if modulated:

@@ -21,6 +21,7 @@ numba.jit  = jit
 print("numba.njit is now monke")
 print("numba.jit  is now monke")
 ##############################################################################
+import os
 import pytest
 import numpy as np
 from ssqueezepy._cwt import _icwt_norm
@@ -53,6 +54,7 @@ VIZ = 0
 
 
 def test_ssq_cwt():
+    os.environ['SSQ_GPU'] = '0'  # in case concurrent tests set it to '1'
     np.random.seed(5)
     x = np.random.randn(64)
     for wavelet in ('morlet', ('morlet', {'mu': 20}), 'bump'):
@@ -84,6 +86,7 @@ def test_ssq_cwt():
 
 
 def test_cwt():
+    os.environ['SSQ_GPU'] = '0'
     x = np.random.randn(64)
     Wx, *_ = cwt(x, 'morlet', vectorized=True)
     _ = icwt(Wx, 'morlet', one_int=True)
@@ -103,12 +106,14 @@ def test_cwt():
 
 
 def test_ssq_stft():
+    os.environ['SSQ_GPU'] = '0'
     Tsx = np.random.randn(128, 128)
     pass_on_error(issq_stft, Tsx, modulated=False)
     pass_on_error(issq_stft, Tsx, hop_len=2)
 
 
 def test_wavelets():
+    os.environ['SSQ_GPU'] = '0'
     for wavelet in ('morlet', ('morlet', {'mu': 4}), 'bump'):
         wavelet = Wavelet(wavelet)
 
@@ -153,6 +158,7 @@ def test_toolkit():
 
 
 def test_visuals():
+    os.environ['SSQ_GPU'] = '0'
     x = np.random.randn(10)
     visuals.hist(x, show=1, stats=1)
 
@@ -178,6 +184,7 @@ def test_visuals():
 
 
 def test_utils():
+    os.environ['SSQ_GPU'] = '0'
     _ = utils.buffer(np.random.randn(20), 4, 1)
 
     wavelet = Wavelet(('morlet', {'mu': 6}))
@@ -233,6 +240,7 @@ def test_anim():
 
 
 def test_ssqueezing():
+    os.environ['SSQ_GPU'] = '0'
     Wx = np.random.randn(4, 4)
     w = np.abs(Wx)
 
@@ -279,6 +287,7 @@ def test_morse_utils():
 
 
 def test_test_signals():
+    os.environ['SSQ_GPU'] = '0'
     tsigs = TestSignals()
     pass_on_error(tsigs, dft='doot')
 
@@ -298,6 +307,7 @@ def test_test_signals():
 
 
 def test_cwt_higher_order():
+    os.environ['SSQ_GPU'] = '0'
     N = 256
 
     tsigs = TestSignals()
@@ -318,6 +328,7 @@ def test_cwt_higher_order():
 
 
 def test_viz_gmw_orders():
+    os.environ['SSQ_GPU'] = '0'
     N = 256
     gamma, beta, norm = 3, 60, 'bandpass'
     n_orders = 3
@@ -327,6 +338,7 @@ def test_viz_gmw_orders():
 
 def test_trigdiff():
     """Ensure `trigdiff` matches `cwt(derivative=True)`."""
+    os.environ['SSQ_GPU'] = '0'
     N = 256
     x = np.random.randn(N)
     Wx, _, dWx = cwt(x, derivative=True, rpadded=True)
@@ -359,6 +371,7 @@ def test_dtype():
     """Ensure `cwt` and `ssq_cwt` compute at appropriate precision depending
     on `Wavelet.dtype`, returning float32 & complex64 arrays for single precision.
     """
+    os.environ['SSQ_GPU'] = '0'
     wav32, wav64 = Wavelet(dtype='float32'), Wavelet(dtype='float64')
     x = np.random.randn(256)
     outs32    = ssq_cwt(x, wav32)

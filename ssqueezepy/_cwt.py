@@ -275,9 +275,9 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
                 dWx = dWx.contiguous()
     if not l1_norm:
         # normalize energy per L2 wavelet norm, else already L1-normalized
-        Wx *= S.astype(Q.sqrt(scales), Wx.dtype, Wx.device)
+        Wx *= S.astype(Q.sqrt(scales), Wx.dtype)
         if derivative:
-            dWx *= S.astype(Q.sqrt(scales), Wx.dtype, Wx.device)
+            dWx *= S.astype(Q.sqrt(scales), Wx.dtype)
 
     if not astensor and S.is_tensor(Wx):
         Wx, scales, dWx = [g.cpu().numpy() if S.is_tensor(g) else g

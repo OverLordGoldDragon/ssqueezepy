@@ -492,11 +492,10 @@ def replace_at_value(x, ref=None, value=0., replacement=0.):
         x = x.squeeze(axis=-1)
     return x
 
-def replace_under_abs(x, ref=None, value=0., replacement=0., parallel=None,
-                      gpu=None):
-    if gpu:
+def replace_under_abs(x, ref=None, value=0., replacement=0., parallel=None):
+    if S.is_tensor(x):
         _replace_under_abs_gpu(x, ref, value, replacement)
-    elif parallel:
+    elif parallel or (parallel is None and IS_PARALLEL()):
         _replace_under_abs_par(x, ref, value, replacement)
     else:
         _replace_under_abs(x, ref, value, replacement)

@@ -132,7 +132,7 @@ def test_component_inversion():
     x += np.sqrt(noise_var) * np.random.randn(len(x))
 
     wavelet = ('gmw', {'beta': 6})
-    Tx, *_ = ssq_cwt(x, wavelet, scales='log:maximal', nv=32, t=ts)
+    Tx, *_ = ssq_cwt(x, wavelet, scales='log:maximal', nv=32, t=ts, flipud=0)
 
     # hand-coded, subject to failure
     bw, slope, offset = .035, .44, .58
@@ -163,7 +163,7 @@ def test_stft():
           for modulated in (True, False):
             kw = dict(hop_len=hop_len, n_fft=n_fft, modulated=modulated)
 
-            Sx = stft(x, **kw)
+            Sx = stft(x, dtype='float64', **kw)
             xr = istft(Sx, N=len(x), **kw)
 
             txt = ("\nSTFT: (N, n_fft, hop_len, modulated) = ({}, {}, "
