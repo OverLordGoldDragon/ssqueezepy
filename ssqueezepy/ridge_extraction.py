@@ -44,8 +44,7 @@ def extract_ridges(Tf, scales, penalty=2., n_ridges=1, bw=15, transform='cwt',
             Whether to also compute and return `fridge` & `max_energy`.
 
         parallel: bool (default True)
-            Whether to use parallelized JIT code; runs much faster but uses much
-            more CPU.
+            Whether to use parallelized JIT code; runs faster on some input sizes.
 
     # Returns
         ridge_idxs: np.ndarray
@@ -111,8 +110,8 @@ def extract_ridges(Tf, scales, penalty=2., n_ridges=1, bw=15, transform='cwt',
 
     eps   = EPS64      if Tf.dtype == np.cfloat else EPS32
     dtype = np.float64 if Tf.dtype == np.cfloat else np.float32
-    scales, eps, penalty= [np.asarray(x, dtype=dtype)
-                           for x in (scales, eps, penalty)]
+    scales, eps, penalty = [np.asarray(x, dtype=dtype)
+                            for x in (scales, eps, penalty)]
 
     scales = (np.log(scales) if transform == 'cwt' else
               scales)
@@ -159,7 +158,7 @@ def _accumulated_penalty_energy_fw(energy_to_track, penalty_matrix, parallel):
     penalized_energy = energy_to_track.copy()
     fn = (__accumulated_penalty_energy_fwp if parallel else
           __accumulated_penalty_energy_fw)
-    penalized_energy = fn(penalized_energy, penalty_matrix)
+    fn(penalized_energy, penalty_matrix)
     ridge_idxs = np.unravel_index(np.argmin(penalized_energy, axis=0),
                                   penalized_energy.shape)[1]
     return penalized_energy, ridge_idxs
@@ -172,16 +171,14 @@ def __accumulated_penalty_energy_fw(penalized_energy, penalty_matrix):
             penalized_energy[idx_freq, idx_time
                              ] += np.amin(penalized_energy[:, idx_time - 1] +
                                           penalty_matrix[idx_freq, :])
-    return penalized_energy
 
-@jit(nopython=True, cache=True, parallel=True)  # TODO parallel_level
+@jit(nopython=True, cache=True, parallel=True)
 def __accumulated_penalty_energy_fwp(penalized_energy, penalty_matrix):
     for idx_time in range(1, penalized_energy.shape[1]):
         for idx_freq in prange(0, penalized_energy.shape[0]):
             penalized_energy[idx_freq, idx_time
                              ] += np.amin(penalized_energy[:, idx_time - 1] +
                                           penalty_matrix[idx_freq, :])
-    return penalized_energy
 
 
 def _accumulated_penalty_energy_bw(energy_to_track, penalty_matrix,
@@ -200,9 +197,8 @@ def _accumulated_penalty_energy_bw(energy_to_track, penalty_matrix,
     e = energy_to_track
     fn = (__accumulated_penalty_energy_bwp if parallel else
           __accumulated_penalty_energy_bw)
-    ridge_idxs_fw = fn(e, penalty_matrix, pen_e, ridge_idxs_fw, eps)
-    ridge_idxs_fw = np.asarray(ridge_idxs_fw, dtype=int)
-    return ridge_idxs_fw
+    fn(e, penalty_matrix, pen_e, ridge_idxs_fw, eps)
+    return np.asarray(ridge_idxs_fw).astype(int)
 
 
 @jit(nopython=True, cache=True)
@@ -215,13 +211,15 @@ def __accumulated_penalty_energy_bw(e, penalty_matrix, pen_e, ridge_idxs_fw, eps
 
             if abs(val - (pen_e[idx_freq, idx_time] + new_penalty)) < eps:
                 ridge_idxs_fw[idx_time] = idx_freq
-    return ridge_idxs_fw
 
 @jit(nopython=True, cache=True, parallel=True)
 def __accumulated_penalty_energy_bwp(e, penalty_matrix, pen_e, ridge_idxs_fw,
                                      eps):
-    for tidx in prange(e.shape[1] - 1):
+    # adding `prange` to `tidx` makes whole computation much faster (x3-4),
+    # but breaks it on *some* inputs (unpredictably)
+    for tidx in range(e.shape[1] - 1):
         # `prange` only supports a step size of 1, so we use a trick
+        # actually can't `prange` `tidx`, not thread-safe
         idx_time = (e.shape[1] - 2) - tidx
         val = (pen_e[ridge_idxs_fw[idx_time + 1], idx_time + 1] -
                e[    ridge_idxs_fw[idx_time + 1], idx_time + 1])
@@ -230,4 +228,3 @@ def __accumulated_penalty_energy_bwp(e, penalty_matrix, pen_e, ridge_idxs_fw,
 
             if abs(val - (pen_e[idx_freq, idx_time] + new_penalty)) < eps:
                 ridge_idxs_fw[idx_time] = idx_freq
-    return ridge_idxs_fw

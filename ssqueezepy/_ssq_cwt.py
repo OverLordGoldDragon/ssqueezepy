@@ -15,7 +15,6 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
             difftype='trig', difforder=None, gamma=None, vectorized=True,
             preserve_transform=None, astensor=True, order=0, patience=0,
             flipud=True, cache_wavelet=None, get_w=False, get_dWx=False):
-    # TODO docs
     """Synchrosqueezed Continuous Wavelet Transform.
     Implements the algorithm described in Sec. III of [1].
 
@@ -254,7 +253,7 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
                               patience=patience, cache_wavelet=cache_wavelet)
 
     if preserve_transform is None:
-        preserve_transform = not USE_GPU()
+        preserve_transform = not S.is_tensor(Wx)
     if preserve_transform:
         _Wx = (Wx.copy() if not S.is_tensor(Wx) else
                Wx.detach().clone())
@@ -408,7 +407,6 @@ def _process_component_inversion_args(cc, cw):
 
 
 def phase_cwt(Wx, dWx, difftype='trig', gamma=None, parallel=None):
-    # TODO docs
     """Calculate the phase transform at each (scale, time) pair:
           w[a, b] = Im((1/2pi) * d/db (Wx[a,b]) / Wx[a,b])
     See above Eq 20.3 in [1], or Eq 13 in [2].

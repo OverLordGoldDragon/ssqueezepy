@@ -124,32 +124,39 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=None, t=None,
             dSx = rfft(dSx, axis=axis, astensor=True) * fs
         return (Sx, dSx) if derivative else (Sx, None)
 
+    # process args
     assert x.ndim in (1, 2)
     N = x.shape[-1]
     _, fs, _ = _process_fs_and_t(fs, t, N)
     n_fft = n_fft or min(N//hop_len, 512)
 
+    # process `window`, make `diff_window`, check NOLA
     if win_len is None:
         win_len = (len(window) if isinstance(window, np.ndarray) else
                    n_fft)
     window, diff_window = get_window(window, win_len, n_fft, derivative=True)
     _check_NOLA(window, hop_len)
 
+    # enforce `dtype`
     dtype = gdefaults('_stft.stft', dtype=dtype)
     x, window, diff_window = _process_params_dtype(x, window, diff_window,
                                                    dtype=dtype, auto_gpu=False)
-
-    padlength = N + n_fft - 1  # pad `x` to length `padlength`
+    # pad `x` to length `padlength`
+    padlength = N + n_fft - 1
     xp = padsignal(x, padtype, padlength=padlength)
 
+    # arrays -> tensors if using GPU
     if USE_GPU():
         xp, window, diff_window = [torch.as_tensor(g, device='cuda') for g in
                                    (xp, window, diff_window)]
+    # take STFT
     Sx, dSx = _stft(xp, window, diff_window, n_fft, hop_len, fs, modulated,
                     derivative)
 
+    # ensure indexing works as expected downstream (cupy)
     Sx  = Sx.contiguous()  if is_tensor(Sx)  else Sx
     dSx = dSx.contiguous() if is_tensor(dSx) else dSx
+
     return (Sx, dSx) if derivative else Sx
 
 

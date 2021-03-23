@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
-"""Fast Fourier Transform tests.
+"""Fast Fourier Transform, CPU parallelization, and GPU execution tests:
+   - multi-thread CPU & GPU outputs match that of single-thread CPU
+   - batched (multi-input) outputs match single for-looped
+   - `ssqueezepy.FFT` outputs match `scipy`'s
+   - unified synchrosqueezing pipelines outputs match that of v0.6.0
 
-Tests that `ssqueezepy.FFT` outputs match `scipy`'s.
-Also test that parallelized implementations output same as non-parallelized.
+Note that GPU tests are skipped in CI (Travis), and are instead done locally.
 """
-# TODO rename? gpu vs cpu etc
 import os
 import pytest
 import numpy as np
@@ -442,8 +444,8 @@ def test_ssq_cwt():
     N = 256
     tsigs = TestSignals(N=N)
 
-    for dtype in ('float64', 'float32')[1:]:
-      gpu_atol = 1e-8 if dtype == 'float64' else 1e-4
+    for dtype in ('float64', 'float32'):
+      gpu_atol = 1e-8 if dtype == 'float64' else 2e-4
       x = tsigs.par_lchirp()[0].astype(dtype)
       kw = dict(astensor=False)
 
@@ -474,7 +476,7 @@ def test_wavelet_dtype_gmw():
         continue
       for order in (0, 1):
         for norm in ('bandpass', 'energy'):
-          for dtype in ('float64', 'float32')[1:]:
+          for dtype in ('float64', 'float32'):
             os.environ['SSQ_GPU'] = SSQ_GPU
             kw = dict(order=order, norm=norm, dtype=dtype)
             wavelet = _wavelet('gmw', **kw)

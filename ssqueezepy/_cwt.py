@@ -8,15 +8,11 @@ from .utils.backend import Q
 from .algos import replace_at_inf_or_nan
 from .wavelets import Wavelet
 
-# TODO `Wavelet`:
-#  - `compute_dtype` & `storage_dtype`? Allows L2 GMW
-#  - `_xi_gpu`
-
 
 def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
         l1_norm=True, derivative=False, padtype='reflect', rpadded=False,
         vectorized=True, astensor=True, cache_wavelet=None, order=0, average=None,
-        patience=0):  # TODO docs
+        patience=0):
     """Continuous Wavelet Transform, discretized, as described in
     Sec. 4.3.3 of [1] and Sec. IIIA of [2]. Uses FFT convolution via frequency-
     domain wavelets matching (padded) input's length.
@@ -473,7 +469,7 @@ def cwt_higher_order(x, wavelet='gmw', order=1, average=None, astensor=True,
 
     # Arguments:
         x: np.ndarray
-            Input, 1D.
+            Input, 1D/2D. See `help(cwt)`.
 
         wavelet: str / wavelets.Wavelet
             CWT wavelet.
@@ -553,10 +549,9 @@ def cwt_higher_order(x, wavelet='gmw', order=1, average=None, astensor=True,
         if derivative:
             dWx_all = dWx_all[0]
 
+    scales = kw['scales']
     if not astensor and S.is_tensor(Wx_all):
         Wx_all, scales, dWx_all = [g.cpu().numpy() if S.is_tensor(g) else g
-                                   for g in (Wx_all, kw['scales'], dWx_all)]
-    else:
-        scales = kw['scales']
+                                   for g in (Wx_all, scales, dWx_all)]
     return ((Wx_all, scales, dWx_all) if derivative else
             (Wx_all, scales))

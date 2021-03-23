@@ -34,7 +34,6 @@ __license__ = __doc__
 __project_url__ = 'https://github.com/OverLordGoldDragon/ssqueezepy'
 
 
-# TODO replace 'SSQ_PARALLEL' w/ 'SSQ_THREADS'?
 from . import utils
 from . import ssqueezing
 from . import _cwt
@@ -63,8 +62,7 @@ from .wavelets import *
 from .ridge_extraction import *
 from .utils.fft_utils import *
 
-from .configs import IS_PARALLEL
-from .utils import find_closest_parallel_is_faster
+from .configs import IS_PARALLEL, USE_GPU
 
 
 def wavs():

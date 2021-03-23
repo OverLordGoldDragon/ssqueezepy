@@ -5,7 +5,7 @@ from numba import jit
 from types import FunctionType
 from scipy import integrate
 from .algos import find_maximum
-from .configs import gdefaults, USE_GPU
+from .configs import gdefaults, USE_GPU, IS_PARALLEL
 from .utils import backend as S
 from .utils.fft_utils import ifft, fftshift, ifftshift
 from .utils.backend import torch, Q, atleast_1d
@@ -149,8 +149,9 @@ class Wavelet():
             return self._Psih
 
         # first empty existing to free memory
-        self._Psih = []
-        gc.collect()
+        if getattr(self, '_Psih', None) is not None:
+            self._Psih = None
+            gc.collect()
 
         self._Psih = self(scale=scale, N=N, nohalf=nohalf)
         self._Psih_N = N
@@ -513,11 +514,15 @@ def morlet(mu=None, dtype=None):
     # float64 due to Python floats (e.g. `2.`)
     C = S.asarray([-.5, np.sqrt(2) * cs * pi**.25], dtype=dtype)
 
-    fn = _morlet if not USE_GPU() else _morlet_gpu
+    fn = _morlet_gpu if USE_GPU() else (_morlet_par if IS_PARALLEL() else _morlet)
     return lambda w: fn(atleast_1d(w, dtype), mu, ks, C)
 
-@jit(nopython=True, cache=True, parallel=True)
+@jit(nopython=True, cache=True)
 def _morlet(w, mu, ks, C):
+    return C[1]* (np.exp(C[0] * (w - mu)**2) - ks * np.exp(C[0] * w**2))
+
+@jit(nopython=True, cache=True, parallel=True)
+def _morlet_par(w, mu, ks, C):
     return C[1]* (np.exp(C[0] * (w - mu)**2) - ks * np.exp(C[0] * w**2))
 
 def _morlet_gpu(w, mu, ks, C):
@@ -535,12 +540,18 @@ def bump(mu=None, s=None, om=None, dtype=None):
     C = S.asarray([2 * pi * 1j * om, .443993816053287], dtype=dtype)
     C0 = S.asarray(.999, dtype='float' + str(int(dtype.strip('complex'))//2))
 
-    fn = _bump if not USE_GPU() else _bump_gpu
+    fn = _bump_gpu if USE_GPU() else (_bump_par if IS_PARALLEL() else _bump)
     return lambda w: fn(atleast_1d(w, dtype), (atleast_1d(w, dtype) - mu) / s,
                         s, C, C0)
 
-@jit(nopython=True, cache=True, parallel=True)
+@jit(nopython=True, cache=True)
 def _bump(w, _w, s, C, C0):
+    return np.exp(C[0] * w) / s * (
+        np.abs(_w) < C0) * np.exp(
+            -1 / (1 - (_w * (np.abs(_w) < C0))**2)) / C[1]
+
+@jit(nopython=True, cache=True, parallel=True)
+def _bump_par(w, _w, s, C, C0):
     return np.exp(C[0] * w) / s * (
         np.abs(_w) < C0) * np.exp(
             -1 / (1 - (_w * (np.abs(_w) < C0))**2)) / C[1]
@@ -559,11 +570,15 @@ def cmhat(mu=None, s=None, dtype=None):
     mu, s = _process_params_dtype(mu, s, dtype=dtype)
     C = S.asarray([5/2, 2 * np.sqrt(2/3) * pi**(-1/4)], dtype=dtype)
 
-    fn = _cmhat if not USE_GPU() else _cmhat_gpu
+    fn = _cmhat_gpu if USE_GPU() else (_cmhat_par if IS_PARALLEL() else _cmhat)
     return lambda w: fn(atleast_1d(w, dtype) - mu, s, C)
 
-@jit(nopython=True, cache=True, parallel=True)
+@jit(nopython=True, cache=True)
 def _cmhat(_w, s, C):
+    return C[1] * (s**C[0] * _w**2 * np.exp(-s**2 * _w**2 / 2) * (_w >= 0))
+
+@jit(nopython=True, cache=True, parallel=True)
+def _cmhat_par(_w, s, C):
     return C[1] * (s**C[0] * _w**2 * np.exp(-s**2 * _w**2 / 2) * (_w >= 0))
 
 def _cmhat_gpu(_w, s, C):
@@ -576,11 +591,15 @@ def hhhat(mu=None, dtype=None):
     mu = _process_params_dtype(mu, dtype=dtype)
     C = S.asarray([-1/2, 2 / np.sqrt(5) * pi**(-1/4)], dtype=dtype)
 
-    fn = _hhhat if not USE_GPU() else _hhhat_gpu
+    fn = _hhhat_gpu if USE_GPU() else (_hhhat_par if IS_PARALLEL() else _hhhat)
     return lambda w: fn(atleast_1d(w, dtype) - mu, C)
 
-@jit(nopython=True, cache=True, parallel=True)
+@jit(nopython=True, cache=True)
 def _hhhat(_w, C):
+    return C[1] * (_w * (1 + _w) * np.exp(C[0] * _w**2)) * (1 + np.sign(_w))
+
+@jit(nopython=True, cache=True, parallel=True)
+def _hhhat_par(_w, C):
     return C[1] * (_w * (1 + _w) * np.exp(C[0] * _w**2)) * (1 + np.sign(_w))
 
 def _hhhat_gpu(_w, C):

@@ -89,13 +89,15 @@ def tf_transforms(x, t, wavelet='morlet', window=None, padtype='wrap',
 
 def test_parallel():
     """Ensure `parallel=True` output matches that of `=False`."""
-    x = np.random.randn(512)
-    Wx, scales = cwt(x)
+    for N in (255, 512):
+        x = np.random.randn(N)
+        Wx, scales = cwt(x)
 
-    out1 = extract_ridges(Wx, scales, parallel=False)
-    out2 = extract_ridges(Wx, scales, parallel=True)
+        out0 = extract_ridges(Wx, scales, parallel=False)
+        out1 = extract_ridges(Wx, scales, parallel=True)
 
-    assert np.allclose(out1, out2), "MAE: %s" % np.mean(np.abs(out1 - out2))
+        adiff = np.abs(out0 - out1)
+        assert np.allclose(out0, out1), "N=%s, Max err: %s" % (N, adiff.max())
 
 
 if __name__ == '__main__':

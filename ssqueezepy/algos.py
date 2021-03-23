@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+"""CPU- & GPU-accelerated routines, and few neat algorithms.
+"""
 import numpy as np
 from numba import jit, prange
 from functools import reduce
@@ -297,6 +299,7 @@ def find_closest(a, v, logscale=False, parallel=None, smart=None):
         `(w - bin_min) / bin_step_size`
     Above is forced to bound in [0, len(v) - 1].
     """
+    assert not S.is_tensor(a), "`find_closest` doesn't support GPU execution"
     if smart is None and parallel is None:
         smart = True
     elif parallel and smart:

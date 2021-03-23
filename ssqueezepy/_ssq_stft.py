@@ -48,6 +48,7 @@ def ssq_stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=None, t=Non
 
         get_w, get_dWx
             See `help(ssq_cwt)`.
+            (Named `_dWx` instead of `_dSx` for consistency.)
 
     # Returns:
         Tx: np.ndarray
