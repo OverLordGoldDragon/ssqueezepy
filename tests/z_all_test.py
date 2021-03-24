@@ -16,10 +16,6 @@ def jit(*args, **kw):
 import numba
 njit_orig = numba.njit
 jit_orig  = numba.jit
-numba.njit = njit
-numba.jit  = jit
-print("numba.njit is now monke")
-print("numba.jit  is now monke")
 ##############################################################################
 import os
 import pytest
@@ -35,9 +31,6 @@ from types import ModuleType
 from imp import reload
 import ssqueezepy
 
-reload(numba)
-numba.njit = njit
-numba.jit  = jit
 
 def reload_all():
     reload(ssqueezepy)
@@ -46,11 +39,24 @@ def reload_all():
         if isinstance(obj, ModuleType) and name in ssqueezepy._modules_toplevel:
             reload(obj)
 
-reload_all()
 ##############################################################################
 
 # no visuals here but 1 runs as regular script instead of pytest, for debugging
 VIZ = 0
+
+def test_numba_monke():
+    """Run this *at test time* rather than collection so changes
+    don't apply to other test files. This is for coverage of @jit'd funcs.
+    """
+    numba.njit = njit
+    numba.jit  = jit
+    print("numba.njit is now monke")
+    print("numba.jit  is now monke")
+
+    reload(numba)
+    numba.njit = njit
+    numba.jit  = jit
+    reload_all()
 
 
 def test_ssq_cwt():
@@ -73,16 +79,19 @@ def test_ssq_cwt():
 
     for name in params:
         for value in params[name]:
+            errored = True
             try:
                 if name == 'maprange' and value in ('maximal', (1, 32)):
-                    _ = ssq_cwt(**kw, **{name: value}, scales='log')
+                    _ = ssq_cwt(**kw, **{name: value}, scales='log', get_w=1)
                 else:
-                    _ = ssq_cwt(**kw, **{name: value})
-            except Exception as e:
-                raise Exception(f"{name}={value} failed with:\n{e}")
+                    _ = ssq_cwt(**kw, **{name: value}, get_w=1)
+                errored = False
+            finally:
+                if errored:
+                    print(f"\n{name}={value} failed\n")
 
-    _ = ssq_cwt(x, wavelet, fs=2, difftype='numeric', difforder=2)
-    _ = ssq_cwt(x, wavelet, fs=2, difftype='numeric', difforder=1)
+    _ = ssq_cwt(x, wavelet, fs=2, difftype='numeric', difforder=2, get_w=1)
+    _ = ssq_cwt(x, wavelet, fs=2, difftype='numeric', difforder=1, get_w=1)
 
 
 def test_cwt():

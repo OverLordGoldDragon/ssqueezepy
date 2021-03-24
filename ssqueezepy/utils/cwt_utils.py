@@ -266,7 +266,7 @@ def infer_scaletype(scales):
 
     Returns one of: 'linear', 'log', 'log-piecewise'
     """
-    scales = asnumpy(scales)
+    scales = asnumpy(scales).reshape(-1, 1)
     if not isinstance(scales, np.ndarray):
         raise TypeError("`scales` must be a numpy array (got %s)" % type(scales))
     elif scales.dtype not in (np.float32, np.float64):

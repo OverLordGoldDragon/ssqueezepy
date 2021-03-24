@@ -142,7 +142,7 @@ def IS_PARALLEL():
 def USE_GPU():
     if os.environ.get('SSQ_GPU', '0') == '1':
         if torch is None or cupy is None:
-            raise ImportError("'SSQ_GPU' requires PyTorch and CuPy installed.")
+            raise ValueError("'SSQ_GPU' requires PyTorch and CuPy installed.")
         return True
     return False
 

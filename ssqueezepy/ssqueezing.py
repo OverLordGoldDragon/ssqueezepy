@@ -137,7 +137,7 @@ def ssqueeze(Wx, w=None, ssq_freqs=None, scales=None, fs=None, t=None,
             indexed_sum_onfly(Wx, w, ssq_freqs, const, ssq_logscale, flipud,
                               out=Tx)
 
-    def _process_args(w, fs, t, N, transform, squeezing, scales, maprange,
+    def _process_args(Wx, w, fs, t, transform, squeezing, scales, maprange,
                       wavelet, dWx):
         if w is None and (dWx is None or gamma is None):
             raise ValueError("if `w` is None, `dWx` and `gamma` must not be.")
@@ -152,12 +152,12 @@ def ssqueeze(Wx, w=None, ssq_freqs=None, scales=None, fs=None, t=None,
         if scales is None and transform == 'cwt':
             raise ValueError("`scales` can't be None if `transform == 'cwt'`")
 
+        _, N = Wx.shape if Wx.ndim == 2 else Wx.shape[1:]
         dt, *_ = _process_fs_and_t(fs, t, N)
-        return dt
+        return N, dt
 
-    na, N = Wx.shape if Wx.ndim == 2 else Wx.shape[1:]
-    dt = _process_args(w, fs, t, N, transform, squeezing, scales,
-                       maprange, wavelet, dWx)
+    N, dt = _process_args(Wx, w, fs, t, transform, squeezing, scales,
+                          maprange, wavelet, dWx)
 
     if transform == 'cwt':
         scales, cwt_scaletype, _, nv = process_scales(scales, N, get_params=True)
@@ -178,8 +178,7 @@ def ssqueeze(Wx, w=None, ssq_freqs=None, scales=None, fs=None, t=None,
                              "tuple with `maprange = 'maximal'` "
                              "(got %s)" % str(maprange))
         ssq_freqs = _compute_associated_frequencies(
-            dt, na, N, transform, ssq_scaletype, maprange,
-            wavelet, scales, padtype)
+            scales, N, wavelet, ssq_scaletype, maprange, padtype, dt, transform)
     else:
         ssq_scaletype, _ = infer_scaletype(ssq_freqs)
 
@@ -224,10 +223,11 @@ def _ssq_freqrange(maprange, dt, N, wavelet, scales, padtype):
     return fm, fM
 
 
-def _compute_associated_frequencies(dt, na, N, transform, ssq_scaletype,
-                                    maprange, wavelet, scales, padtype):
+def _compute_associated_frequencies(scales, N, wavelet, ssq_scaletype, maprange,
+                                    padtype='reflect', dt=1, transform='cwt'):
     fm, fM = _ssq_freqrange(maprange, dt, N, wavelet, scales, padtype)
 
+    na = len(scales)
     # frequency divisions `w_l` to reassign to in Synchrosqueezing
     if ssq_scaletype == 'log':
         # [fm, ..., fM]

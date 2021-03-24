@@ -18,12 +18,21 @@ Synchrosqueezing is a powerful _reassignment method_ that focuses time-frequency
   - Wavelet visualizations and testing suite
   - Generalized Morse Wavelets
   - Ridge extraction
+  - Speed: fastest wavelet transforms in Python<sup>1</sup>, beating MATLAB
+
+<sub>1: feel free to open Issue showing otherwise</sub>
 
 
 ## Installation
 `pip install ssqueezepy`. Or, for latest version (most likely stable): 
 
 `pip install git+https://github.com/OverLordGoldDragon/ssqueezepy`
+
+## GPU & CPU acceleration
+
+Multi-threaded execution is enabled by default (disable via `os.environ['SSQ_PARALLEL'] = '0'`). GPU requires [CuPy >= 8.0.0](https://docs.cupy.dev/en/stable/install.html) 
+and [PyTorch >= 1.8.0](https://pytorch.org/get-started/locally/) installed (enable via `os.environ['SSQ_GPU'] = '1'`). `pyfftw` optionally supported for maximum CPU FFT speed. 
+See [Performance guide](https://github.com/OverLordGoldDragon/ssqueezepy/blob/master/ssqueezepy/README.md#performance-guide).
 
 
 ## Examples

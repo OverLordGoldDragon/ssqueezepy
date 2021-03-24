@@ -114,7 +114,7 @@ def _process_ssq_params(Wx, w_or_dWx, ssq_freqs, const, logscale, flipud, out,
         if Sfs is not None:
             params['Sfs'] = Sfs
         ssq_scaletype = (('log_piecewise' if 'idx1' in params else 'log')
-                          if logscale else 'lin')
+                         if logscale else 'lin')
         ssq_scaletype += '_par' if parallel else ''
 
     if gpu:
@@ -546,15 +546,15 @@ def _replace_at_value(x, ref, value=0., replacement=0.):
 def _replace_under_abs(x, ref, value=0., replacement=0.):
     for i in range(x.shape[0]):
         for j in range(x.shape[1]):
-                if abs(ref[i, j]) < value:
-                    x[i, j] = replacement
+            if abs(ref[i, j]) < value:
+                x[i, j] = replacement
 
 @jit(nopython=True, cache=True, parallel=True)
 def _replace_under_abs_par(x, ref, value=0., replacement=0.):
     for i in prange(x.shape[0]):
         for j in prange(x.shape[1]):
-                if abs(ref[i, j]) < value:
-                    x[i, j] = replacement
+            if abs(ref[i, j]) < value:
+                x[i, j] = replacement
 
 
 def _replace_under_abs_gpu(w, Wx, value=0., replacement=0.):
@@ -982,7 +982,7 @@ _cpu_fns = {
 }
 
 _kernel_codes = dict(
-    ssq_cwt_log_piecewise = '''
+    ssq_cwt_log_piecewise='''
     extern "C" __global__
     void ssq_cwt_log_piecewise(${dtype} Wx[${M}][${N}][2],
                                ${dtype} dWx[${M}][${N}][2],
@@ -1028,7 +1028,7 @@ _kernel_codes = dict(
     }
     ''',
 
-    ssq_cwt_log = '''
+    ssq_cwt_log='''
     extern "C" __global__
     void ssq_cwt_log(${dtype} Wx[${M}][${N}][2],
                      ${dtype} dWx[${M}][${N}][2],
@@ -1066,7 +1066,7 @@ _kernel_codes = dict(
     }
     ''',
 
-    ssq_cwt_lin = '''
+    ssq_cwt_lin='''
     extern "C" __global__
     void ssq_cwt_lin(${dtype} Wx[${M}][${N}][2],
                      ${dtype} dWx[${M}][${N}][2],
@@ -1104,7 +1104,7 @@ _kernel_codes = dict(
     }
     ''',
 
-    ssq_stft = '''
+    ssq_stft='''
     extern "C" __global__
     void ssq_stft(${dtype} Wx[${M}][${N}][2],
                   ${dtype} dWx[${M}][${N}][2],
@@ -1143,7 +1143,7 @@ _kernel_codes = dict(
     }
     ''',
 
-    indexed_sum_log_piecewise = '''
+    indexed_sum_log_piecewise='''
     extern "C" __global__
     void indexed_sum_log_piecewise(${dtype} Wx[${M}][${N}][2],
                                    ${dtype} w[${M}][${N}],
@@ -1182,7 +1182,7 @@ _kernel_codes = dict(
     }
     ''',
 
-    indexed_sum_log = '''
+    indexed_sum_log='''
     extern "C" __global__
     void indexed_sum_log(${dtype} Wx[${M}][${N}][2],
                          ${dtype} w[${M}][${N}],
@@ -1213,7 +1213,7 @@ _kernel_codes = dict(
     }
     ''',
 
-    indexed_sum_lin = '''
+    indexed_sum_lin='''
     extern "C" __global__
     void indexed_sum_lin(${dtype} Wx[${M}][${N}][2],
                          ${dtype} w[${M}][${N}],
@@ -1244,7 +1244,7 @@ _kernel_codes = dict(
     }
     ''',
 
-    phase_cwt = '''
+    phase_cwt='''
     extern "C" __global__
     void phase_cwt(${dtype} Wx[${M}][${N}][2],
                    ${dtype} dWx[${M}][${N}][2],

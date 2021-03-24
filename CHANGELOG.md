@@ -1,3 +1,36 @@
+### 0.6.1 (3-24-2021): GPU & CPU acceleration; caching
+
+#### FEATURES
+ - GPU acceleration & multi-thread CPU support for all forward transforms (`cwt, stft, ssq_cwt, ssq_stft`); see [Performance guide](https://github.com/OverLordGoldDragon/ssqueezepy/blob/master/ssqueezepy/README.md#performance-guide)
+ - `ssqueezepy.FFT`, supporting single- & multi-threaded CPU execution, and GPU execution, optionally via `pyfftw`
+ - `Wavelet(dtype=)` option that enables wavelets, `cwt`, and `ssq_cwt` to compute at single and double precision
+ - `Wavelet.Psih(scale=, N=)` will store the computed wavelet(s) and, if subsequent calls have identical `scale` and `N`, will return it directly without recomputing (significant speedup).
+ - `cwt` significantly sped up: 1) per `Wavelet` reuse; 2) rid of `ifftshift` and `*pn` (they undo each other); 3) eliminated redundant allocation in `vectorized`
+ - `configs.ini`: added new configurable defaults
+ 
+#### BREAKING
+ - Default `downsample`: 3 -> 4 in `utils.cwt_utils.make_scales`
+ - `EPS` deprecated in favor of `EPS32` & `EPS64` for respective precisions
+ - `ssq_cwt(flipud=True)` default now returns `Tx = np.flipud(Tx)` relative to previous versions
+ - `ssq_cwt` & `ssq_stft` number of variables returned now depend on `get_w, get_dWx` parameters; see docstrings
+ - `dtype` defaults to `'float32'` (can change via `configs.ini`); neither `cwt` nor `stft`, for most applications, require extreme precision like filters do, so defaults should prioritize compute
+
+#### FIXES
+ - `ssq_stft` would still default `n_fft = len(x)`; defaulter line removed, delegated to `stft`.
+ - `ssqueezing`: improperly handled return of `infer_scaletype`
+ - `ssqueezing`: `_get_center_frequency` computed at `N` instead of `p2up(N)` with `padtype != None`
+
+#### MISC
+ - `ssqueezing.ssqueeze`: added `padtype` arg (see FIXES)
+ - `ssqueezing.ssqueeze` & `ssq_cwt`: added `find_closest_parallel` arg (see its docstring)
+ - `utils.cwt_utils`: `find_downsampling_scale` added argument `N`
+ - `visuals.imshow`: removed default `'interpolation' = 'none'`
+ - Added `# Arguments:` docstring to `Wavelet`
+
+#### NOTES
+ - Undocumented changes; skimming docstrings / source code should suffice for most purposes
+
+
 ### 0.6.0 (2-19-2021): Generalized Morse Wavelets, Ridge Extraction, Testing Suite
 
 #### FEATURES (major)

@@ -31,8 +31,9 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=None, t=None,
             with `win_len == n_fft`.
 
         n_fft: int >= 0 / None
-            FFT length, or STFT column length. If `win_len < n_fft`, will
-            pad `window`. Every STFT column is `fft(window * x_slice)`.
+            FFT length, or `(STFT column length) // 2 + 1`.
+            If `win_len < n_fft`, will pad `window`. Every STFT column is
+            `fft(window * x_slice)`.
             Defaults to `len(x)//hop_len`, up to 512.
 
         win_len: int >= 0 / None

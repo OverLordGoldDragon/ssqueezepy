@@ -10,7 +10,6 @@ Note that GPU tests are skipped in CI (Travis), and are instead done locally.
 import os
 import pytest
 import numpy as np
-import torch
 from scipy.fft import fft as sfft, rfft as srfft, ifft as sifft, irfft as sirfft
 from scipy.fft import ifftshift
 
@@ -26,6 +25,7 @@ from ssqueezepy.utils import process_scales, buffer
 # no visuals here but 1 runs as regular script instead of pytest, for debugging
 VIZ = 0
 try:
+    import torch
     torch.tensor(1, device='cuda')
     CAN_GPU = True
 except:
@@ -137,14 +137,13 @@ def _noninf_mean(x):
     return x.mean()
 
 def test_phase_cwt():
-    os.environ['SSQ_GPU'] = '1'
+    os.environ['SSQ_GPU'] = '0'
     x = TestSignals(N=1000).par_lchirp()[0]
     x += x[::-1]
     wavelet = Wavelet()
     scales = process_scales('log', len(x), wavelet, nv=32)[:240]
 
-    Wx, _, dWx = cwt(x, wavelet, scales=scales, derivative=True, cache_wavelet=1,
-                     astensor=False)
+    Wx, _, dWx = cwt(x, wavelet, scales=scales, derivative=True, cache_wavelet=1)
 
     for dtype in ('complex128', 'complex64'):
         # Wx  = np.random.randn(100, 8192).astype(dtype) * (1 + 2j)

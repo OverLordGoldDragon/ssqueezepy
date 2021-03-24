@@ -5,6 +5,7 @@ from scipy.fft import fftshift as sfftshift, ifftshift as sifftshift
 from scipy.fft import fft as sfft, rfft as srfft, ifft as sifft, irfft as sirfft
 from pathlib import Path
 from . import backend as S
+from ..configs import IS_PARALLEL
 
 try:
     from torch.fft import (fft as tfft, rfft as trfft,
@@ -112,12 +113,11 @@ class FFT():
     new session, `load_wisdom()` is called to load these values, so wisdom is
     only expansive.
     """
-    def __init__(self, planning_timelimit=120, wisdom_dir=UTILS_DIR, threads=-1,
+    def __init__(self, planning_timelimit=120, wisdom_dir=UTILS_DIR, threads=None,
                  patience=0, cache_fft_objects=False, verbose=1):
         self.planning_timelimit = planning_timelimit
         self.wisdom_dir = wisdom_dir
-        self.threads = (multiprocessing.cpu_count() if threads == -1 else
-                        threads)
+        self._user_threads = threads
         self._patience = patience  # default patience
         self._process_patience(patience)  # error if !=0 and pyfftw not installed
         self.cache_fft_objects = cache_fft_objects
@@ -131,6 +131,13 @@ class FFT():
             self._wisdom32, self._wisdom64 = b'', b''
             self._input_history = {}
             self.load_wisdom()
+
+    @property
+    def threads(self):
+        """Set dynamically if `threads` wasn't passed in __init__."""
+        if self._user_threads is None:
+            return (multiprocessing.cpu_count() if IS_PARALLEL() else 1)
+        return self._user_threads
 
     @property
     def patience(self):

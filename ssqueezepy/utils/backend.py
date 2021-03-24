@@ -99,14 +99,16 @@ def _torch_dtype(dtype):
     return dtype  # assume torch.dtype
 
 
+class _TensorDummy():
+    pass
+
+
 class TorchDummy():
     """Dummy class with dummy attributes."""
     def __init__(self):
-        self.Tensor = __TensorDummy
+        self.Tensor = _TensorDummy
+        self.dtype = _TensorDummy
 
-
-class __TensorDummy():
-    pass
 
 class _Util():
     """For wrapper: `@cp._util.memoize`."""
@@ -129,6 +131,7 @@ class _Q():
         if USE_GPU():
             return getattr(torch, name)
         return getattr(np, name)
+
 
 ##############################################################################
 Q = _Q()

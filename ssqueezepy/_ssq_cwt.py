@@ -183,8 +183,13 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
         if difftype not in ('trig', 'phase', 'numeric'):
             raise ValueError("`difftype` must be one of: direct, phase, numeric"
                              " (got %s)" % difftype)
-        elif difftype != 'trig' and USE_GPU():
-            raise ValueError("GPU computation only supports `difftype = 'trig'`")
+        elif difftype != 'trig':
+            if USE_GPU():
+                raise ValueError("GPU computation only supports "
+                                 "`difftype = 'trig'`")
+            elif not get_w:
+                raise ValueError("`difftype != 'trig'` requires `get_w = True`")
+
         if difforder is not None:
             if difftype != 'numeric':
                 WARN("`difforder` is ignored if `difftype != 'numeric'")
@@ -574,14 +579,14 @@ def phase_cwt_num(Wx, dt, difforder=4, gamma=None):
 
     w = _differentiate(Wx, dt)
 
+    # calculate inst. freq for each scale
+    # 2*pi norm per discretized inverse FT rather than inverse DFT
+    w = np.real(-1j * w / Wx) / (2*pi)
+
     # epsilon from Daubechies, H-T Wu, et al.
     # gamma from Brevdo, H-T Wu, et al.
     gamma = gamma or np.sqrt(EPS64 if Wx.dtype == np.cfloat else EPS32)
     w[np.abs(Wx) < gamma] = np.inf
-
-    # calculate inst. freq for each scale
-    # 2*pi norm per discretized inverse FT rather than inverse DFT
-    w = np.real(-1j * w / Wx) / (2*pi)
 
     # see `phase_cwt`, though negatives may no longer be in minority
     w = np.abs(w)

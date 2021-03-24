@@ -7,6 +7,7 @@ from ssqueezepy import cwt, icwt, stft, istft
 from ssqueezepy._stft import get_window
 from ssqueezepy.toolkit import lin_band
 
+
 VIZ = 0  # set to 1 to enable various visuals and run without pytest
 os.environ['SSQ_GPU'] = '0'  # in case concurrent tests set it to '1'
 
