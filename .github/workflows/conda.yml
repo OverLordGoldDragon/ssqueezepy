@@ -36,6 +36,8 @@ jobs:
                   fi
 
                   conda run -n test-env python3 -m pip install --upgrade pip
+                  conda run -n test-env python3 -m conda install -c conda-forge numpy scipy matplotlib librosa
+                  conda run -n test-env python3 -m conda install -c numba numba
                   conda run -n test-env python3 -m pip install -r requirements.txt
                   conda run -n test-env python3 -m pip install -r requirements-dev.txt
                   
