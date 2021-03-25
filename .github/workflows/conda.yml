@@ -5,6 +5,10 @@ on:
       paths:
         - "ssqueezepy/"
         - "tests/"
+        - ".github/workflows/*"
+        - ".coveragerc"
+        - "requirements.txt"
+        - "requirements-dev.txt"
 
 jobs:
     build-conda:

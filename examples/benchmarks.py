@@ -26,24 +26,30 @@ def time_ssq_cwt(x, dtype, scales, cache_wavelet, ssq_freqs):
     wavelet = Wavelet(dtype=dtype)
     kw = dict(wavelet=wavelet, scales=scales, ssq_freqs=ssq_freqs)
     if cache_wavelet:
-        _ = ssq_cwt(x, cache_wavelet=True, **kw)
-        del _; gc.collect()
+        for _ in range(3):  # warmup run
+            _ = ssq_cwt(x, cache_wavelet=True, **kw)
+            del _; gc.collect()
     return timeit(lambda: ssq_cwt(x, cache_wavelet=cache_wavelet, **kw))
 
 def time_ssq_stft(x, dtype, n_fft):
+    for _ in range(3):
+        _ = ssq_stft(x, dtype=dtype, n_fft=n_fft)
+        del _; gc.collect()
     return timeit(lambda: ssq_stft(x, dtype=dtype, n_fft=n_fft))
 
 def time_cwt(x, dtype, scales, cache_wavelet):
     wavelet = Wavelet(dtype=dtype)
     if cache_wavelet:
-        _ = cwt(x, wavelet, scales=scales, cache_wavelet=True)
-        del _; gc.collect()
+        for _ in range(3):  # warmup run
+            _ = cwt(x, wavelet, scales=scales, cache_wavelet=True)
+            del _; gc.collect()
     return timeit(lambda: cwt(x, wavelet, scales=scales,
                               cache_wavelet=cache_wavelet))
 
 def time_stft(x, dtype, n_fft):
-    _ = stft(x, dtype=dtype, n_fft=n_fft)
-    del _; gc.collect()
+    for _ in range(3):
+        _ = stft(x, dtype=dtype, n_fft=n_fft)
+        del _; gc.collect()
     return timeit(lambda: stft(x, dtype=dtype, n_fft=n_fft))
 
 def time_all(x, dtype, scales, cache_wavelet, ssq_freqs, n_fft):
