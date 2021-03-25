@@ -24,6 +24,8 @@ jobs:
               run: echo $CONDA >> $GITHUB_PATH
             - name: Set up Conda
               run: |
+                  bash miniconda.sh -b -p $HOME/miniconda
+                  export PATH="$HOME/miniconda/bin:$PATH"
                   conda config --set always_yes yes --set changeps1 no
                   conda install setuptools
                   conda install conda
