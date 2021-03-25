@@ -79,7 +79,7 @@ wavelet = Wavelet()
 scales = process_scales('log-piecewise', N1, wavelet=wavelet)[:n_rows]
 ssq_freqs = _compute_associated_frequencies(
     scales, N1, wavelet, 'log-piecewise', maprange='peak',
-    padtype='reflect', dt=1, transform='cwt')
+    was_padded=True, dt=1, transform='cwt')
 
 kw = dict(scales=scales, ssq_freqs=ssq_freqs, n_fft=n_fft)
 t_all = {}

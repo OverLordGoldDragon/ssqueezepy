@@ -30,7 +30,7 @@ jobs:
                   conda update --force conda
                   conda info -a
                   conda create -q -n test-env python=${{ matrix.python-version }}
-                  source activate test-env
+                  conda activate test-env
                   
             - name: Install dependencies
               run: |
