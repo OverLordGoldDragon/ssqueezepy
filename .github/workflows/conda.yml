@@ -24,15 +24,12 @@ jobs:
               run: echo $CONDA >> $GITHUB_PATH
             - name: Set up Conda
               run: |
-                  bash miniconda.sh -b -p $HOME/miniconda
-                  export PATH="$HOME/miniconda/bin:$PATH"
                   conda config --set always_yes yes --set changeps1 no
                   conda install setuptools
                   conda install conda
                   conda update --force conda
                   conda info -a
                   conda create -q -n test-env python=${{ matrix.python-version }}
-                  conda activate test-env
                   
             - name: Install dependencies
               run: |
