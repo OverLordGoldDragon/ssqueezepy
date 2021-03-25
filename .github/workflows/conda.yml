@@ -3,8 +3,8 @@ name: ssqueezepy Conda CI
 on:
     push:
       paths:
-        - "ssqueezepy/"
-        - "tests/"
+        - "ssqueezepy/*"
+        - "tests/*"
         - ".github/workflows/*"
         - ".coveragerc"
         - "requirements.txt"
