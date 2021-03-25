@@ -5,13 +5,14 @@ from .algos import indexed_sum_onfly, ssqueeze_fast
 from .utils import p2up, process_scales, infer_scaletype, _process_fs_and_t
 from .utils import NOTE, pi, logscale_transition_idx, assert_is_one_of
 from .utils.backend import Q
+from .utils.common import WARN
 from .utils import backend as S
 from .wavelets import center_frequency
 
 
-def ssqueeze(Wx, w=None, ssq_freqs=None, scales=None, fs=None, t=None,
-             transform='cwt', squeezing='sum', maprange='maximal', wavelet=None,
-             padtype='', flipud=False, gamma=None, dWx=None, Sfs=None):
+def ssqueeze(Wx, w=None, ssq_freqs=None, scales=None, Sfs=None, fs=None, t=None,
+             squeezing='sum', maprange='maximal', wavelet=None, gamma=None,
+             was_padded=True, flipud=False, dWx=None, transform='cwt'):
     """Synchrosqueezes the CWT or STFT of `x`.
 
     # Arguments:
@@ -32,6 +33,9 @@ def ssqueeze(Wx, w=None, ssq_freqs=None, scales=None, fs=None, t=None,
 
         scales: str['log', 'log-piecewise', 'linear', ...] / np.ndarray
             See `help(cwt)`.
+
+        Sfs: np.ndarray
+            Needed if `transform='stft'` and `dWx=None`. See `help(ssq_stft)`.
 
         fs: float / None
             Sampling frequency of `x`. Defaults to 1, which makes ssq
@@ -67,16 +71,17 @@ def ssqueeze(Wx, w=None, ssq_freqs=None, scales=None, fs=None, t=None,
             must match `Wx.shape`.
 
         maprange: str['maximal', 'peak', 'energy'] / tuple(float, float)
-            See `help(ssq_cwt)`.
+            See `help(ssq_cwt)`. Only `'maximal'` supported with STFT.
 
         wavelet: wavelets.Wavelet
             Only used if maprange != 'maximal' to compute center frequencies.
             See `help(cwt)`.
 
-        padtype: None or not None
-            If not None, indicates that `cwt` padded `x` to next power of 2,
-            and computes `maprange` accordingly. Used only with `transform='cwt'`
-            and non-tuple `maprange`.
+        was_padded: bool (default `rpadded`)
+            Whether `x` was padded to next power of 2 in `cwt`, in which case
+            `maprange` is computed differently.
+              - Used only with `transform=='cwt'`.
+              - Ignored if `maprange` is tuple.
 
         flipud: bool (default False)
             Whether to fill `Tx` equivalently to `flipud(Tx)` (faster & less
@@ -144,15 +149,13 @@ def ssqueeze(Wx, w=None, ssq_freqs=None, scales=None, fs=None, t=None,
         elif w is not None and w.min() < 0:
             raise ValueError("found negatives in `w`")
 
-        if transform not in ('cwt', 'stft'):
-            raise ValueError("`transform` must be one of: cwt, stft "
-                             "(got %s)" % squeezing)
-        _check_ssqueezing_args(squeezing, maprange, transform)
+        _check_ssqueezing_args(squeezing, maprange, transform=transform,
+                               wavelet=wavelet)
 
         if scales is None and transform == 'cwt':
             raise ValueError("`scales` can't be None if `transform == 'cwt'`")
 
-        _, N = Wx.shape if Wx.ndim == 2 else Wx.shape[1:]
+        N = Wx.shape[-1]
         dt, *_ = _process_fs_and_t(fs, t, N)
         return N, dt
 
@@ -178,7 +181,7 @@ def ssqueeze(Wx, w=None, ssq_freqs=None, scales=None, fs=None, t=None,
                              "tuple with `maprange = 'maximal'` "
                              "(got %s)" % str(maprange))
         ssq_freqs = _compute_associated_frequencies(
-            scales, N, wavelet, ssq_scaletype, maprange, padtype, dt, transform)
+            scales, N, wavelet, ssq_scaletype, maprange, was_padded, dt, transform)
     else:
         ssq_scaletype, _ = infer_scaletype(ssq_freqs)
 
@@ -205,7 +208,8 @@ def ssqueeze(Wx, w=None, ssq_freqs=None, scales=None, fs=None, t=None,
     return Tx, ssq_freqs
 
 
-def _ssq_freqrange(maprange, dt, N, wavelet, scales, padtype):
+#### `ssqueeze` utils ########################################################
+def _ssq_freqrange(maprange, dt, N, wavelet, scales, was_padded):
     if isinstance(maprange, tuple):
         fm, fM = maprange
     elif maprange == 'maximal':
@@ -217,15 +221,16 @@ def _ssq_freqrange(maprange, dt, N, wavelet, scales, padtype):
         # maximum measurable (Nyquist) frequency of data
         fM = 1 / (2 * dt)
     elif maprange in ('peak', 'energy'):
-        kw = dict(wavelet=wavelet, N=N, maprange=maprange, dt=dt, padtype=padtype)
+        kw = dict(wavelet=wavelet, N=N, maprange=maprange, dt=dt,
+                  was_padded=was_padded)
         fm = _get_center_frequency(**kw, scale=scales[-1])
         fM = _get_center_frequency(**kw, scale=scales[0])
     return fm, fM
 
 
 def _compute_associated_frequencies(scales, N, wavelet, ssq_scaletype, maprange,
-                                    padtype='reflect', dt=1, transform='cwt'):
-    fm, fM = _ssq_freqrange(maprange, dt, N, wavelet, scales, padtype)
+                                    was_padded=True, dt=1, transform='cwt'):
+    fm, fM = _ssq_freqrange(maprange, dt, N, wavelet, scales, was_padded)
 
     na = len(scales)
     # frequency divisions `w_l` to reassign to in Synchrosqueezing
@@ -242,7 +247,7 @@ def _compute_associated_frequencies(scales, N, wavelet, ssq_scaletype, maprange,
             # note that it's possible for f1 == f0 per discretization limitations,
             # in which case `sqf1` will contain the same value repeated
             f1 = _get_center_frequency(wavelet, N, maprange, dt, scales[idx],
-                                       padtype)
+                                       was_padded)
 
             # here we don't know what the pre-downsampled `len(scales)` was,
             # so we take a longer route by piecewising respective center freqs
@@ -277,8 +282,8 @@ def _exp_fm(t, fmin, fmax):
     return a*b**t
 
 
-def _get_center_frequency(wavelet, N, maprange, dt, scale, padtype):
-    if padtype is not None:
+def _get_center_frequency(wavelet, N, maprange, dt, scale, was_padded):
+    if was_padded:
         N = p2up(N)[0]
     kw = dict(wavelet=wavelet, N=N, scale=scale, kind=maprange)
     if maprange == 'energy':
@@ -289,27 +294,59 @@ def _get_center_frequency(wavelet, N, maprange, dt, scale, padtype):
     return fc
 
 
-def _check_ssqueezing_args(squeezing, maprange=None, wavelet=None,
-                           transform='cwt'):
+#### misc ####################################################################
+def _check_ssqueezing_args(squeezing, maprange=None, wavelet=None, difftype=None,
+                           difforder=None, get_w=None, transform='cwt'):
+    if transform not in ('cwt', 'stft'):
+        raise ValueError("`transform` must be one of: cwt, stft "
+                         "(got %s)" % squeezing)
+
     if not isinstance(squeezing, (str, FunctionType)):
         raise TypeError("`squeezing` must be string or function "
                         "(got %s)" % type(squeezing))
     elif isinstance(squeezing, str):
         assert_is_one_of(squeezing, 'squeezing', ('sum', 'lebesgue', 'abs'))
 
-    if maprange is None:
-        return
-    if isinstance(maprange, (tuple, list)):
-        if not all(isinstance(m, (float, int)) for m in maprange):
-            raise ValueError("all elements of `maprange` must be float or int")
-    elif isinstance(maprange, str):
-        assert_is_one_of(maprange, 'maprange', ('maximal', 'peak', 'energy'))
-    else:
-        raise TypeError("`maprange` must be str, tuple, or list "
-                        "(got %s)" % type(maprange))
+    # maprange
+    if maprange is not None:
+        if isinstance(maprange, (tuple, list)):
+            if not all(isinstance(m, (float, int)) for m in maprange):
+                raise ValueError("all elements of `maprange` must be "
+                                 "float or int")
+        elif isinstance(maprange, str):
+            assert_is_one_of(maprange, 'maprange', ('maximal', 'peak', 'energy'))
+        else:
+            raise TypeError("`maprange` must be str, tuple, or list "
+                            "(got %s)" % type(maprange))
 
-    if isinstance(maprange, str) and maprange != 'maximal':
-        if transform != 'cwt':
-            NOTE("`maprange` currently only functional with `transform='cwt'`")
-        elif wavelet is None:
-            raise ValueError(f"must pass `wavelet` with maprange='{maprange}'")
+        if isinstance(maprange, str) and maprange != 'maximal':
+            if transform != 'cwt':
+                NOTE("string `maprange` currently only functional with "
+                     "`transform='cwt'`")
+            elif wavelet is None:
+                raise ValueError(f"maprange='{maprange}' requires `wavelet`")
+
+    # difftype
+    if difftype is not None:
+        if difftype not in ('trig', 'phase', 'numeric'):
+            raise ValueError("`difftype` must be one of: direct, phase, numeric"
+                             " (got %s)" % difftype)
+        elif difftype != 'trig':
+            from .configs import USE_GPU
+            if USE_GPU():
+                raise ValueError("GPU computation only supports "
+                                 "`difftype = 'trig'`")
+            elif not get_w:
+                raise ValueError("`difftype != 'trig'` requires `get_w = True`")
+
+    # difforder
+    if difforder is not None:
+        if difftype != 'numeric':
+            WARN("`difforder` is ignored if `difftype != 'numeric'")
+        elif difforder not in (1, 2, 4):
+            raise ValueError("`difforder` must be one of: 1, 2, 4 "
+                             "(got %s)" % difforder)
+    elif difftype == 'numeric':
+        difforder = 4
+
+    return difforder

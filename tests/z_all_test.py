@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
-"""Lazy tests just to ensure nothing breaks
+"""Lazy tests just to ensure nothing breaks.
+
+`z_` to ensure test runs last per messing with module namespaces.
 """
 #### Disable Numba JIT during testing, as pytest can't measure its coverage ##
 # TODO find shorter way to do this

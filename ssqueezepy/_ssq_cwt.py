@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 import numpy as np
-from .utils import WARN, EPS32, EPS64, pi, p2up, adm_ssq, process_scales
+from .utils import EPS32, EPS64, pi, p2up, adm_ssq, process_scales
 from .utils import trigdiff, _process_fs_and_t
 from .utils import backend as S
-from .configs import USE_GPU
 from .algos import replace_under_abs, phase_cwt_cpu, phase_cwt_gpu
 from .ssqueezing import ssqueeze, _check_ssqueezing_args
 from .wavelets import Wavelet
@@ -130,7 +129,7 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
                 array `w` and return it.
                 False: will compute synchrosqueezing directly from `Wx` and
                 `dWx` without assigning to intermediate array, which is faster
-                and takes less memory.
+                (by 20-30%) and takes less memory.
             `get_dWx`:
                 True: will return dWx
                 False: discards dWx after computing `w` or synchrosqueezing.
@@ -178,29 +177,11 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
     def _process_args(x, scales, fs, t, nv, difftype, difforder, squeezing,
                       maprange, wavelet, get_w):
         if x.ndim == 2 and get_w:
-            raise ValueError("`get_w=True` unsupported with batched input.")
-
-        if difftype not in ('trig', 'phase', 'numeric'):
-            raise ValueError("`difftype` must be one of: direct, phase, numeric"
-                             " (got %s)" % difftype)
-        elif difftype != 'trig':
-            if USE_GPU():
-                raise ValueError("GPU computation only supports "
-                                 "`difftype = 'trig'`")
-            elif not get_w:
-                raise ValueError("`difftype != 'trig'` requires `get_w = True`")
-
-        if difforder is not None:
-            if difftype != 'numeric':
-                WARN("`difforder` is ignored if `difftype != 'numeric'")
-            elif difforder not in (1, 2, 4):
-                raise ValueError("`difforder` must be one of: 1, 2, 4 "
-                                 "(got %s)" % difforder)
-        elif difftype == 'numeric':
-            difforder = 4
-
-        _check_ssqueezing_args(squeezing, maprange, wavelet)
-
+            raise NotImplementedError("`get_w=True` unsupported with batched "
+                                      "input.")
+        difforder = _check_ssqueezing_args(squeezing, maprange, wavelet,
+                                           difftype, difforder, get_w,
+                                           transform='cwt')
         if nv is None and not isinstance(scales, np.ndarray):
             nv = 32
 
@@ -257,6 +238,7 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
                               rpadded=rpadded, vectorized=vectorized,
                               patience=patience, cache_wavelet=cache_wavelet)
 
+    # make copy of `Wx` if specified
     if preserve_transform is None:
         preserve_transform = not S.is_tensor(Wx)
     if preserve_transform:
@@ -265,12 +247,11 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
     else:
         _Wx = Wx
 
-    if ssq_freqs is None:
-        # default to same scheme used by `scales`
-        ssq_freqs = cwt_scaletype
+    # gamma
     if gamma is None:
         gamma = np.sqrt(EPS64 if S.is_dtype(Wx, 'complex128') else EPS32)
 
+    # compute `w` if `get_w` and free `dWx` from memory if `not get_dWx`
     if get_w:
         _Wx, w = _phase_transform(_Wx, dWx, N, dt, gamma, difftype, difforder)
         _dWx = None  # don't use in `ssqueeze`
@@ -280,10 +261,17 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
         w = None
         _dWx = dWx
 
-    Tx, ssq_freqs = ssqueeze(_Wx, w, scales=scales, fs=fs, ssq_freqs=ssq_freqs,
-                             transform='cwt', squeezing=squeezing,
-                             maprange=maprange, wavelet=wavelet, padtype=padtype,
-                             flipud=flipud, gamma=gamma, dWx=_dWx)
+    # default to same scheme used by `scales`
+    if ssq_freqs is None:
+        ssq_freqs = cwt_scaletype
+    # affects `maprange` computation if non-tuple
+    was_padded = bool(padtype is not None)
+
+    # synchrosqueeze
+    Tx, ssq_freqs = ssqueeze(_Wx, w, ssq_freqs, scales, fs=fs, t=t,
+                             squeezing=squeezing, maprange=maprange,
+                             wavelet=wavelet, gamma=gamma, was_padded=was_padded,
+                             flipud=flipud, dWx=_dWx, transform='cwt')
 
     if difftype == 'numeric':
         Wx = Wx[:, 4:-4]

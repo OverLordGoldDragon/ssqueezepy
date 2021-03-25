@@ -116,13 +116,13 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=None, t=None,
         reshape = (-1, 1) if xp.ndim == 1 else (1, -1, 1)
         Sx *= window.reshape(*reshape)
         if derivative:
-            dSx *= diff_window.reshape(*reshape)
+            dSx *= (diff_window.reshape(*reshape) * fs)
 
         # keep only positive frequencies (Hermitian symmetry assuming real `x`)
         axis = 0 if xp.ndim == 1 else 1
         Sx = rfft(Sx, axis=axis, astensor=True)
         if derivative:
-            dSx = rfft(dSx, axis=axis, astensor=True) * fs
+            dSx = rfft(dSx, axis=axis, astensor=True)
         return (Sx, dSx) if derivative else (Sx, None)
 
     # process args

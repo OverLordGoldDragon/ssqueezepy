@@ -51,11 +51,10 @@ class Wavelet():
     TF_PROPS = {'wc', 'wc_ct', 'scalec_ct', 'std_t', 'std_w',
                 'std_t_d', 'std_w_d'}
 
-    def __init__(self, wavelet='gmw', N=1024, dtype=None, analytic=None):
-        # TODO doc `analytic`
+    def __init__(self, wavelet='gmw', N=1024, dtype=None):
         self._dtype = self._process_dtype(dtype, as_str=True
                                           ) if dtype is not None else None
-        self._validate_and_set_wavelet(wavelet, analytic)
+        self._validate_and_set_wavelet(wavelet)
 
         self.N = N  # also sets _xi
 
@@ -407,7 +406,7 @@ class Wavelet():
             return wavelet
         return Wavelet(wavelet, **kw)
 
-    def _validate_and_set_wavelet(self, wavelet, analytic):
+    def _validate_and_set_wavelet(self, wavelet):
         def process_dtype(wavopts, user_passed_float32):
             """Handles GMW's `norm='energy'` w/ dtype='float32'."""
             if wavopts.get('norm', 'bandpass') == 'energy':
@@ -432,7 +431,6 @@ class Wavelet():
             self.fn = wavelet
             set_dtype_from_out()
             self.config = {}
-            self.analytic = analytic if analytic else 'gmw' in self.name
             return
 
         errmsg = ("`wavelet` must be one of: (1) string name of supported "
@@ -469,7 +467,6 @@ class Wavelet():
         if self.dtype is None:
             set_dtype_from_out()
         self.config = wavopts
-        self.analytic = analytic if analytic else 'gmw' in self.name
 
 
 @jit(nopython=True, cache=True)

@@ -2,7 +2,7 @@
 import numpy as np
 import logging
 from textwrap import wrap
-from .fft_utils import fft, ifft
+from .fft_utils import fft, ifft, rfft, irfft
 
 
 logging.basicConfig(format='')
@@ -145,30 +145,81 @@ def padsignal(x, padtype='reflect', padlength=None, get_params=False):
     return (xp, n_up, n1, n2) if get_params else xp
 
 
-def trigdiff(A, fs=1, padtype=None, rpadded=None, N=None, n1=None):
+def trigdiff(A, fs=1., padtype=None, rpadded=None, N=None, n1=None, window=None,
+             transform='cwt'):
     """Trigonometric / frequency-domain differentiation; see `difftype` in
     `help(ssq_cwt)`. Used internally by `ssq_cwt` with `order > 0`.
+
+    Un-transforms `A`, then transforms differentiated.
+
+    # Arguments:
+        A: np.ndarray
+            2D array to differentiate.
+
+        fs: float
+            Sampling frequency, used to scale derivative to physical units.
+
+        padtype: str / None
+            Whether to pad `A` (along dim1) before differentiating.
+
+        rpadded: bool (default None)
+            Whether `A` is already padded. Defaults to True if `padtype` is None.
+            Must pass `N` if True.
+
+        N: int
+            Length of unpadded signal (i.e. `A.shape[1]`).
+
+        n1: int
+            Will trim differentiated array as `A_diff[:, n1:n1+N]` (un-padding).
+
+        transform: str['cwt', 'stft']
+            Whether `A` stems from CWT or STFT, which changes how differentiation
+            is done. `'stft'` currently not supported.
+
     """
     from ..wavelets import _xifn
     from . import backend as S
 
-    assert isinstance(A, np.ndarray) or S.is_tensor(A), type(A)
-    assert A.ndim == 2
+    def _process_args(A, rpadded, padtype, N, transform, window):
+        if transform == 'stft':
+            raise NotImplementedError("`transform='stft'` is currently not "
+                                      "supported.")
+        assert isinstance(A, np.ndarray) or S.is_tensor(A), type(A)
+        assert A.ndim == 2
 
-    rpadded = rpadded or False
-    padtype = padtype or ('reflect' if not rpadded else None)
-    if rpadded and (n1 is None or N is None):
-        raise ValueError("must pass `n1` and `N` if `rpadded`")
+        if rpadded and N is None:
+            raise ValueError("must pass `N` if `rpadded`")
+        if transform == 'stft' and window is None:
+            raise ValueError("`transform='stft'` requires `window`")
+
+        rpadded = rpadded or False
+        padtype = padtype or ('reflect' if not rpadded else None)
+        return rpadded, padtype
+
+    rpadded, padtype = _process_args(A, rpadded, padtype, N, transform, window)
 
     if padtype is not None:
         A, _, n1, *_ = padsignal(A, padtype, get_params=True)
 
-    xi = S.asarray(_xifn(1, A.shape[-1])[None], A.dtype)
+    if transform == 'cwt':
+        xi = S.asarray(_xifn(1, A.shape[-1])[None], A.dtype)
 
-    A_freqdom = fft(A, axis=-1, astensor=True)
-    A_diff = ifft(A_freqdom * 1j * xi * fs, axis=-1, astensor=True)
+        A_freqdom = fft(A, axis=-1, astensor=True)
+        A_diff = ifft(A_freqdom * 1j * xi * fs, axis=-1, astensor=True)
+    else:
+        # this requires us to first fully invert STFT(x), then `buffer(x)`,
+        # then compute `diff_window`, which isn't hard to implement;
+        # last of these is done
 
-    if rpadded:
+        # wf = fft(S.asarray(window, A.dtype))
+        # xi = S.asarray(_xifn(1, len(window))[None], A.dtype)
+        # if len(window) % 2 == 0:
+        #     xi[len(window) // 2] = 0
+        # reshape = (-1, 1) if A.ndim == 2 else (1, -1, 1)
+        # diff_window = ifft(wf * 1j * xi).real.reshape(*reshape)
+        pass
+
+    if rpadded or padtype is not None:
         A_diff = A_diff[:, n1:n1+N]
     if S.is_tensor(A_diff):
         A_diff = A_diff.contiguous()

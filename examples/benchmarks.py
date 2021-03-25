@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
 import numpy as np
-import torch
 import gc
 import pandas as pd
 
@@ -10,9 +9,9 @@ from ssqueezepy.utils import process_scales
 from ssqueezepy.ssqueezing import _compute_associated_frequencies
 from timeit import timeit as _timeit
 
-
 def timeit(fn, number=10):
     return _timeit(fn, number=number) / number
+
 
 #%%# Bench funcs #############################################################
 def print_report(header, times):

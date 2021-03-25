@@ -2,10 +2,12 @@
 import numpy as np
 from ._stft import stft, get_window, _check_NOLA
 from ._ssq_cwt import _invert_components, _process_component_inversion_args
-from .utils import WARN, EPS32, EPS64, _process_fs_and_t, torch
+from .utils.cwt_utils import _process_fs_and_t
+from .utils.common import WARN, EPS32, EPS64
 from .utils import backend as S
+from .utils.backend import torch
+from .algos import phase_stft_cpu, phase_stft_gpu
 from .ssqueezing import ssqueeze, _check_ssqueezing_args
-from .algos import phase_stft_gpu, phase_stft_cpu
 
 
 def ssq_stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=None, t=None,
@@ -87,17 +89,12 @@ def ssq_stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=None, t=Non
         _Sx = Sx
 
     # make `Sfs`
-    dtype = 'float32' if 'complex64' in str(Sx.dtype) else 'float64'
-    n_rows = len(Sx) if x.ndim == 1 else Sx.shape[1]
-    if S.is_tensor(Sx):
-        Sfs = torch.linspace(0, .5*fs, n_rows, dtype=getattr(torch, dtype),
-                             device=Sx.device)
-    else:
-        Sfs = np.linspace(0, .5*fs, n_rows, dtype=dtype)
-
-    # phase transform
+    Sfs = _make_Sfs(Sx, fs)
+    # gamma
     if gamma is None:
         gamma = np.sqrt(EPS64 if S.is_dtype(Sx, 'complex128') else EPS32)
+
+    # compute `w` if `get_w` and free `dWx` from memory if `not get_dWx`
     if get_w:
         w = phase_stft(_Sx, dSx, Sfs, gamma)
         _dSx = None  # don't use in `ssqueeze`
@@ -110,9 +107,9 @@ def ssq_stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=None, t=Non
     # synchrosqueeze
     if ssq_freqs is None:
         ssq_freqs = Sfs
-    Tx, ssq_freqs = ssqueeze(_Sx, w, transform='stft', squeezing=squeezing,
-                             ssq_freqs=ssq_freqs, flipud=flipud, gamma=gamma,
-                             dWx=_dSx, Sfs=Sfs)
+    Tx, ssq_freqs = ssqueeze(_Sx, w, squeezing=squeezing, ssq_freqs=ssq_freqs,
+                             Sfs=Sfs, flipud=flipud, gamma=gamma, dWx=_dSx,
+                             maprange='maximal', transform='stft')
     # return
     if not astensor and S.is_tensor(Tx):
         Tx, Sx, w, dSx = [g.cpu().numpy() if S.is_tensor(g) else g
@@ -233,3 +230,14 @@ def phase_stft(Sx, dSx, Sfs, gamma=None, parallel=None):
     if S.is_tensor(Sx):
         return phase_stft_gpu(Sx, dSx, Sfs, gamma)
     return phase_stft_cpu(Sx, dSx, Sfs, gamma, parallel)
+
+
+def _make_Sfs(Sx, fs):
+    dtype = 'float32' if 'complex64' in str(Sx.dtype) else 'float64'
+    n_rows = len(Sx) if Sx.ndim == 2 else Sx.shape[1]
+    if S.is_tensor(Sx):
+        Sfs = torch.linspace(0, .5*fs, n_rows, device=Sx.device,
+                             dtype=getattr(torch, dtype))
+    else:
+        Sfs = np.linspace(0, .5*fs, n_rows, dtype=dtype)
+    return Sfs
