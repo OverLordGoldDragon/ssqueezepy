@@ -1,8 +1,10 @@
 name: ssqueezepy Conda CI
 
 on:
-    - push
-    - pull_request
+    push:
+      paths:
+        - "ssqueezepy/"
+        - "tests/"
 
 jobs:
     build-conda:
@@ -19,25 +21,19 @@ jobs:
             - name: Set up Conda
               run: |
                   conda config --set always_yes yes --set changeps1 no
-                  conda update -q conda
+                  conda install setuptools
+                  conda install conda
+                  conda update --force conda
                   conda info -a
                   conda create -q -n test-env python=${{ matrix.python-version }}
+                  source activate test-env
                   
             - name: Install dependencies
               run: |
-                  conda install -n test-env numpy scipy pytest pytest-cov
-
-                  if [ "${{ matrix.python-version }}" = "3.9" ]; then
-                      # For py39, we need to override some standard conda
-                      # packages (see https://pytorch.org/get-started/locally/)
-                      channel="-c conda-forge"
-                  else
-                      channel=""
-                  fi
-
+                  conda install numpy scipy pytest pytest-cov matplotlib librosa -c conda-forge
+                  conda install -c numba numba
+                  
                   conda run -n test-env python3 -m pip install --upgrade pip
-                  conda run -n test-env python3 -m conda install -c conda-forge numpy scipy matplotlib librosa
-                  conda run -n test-env python3 -m conda install -c numba numba
                   conda run -n test-env python3 -m pip install -r requirements.txt
                   conda run -n test-env python3 -m pip install -r requirements-dev.txt
                   
