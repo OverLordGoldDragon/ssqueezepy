@@ -3,6 +3,7 @@
 
 # Synchrosqueezing in Python
 
+![Action Status](https://github.com/OverLordGoldDragon/ssqueezepy/actions/workflows/conda.yml/badge.svg)
 [![Build Status](https://travis-ci.com/OverLordGoldDragon/ssqueezepy.svg?branch=master)](https://travis-ci.com/OverLordGoldDragon/ssqueezepy)
 [![Coverage Status](https://coveralls.io/repos/github/OverLordGoldDragon/ssqueezepy/badge.svg?branch=master&service=github)](https://coveralls.io/github/OverLordGoldDragon/ssqueezepy)
 [![PyPI version](https://badge.fury.io/py/ssqueezepy.svg)](https://badge.fury.io/py/ssqueezepy)

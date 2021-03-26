@@ -50,7 +50,7 @@ jobs:
                   
                   conda run -n test-env pytest -s --cov=ssqueezepy
                   
-            - name: Coveralls
-              uses: coverallsapp/github-action@master
+            - name: coveralls.io upload coverage
+              uses: coveralls
               with:
                 github-token: ${{ secrets.GITHUB_TOKEN }}

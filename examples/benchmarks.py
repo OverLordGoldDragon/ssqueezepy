@@ -12,7 +12,6 @@ from timeit import timeit as _timeit
 def timeit(fn, number=10):
     return _timeit(fn, number=number) / number
 
-
 #%%# Bench funcs #############################################################
 def print_report(header, times):
     print(("{}\n"
