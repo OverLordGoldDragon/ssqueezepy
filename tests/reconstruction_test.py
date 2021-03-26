@@ -208,9 +208,9 @@ def test_ssq_stft():
 
 def test_stft_vs_librosa():
     try:
-        from librosa import stft as lstft
+        lstft
     except:
-        return  # TODO undo
+        return
 
     np.random.seed(0)
     # try all even/odd combos

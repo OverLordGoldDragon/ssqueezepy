@@ -12,7 +12,7 @@ on:
 
 jobs:
     build-conda:
-        runs-on: ubuntu-20.04
+        runs-on: ubuntu-latest
 
         strategy:
             matrix:
@@ -34,11 +34,11 @@ jobs:
                   
             - name: Install dependencies
               run: |
-                  conda install numpy scipy pytest pytest-cov matplotlib libsndfile librosa -c conda-forge
-                  conda install -c numba numba
+                  conda install pytest pytest-cov -c conda-forge
+                  conda install numpy scipy matplotlib librosa pyfftw -c conda-forge -n test-env
+                  conda install numba -c numba
                   
                   conda run -n test-env python3 -m pip install --upgrade pip
-                  conda run -n test-env python3 -m pip install -r requirements.txt
                   conda run -n test-env python3 -m pip install -r requirements-dev.txt
                   
             - name: Set up ssqueezepy
@@ -48,11 +48,12 @@ jobs:
               run: >
                   conda run -n test-env pycodestyle --max-line-length=85 
                   --ignore=E221,E241,E225,E226,E402,E722,E741,E272,E266,E302,E731,E702,E201,E129,E203,E202,W503,W504 
-                  ssqueezepy 
+                  ssqueezepy
                   
-                  conda run -n test-env pytest -s --cov=ssqueezepy
+                  conda run -n test-env pytest -s --cov=ssqueezepy --cov-report=xml
                   
             - name: codecov upload coverage
               uses: codecov/codecov-action@v1
               with:
-                verbose: true
+                token: ${{ secrets.CODECOV_TOKEN }}
+                directory: ./

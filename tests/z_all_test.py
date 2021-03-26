@@ -25,8 +25,10 @@ import numpy as np
 from ssqueezepy._cwt import _icwt_norm
 from ssqueezepy.configs import gdefaults
 from ssqueezepy import Wavelet, TestSignals, ssq_cwt, issq_cwt, cwt, icwt
-from ssqueezepy import issq_stft, ssqueeze, get_window
+from ssqueezepy import ssq_stft, issq_stft, ssqueeze, get_window, extract_ridges
 from ssqueezepy import _gmw, utils, visuals, wavelets, toolkit
+from ssqueezepy.utils.common import find_closest_parallel_is_faster
+from ssqueezepy.ssqueezing import _check_ssqueezing_args
 
 #### Ensure cached imports reloaded ##########################################
 from types import ModuleType
@@ -411,6 +413,56 @@ def test_dtype():
         assert v.dtype in (np.float64, np.complex128), ("float64", k, v.dtype)
 
 
+def test_find_closest_parallel_is_faster():
+    find_closest_parallel_is_faster((50, 200))
+
+
+def test_wavelet_info():
+    for parallel in ('0', '1'):
+        os.environ['SSQ_PARALLEL'] = parallel
+        Wavelet(('gmw', {'norm': 'bandpass'})).info()
+        Wavelet(('gmw', {'norm': 'energy'})).info()
+        Wavelet(('gmw', {'norm': 'bandpass', 'order': 1})).info()
+        Wavelet(('gmw', {'norm': 'energy', 'order': 1})).info()
+
+        for name in ('morlet', 'bump', 'cmhat', 'hhhat'):
+            Wavelet(name).info()
+
+
+def test_ridge_extraction():
+    """For @jit coverage."""
+    Wx, scales = cwt(np.random.randn(128))
+    _ = extract_ridges(Wx, scales, transform='cwt', parallel=False)
+    _ = extract_ridges(Wx, scales, transform='cwt', parallel=True)
+
+
+def test_check_ssqueezing_args():
+    pass_on_error(_check_ssqueezing_args, 1)
+    pass_on_error(_check_ssqueezing_args, 'sum', maprange=('a', 'b'))
+    pass_on_error(_check_ssqueezing_args, 'sum', maprange=dict(a=1))
+    pass_on_error(_check_ssqueezing_args, 'sum', maprange='peak')
+    pass_on_error(_check_ssqueezing_args, 'sum', difftype='o')
+    pass_on_error(_check_ssqueezing_args, 'sum', difftype='phase', get_w=0)
+    pass_on_error(_check_ssqueezing_args, 'sum', difftype='phase', difforder=4,
+                  get_w=1)
+    pass_on_error(_check_ssqueezing_args, 'sum', difftype='numeric', difforder=3,
+                  get_w=1)
+
+    _check_ssqueezing_args('sum', difftype='phase', difforder=4, get_w=1)
+    _check_ssqueezing_args('sum', maprange='peak', transform='stft')
+
+
+def test_misc():
+    _ = cwt(np.random.randn(128), 'gmw', cache_wavelet=True)
+    _ = cwt(np.random.randn(128), Wavelet(), cache_wavelet=True, vectorized=False)
+
+    _ = ssq_stft(np.random.randn(100), get_w=1, get_dWx=1)
+
+    pass_on_error(cwt, np.random.randn(2, 2, 2))
+    pass_on_error(cwt, 5)
+    pass_on_error(ssq_stft, np.random.randn(2, 2, 2), get_w=1)
+
+
 def test_configs():
     pass_on_error(gdefaults, None)
 
@@ -440,6 +492,11 @@ if __name__ == '__main__':
         test_trigdiff()
         test_logscale_transition_idx()
         test_dtype()
+        test_find_closest_parallel_is_faster()
+        test_wavelet_info()
+        test_ridge_extraction()
+        test_check_ssqueezing_args()
+        test_misc()
         test_configs()
     else:
         pytest.main([__file__, "-s"])
