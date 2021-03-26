@@ -1,4 +1,5 @@
 [run]
+source = ssqueezepy
 parallel = True
 omit =
     ssqueezepy/experimental.py

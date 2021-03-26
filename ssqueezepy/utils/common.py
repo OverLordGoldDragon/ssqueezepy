@@ -154,7 +154,7 @@ def trigdiff(A, fs=1., padtype=None, rpadded=None, N=None, n1=None, window=None,
 
     # Arguments:
         A: np.ndarray
-            2D array to differentiate.
+            2D array to differentiate (or 3D, batched).
 
         fs: float
             Sampling frequency, used to scale derivative to physical units.
@@ -185,7 +185,7 @@ def trigdiff(A, fs=1., padtype=None, rpadded=None, N=None, n1=None, window=None,
             raise NotImplementedError("`transform='stft'` is currently not "
                                       "supported.")
         assert isinstance(A, np.ndarray) or S.is_tensor(A), type(A)
-        assert A.ndim == 2
+        assert A.ndim in (2, 3)
 
         if rpadded and N is None:
             raise ValueError("must pass `N` if `rpadded`")
@@ -202,7 +202,7 @@ def trigdiff(A, fs=1., padtype=None, rpadded=None, N=None, n1=None, window=None,
         A, _, n1, *_ = padsignal(A, padtype, get_params=True)
 
     if transform == 'cwt':
-        xi = S.asarray(_xifn(1, A.shape[-1])[None], A.dtype)
+        xi = S.asarray(_xifn(1, A.shape[-1]), A.dtype)
 
         A_freqdom = fft(A, axis=-1, astensor=True)
         A_diff = ifft(A_freqdom * 1j * xi * fs, axis=-1, astensor=True)
@@ -220,7 +220,11 @@ def trigdiff(A, fs=1., padtype=None, rpadded=None, N=None, n1=None, window=None,
         pass
 
     if rpadded or padtype is not None:
-        A_diff = A_diff[:, n1:n1+N]
+        if n1 is None:
+            _, n1, _ = p2up(N)
+        idx = ((slice(None), slice(n1, n1 + N)) if A.ndim == 2 else
+               (slice(None), slice(None), slice(n1, n1 + N)))
+        A_diff = A_diff[idx]
     if S.is_tensor(A_diff):
         A_diff = A_diff.contiguous()
     return A_diff

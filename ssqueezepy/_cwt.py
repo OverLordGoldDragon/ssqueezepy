@@ -414,7 +414,9 @@ def _icwt_2int(Wx, scales, scaletype, l1_norm, wavelet, x_len,
     pn = (-1)**np.arange(n_up)
     x = np.zeros(n_up)
 
-    for scale, Wx_scale in zip(scales, Wx):  # TODO vectorize?
+    # TODO vectorize?
+    for scale, Wx_scale in zip(scales, Wx):
+        # TODO remove `*pn` & `ifftshift`?
         psih = wavelet(scale=scale, N=n_up) * pn
         xa = ifftshift(ifft(fft(Wx_scale) * psih))
         x += xa.real / norm(scale)

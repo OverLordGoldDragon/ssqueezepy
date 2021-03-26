@@ -1,4 +1,4 @@
-name: ssqueezepy Conda CI
+name: ssqueezepy CI
 
 on:
     pull_request:
@@ -22,6 +22,7 @@ jobs:
             - uses: actions/checkout@v1
             - name: Add Conda to path
               run: echo $CONDA >> $GITHUB_PATH
+              
             - name: Set up Conda
               run: |
                   conda config --set always_yes yes --set changeps1 no
@@ -42,6 +43,7 @@ jobs:
                   
             - name: Set up ssqueezepy
               run: conda run -n test-env python3 setup.py develop
+              
             - name: Test
               run: >
                   conda run -n test-env pycodestyle --max-line-length=85 
@@ -52,3 +54,5 @@ jobs:
                   
             - name: codecov upload coverage
               uses: codecov/codecov-action@v1
+              with:
+                verbose: true
