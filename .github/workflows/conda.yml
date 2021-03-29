@@ -51,7 +51,7 @@ jobs:
                   --ignore=E221,E241,E225,E226,E402,E722,E741,E272,E266,E302,E731,E702,E201,E129,E203,E202,W503,W504 
                   ssqueezepy
                   
-                  conda run -n test-env pytest -s --cov=ssqueezepy --cov-report=xml
+                  conda run -n test-env pytest /tests -s --cov=ssqueezepy --cov-report=xml
                   
             - name: codecov upload coverage
               uses: codecov/codecov-action@v1

@@ -20,7 +20,7 @@ Synchrosqueezing is a powerful _reassignment method_ that focuses time-frequency
   - Wavelet visualizations and testing suite
   - Generalized Morse Wavelets
   - Ridge extraction
-  - Speed: fastest wavelet transforms in Python<sup>1</sup>, beating MATLAB
+  - Fastest wavelet transforms in Python<sup>1</sup>, beating MATLAB
 
 <sub>1: feel free to open Issue showing otherwise</sub>
 
