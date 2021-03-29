@@ -36,6 +36,21 @@ Multi-threaded execution is enabled by default (disable via `os.environ['SSQ_PAR
 and [PyTorch >= 1.8.0](https://pytorch.org/get-started/locally/) installed (enable via `os.environ['SSQ_GPU'] = '1'`). `pyfftw` optionally supported for maximum CPU FFT speed. 
 See [Performance guide](https://github.com/OverLordGoldDragon/ssqueezepy/blob/master/ssqueezepy/README.md#performance-guide).
 
+## Benchmarks
+
+[Code](https://github.com/OverLordGoldDragon/ssqueezepy/blob/master/examples/benchmarks.py). Transforms use padding, `float32` precision (`float64` supported), and output shape `(300, len(x))`. `pyfftw` not used, which'd speed 1-thread & parallel further. Benched on author's i7-7700HQ, GTX 1070.
+
+`len(x)`-transform | 1-thread CPU | parallel   |   gpu
+:----------------:|:----------------:|:-----------------:|:-----------------:
+10k-cwt | 0.601 | 0.0462 | 0.00393
+10k-stft | 0.112 | 0.0400 | 0.00534
+10k-ssq_cwt | 0.906 | 0.148 | 0.00941
+10k-ssq_stft | 0.297 | 0.152 | 0.0288
+160k-cwt | 9.62 | 1.25 | 0.0367
+160k-stft | 1.76 | 0.655 | 0.0643
+160k-ssq_cwt | 14.5 | 3.16 | 0.0856
+160k-ssq_stft | 4.65 | 2.50 | 0.159
+
 
 ## Examples
 
