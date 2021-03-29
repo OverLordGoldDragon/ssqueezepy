@@ -15,7 +15,7 @@ from ssqueezepy import cwt, stft, ssq_cwt, ssq_stft, Wavelet
 from ssqueezepy.utils import process_scales, padsignal
 from ssqueezepy.ssqueezing import _compute_associated_frequencies
 
-def timeit(fn, number=1):
+def timeit(fn, number=10):
     return _timeit(fn, number=number) / number
 
 #%%# Bench funcs #############################################################
@@ -90,7 +90,7 @@ kw = dict(scales=scales, ssq_freqs=ssq_freqs, n_fft=n_fft)
 t_all = {}
 
 #%%# Baseline ################################################################
-print("// BASELINE (dtype=float64, cache_wavelet=False)")
+print("// BASELINE (dtype=float32, cache_wavelet=False)")
 
 os.environ['SSQ_PARALLEL'] = '0'
 os.environ['SSQ_GPU'] = '0'

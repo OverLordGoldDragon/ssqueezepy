@@ -40,6 +40,7 @@ jobs:
                   conda install numba -c numba
                   
                   conda run -n test-env python3 -m pip install --upgrade pip
+                  conda run -n test-env python3 -m pip install -r requirements.txt
                   conda run -n test-env python3 -m pip install -r requirements-dev.txt
                   
             - name: Set up ssqueezepy
