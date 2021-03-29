@@ -7,7 +7,6 @@ from .utils.fft_utils import fft, ifft, rfft, irfft, fftshift, ifftshift
 from .utils.backend import torch, is_tensor
 from .wavelets import _xifn, _process_params_dtype
 from .configs import gdefaults, USE_GPU
-from scipy.fft import rfft as srfft
 
 
 def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=None, t=None,
