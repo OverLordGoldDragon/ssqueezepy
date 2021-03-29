@@ -64,7 +64,7 @@ def gmw(gamma=None, beta=None, norm=None, order=None, centered_scale=None,
             False by default for consistency with other `ssqueezepy` wavelets.
 
         dtype: str / type (np.dtype) / None
-            See `wavelets.Wavelet`.
+            See `help(wavelets.Wavelet)`.
 
     # Returns
         psihfn: function

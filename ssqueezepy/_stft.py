@@ -7,6 +7,7 @@ from .utils.fft_utils import fft, ifft, rfft, irfft, fftshift, ifftshift
 from .utils.backend import torch, is_tensor
 from .wavelets import _xifn, _process_params_dtype
 from .configs import gdefaults, USE_GPU
+from scipy.fft import rfft as srfft
 
 
 def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=None, t=None,
@@ -47,10 +48,9 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=None, t=None,
             Must be 1 for invertible synchrosqueezed STFT.
 
         fs: float / None
-            Sampling frequency of `x`. Defaults to 1, which makes ssq
-            frequencies range from 0 to 0.5*fs, i.e. as fraction of reference
-            sampling rate up to Nyquist limit. Used to compute `dSx` and
-            `ssq_freqs`.
+            Sampling frequency of `x`. Defaults to 1, which makes ssq frequencies
+            range from 0 to 0.5*fs, i.e. as fraction of reference sampling rate
+            up to Nyquist limit. Used to compute `dSx` and `ssq_freqs`.
 
         t: np.ndarray / None
             Vector of times at which samples are taken (eg np.linspace(0, 1, n)).

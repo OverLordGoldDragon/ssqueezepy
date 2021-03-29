@@ -1,3 +1,7 @@
+# -*- coding: utf-8 -*-
+if __name__ != '__main__':
+    raise Exception("ran example file as non-main")
+
 import numpy as np
 from numpy.fft import rfft
 

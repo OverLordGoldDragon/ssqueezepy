@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
 """Shows methods to use for CWT scales selection; also see their docstrings."""
+if __name__ != '__main__':
+    raise Exception("ran example file as non-main")
+
 import numpy as np
 from ssqueezepy import ssq_cwt, Wavelet
 from ssqueezepy.visuals import imshow, plot

@@ -2,6 +2,9 @@
 """Show CWT with higher-order Generalized Morse Wavelets on parallel reflect-added
 linear chirps, with and without noise, and show GMW waveforms.
 """
+if __name__ != '__main__':
+    raise Exception("ran example file as non-main")
+
 import numpy as np
 from ssqueezepy import cwt, TestSignals
 from ssqueezepy.visuals import viz_cwt_higher_order, viz_gmw_orders

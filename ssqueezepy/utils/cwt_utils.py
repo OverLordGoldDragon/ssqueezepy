@@ -380,7 +380,7 @@ def logscale_transition_idx(scales):
     # every other value must be zero, assert it is so
     scales_diff2[idx - 2] = 0
 
-    th = 1e-14 if str(scales.dtype) == 'float64' else 1e-6
+    th = 1e-14 if scales.dtype == np.float64 else 1e-6
 
     if not np.any(diff2_max > 100*np.abs(scales_diff2).mean()):
         # everything's zero, i.e. no transition detected

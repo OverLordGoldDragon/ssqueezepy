@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
 """Experimental feature example."""
+if __name__ != '__main__':
+    raise Exception("ran example file as non-main")
+
 import numpy as np
 from ssqueezepy import TestSignals, ssq_cwt, Wavelet
 from ssqueezepy.visuals import imshow

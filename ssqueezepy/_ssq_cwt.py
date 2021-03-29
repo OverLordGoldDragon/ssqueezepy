@@ -32,7 +32,7 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
         nv: int / None
             Number of voices (wavelets per octave). Suggested >= 16.
 
-        fs, t
+        fs, t: float, np.ndarray
             See `help(_cwt.cwt)`.
 
         ssq_freqs: str['log', 'linear'] / np.ndarray / None

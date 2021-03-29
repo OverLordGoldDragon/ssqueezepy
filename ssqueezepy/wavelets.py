@@ -421,7 +421,7 @@ class Wavelet():
         def set_dtype_from_out():
             # 32 will promote to 64 if other params are 64
             out_dtype = self.fn(S.asarray([1.], dtype='float32')).dtype
-            if S.is_dtype(out_dtype, ('complex64', 'complex128')):
+            if any(tp in str(out_dtype) for tp in ('complex64', 'complex128')):
                 # 'bump' wavelet case
                 out_dtype = ('float32' if 'complex64' in str(out_dtype) else
                              'float64')
@@ -446,7 +446,7 @@ class Wavelet():
         elif isinstance(wavelet, str):
             wavopts = {}
 
-        user_passed_float32 = any(S.is_dtype(t, 'float32')
+        user_passed_float32 = any('float32' in str(t)
                                   for t in (self.dtype, wavopts.get('dtype', 0)))
         if isinstance(wavelet, str):
             wavelet = wavelet.lower()

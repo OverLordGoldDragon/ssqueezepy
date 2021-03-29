@@ -47,6 +47,7 @@ All modes (including 4 & 5 below) are [tested](https://github.com/OverLordGoldDr
 	 computed wavelets (`help(Wavelet.Psih)`).
      - `@numba.jit(cache=True)` is utilized extensively; virtually any method will run much faster the second time.
 
+ 10. **Benchmarking tip**: when timing parts of `torch` code on `device='cuda'`, call `torch.cuda.synchronize()` before `time()` (start and end).
 
 ## Reading `ssqueezing.py` code
 

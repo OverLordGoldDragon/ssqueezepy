@@ -50,9 +50,6 @@ def ssqueeze(Wx, w=None, ssq_freqs=None, scales=None, Sfs=None, fs=None, t=None,
             Defaults to `np.linspace(0, len(x)/fs, len(x), endpoint=False)`.
             Overrides `fs` if not None.
 
-        transform: str['cwt', 'stft']
-            Whether `Wx` is from CWT or STFT (`Sx`).
-
         squeezing: str['sum', 'lebesgue'] / function
             - 'sum': summing `Wx` according to `w`. Standard synchrosqueezing.
             Invertible.
@@ -77,6 +74,9 @@ def ssqueeze(Wx, w=None, ssq_freqs=None, scales=None, Sfs=None, fs=None, t=None,
             Only used if maprange != 'maximal' to compute center frequencies.
             See `help(cwt)`.
 
+        gamma: float
+            See `help(ssq_cwt)`.
+
         was_padded: bool (default `rpadded`)
             Whether `x` was padded to next power of 2 in `cwt`, in which case
             `maprange` is computed differently.
@@ -87,8 +87,11 @@ def ssqueeze(Wx, w=None, ssq_freqs=None, scales=None, Sfs=None, fs=None, t=None,
             Whether to fill `Tx` equivalently to `flipud(Tx)` (faster & less
             memory than calling `Tx = np.flipud(Tx)` afterwards).
 
-        gamma, dWx, Sfs: float, np.ndarray, np.ndarray
-            Used internally by `ssq_cwt` / `ssq_stft`.
+        dWx: np.ndarray,
+            Used internally by `ssq_cwt` / `ssq_stft`; must pass when `w` is None.
+
+        transform: str['cwt', 'stft']
+            Whether `Wx` is from CWT or STFT (`Sx`).
 
     # Returns:
         Tx: np.ndarray [nf x n]

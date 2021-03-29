@@ -71,7 +71,7 @@ def ssq_stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=None, t=Non
         https://arxiv.org/abs/1006.2533
     """
     if x.ndim == 2 and get_w:
-        raise ValueError("`get_w=True` unsupported with batched input.")
+        raise NotImplementedError("`get_w=True` unsupported with batched input.")
     _, fs, _ = _process_fs_and_t(fs, t, x.shape[-1])
     _check_ssqueezing_args(squeezing)
 

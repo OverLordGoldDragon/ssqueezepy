@@ -50,9 +50,8 @@ def is_tensor(*args, mode='all'):
 
 
 def is_dtype(x, str_dtype):
-    if not isinstance(str_dtype, (list, tuple)):
-        str_dtype = [str_dtype]
-    return any(str(x).split('.')[-1] == dtype for dtype in str_dtype)
+    return (str_dtype in str(x.dtype) if isinstance(str_dtype, str) else
+            any(sd in str(x.dtype) for sd in str_dtype))
 
 
 def atleast_1d(x, dtype=None, device='cuda'):
