@@ -40,16 +40,16 @@ See [Performance guide](https://github.com/OverLordGoldDragon/ssqueezepy/blob/ma
 
 [Code](https://github.com/OverLordGoldDragon/ssqueezepy/blob/master/examples/benchmarks.py). Transforms use padding, `float32` precision (`float64` supported), and output shape `(300, len(x))`. `pyfftw` not used, which'd speed 1-thread & parallel further. Benched on author's i7-7700HQ, GTX 1070.
 
-`len(x)`-transform | 1-thread CPU | parallel   |   gpu
-:----------------:|:----------------:|:-----------------:|:-----------------:
-10k-cwt | 0.601 | 0.0462 | 0.00393
-10k-stft | 0.112 | 0.0400 | 0.00534
-10k-ssq_cwt | 0.906 | 0.148 | 0.00941
-10k-ssq_stft | 0.297 | 0.152 | 0.0288
-160k-cwt | 9.62 | 1.25 | 0.0367
-160k-stft | 1.76 | 0.655 | 0.0643
-160k-ssq_cwt | 14.5 | 3.16 | 0.0856
-160k-ssq_stft | 4.65 | 2.50 | 0.159
+`len(x)`-transform | 1-thread CPU | parallel | gpu | pywavelets | scipy | librosa
+:----------------:|:----------------:|:-----------------:|:-----------------:|:-----------------:|:-----------------:|:-----------------:
+10k-cwt       | 0.601 | 0.0462 | 0.00393 | 3.58 | 0.523 | N/A
+10k-stft      | 0.112 | 0.0400 | 0.00534 | N/A  | 0.118 | 0.0919
+10k-ssq_cwt   | 0.906 | 0.148  | 0.00941 | N/A  | N/A   | N/A
+10k-ssq_stft  | 0.297 | 0.152  | 0.0288  | N/A  | N/A   | N/A
+160k-cwt      | 9.62  | 1.25   | 0.0367  | 12.7 | 10.7  | N/A
+160k-stft     | 1.76  | 0.655  | 0.0643  | N/A  | 1.93  | 1.46
+160k-ssq_cwt  | 14.5  | 3.16   | 0.0856  | N/A  | N/A   | N/A
+160k-ssq_stft | 4.65  | 2.50   | 0.159   | N/A  | N/A   | N/A
 
 
 ## Examples
