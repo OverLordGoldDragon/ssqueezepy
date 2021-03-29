@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 import scipy.signal as sig
+from ftz import ftz
 from .utils import WARN, padsignal, buffer, unbuffer, window_norm
 from .utils import _process_fs_and_t
 from .utils.fft_utils import fft, ifft, rfft, irfft, fftshift, ifftshift
@@ -130,17 +131,16 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=None, t=None,
     _, fs, _ = _process_fs_and_t(fs, t, N)
     n_fft = n_fft or min(N//hop_len, 512)
 
-    # process `window`, make `diff_window`, check NOLA
+    # process `window`, make `diff_window`, check NOLA, enforce `dtype`
     if win_len is None:
         win_len = (len(window) if isinstance(window, np.ndarray) else
                    n_fft)
-    window, diff_window = get_window(window, win_len, n_fft, derivative=True)
-    _check_NOLA(window, hop_len)
-
-    # enforce `dtype`
     dtype = gdefaults('_stft.stft', dtype=dtype)
-    x, window, diff_window = _process_params_dtype(x, window, diff_window,
-                                                   dtype=dtype, auto_gpu=False)
+    window, diff_window = get_window(window, win_len, n_fft, derivative=True,
+                                     dtype=dtype)
+    _check_NOLA(window, hop_len)
+    x = _process_params_dtype(x, dtype=dtype, auto_gpu=False)
+
     # pad `x` to length `padlength`
     padlength = N + n_fft - 1
     xp = padsignal(x, padtype, padlength=padlength)
@@ -220,7 +220,7 @@ def istft(Sx, window=None, n_fft=None, win_len=None, hop_len=1, N=None,
     return x
 
 
-def get_window(window, win_len, n_fft=None, derivative=False):
+def get_window(window, win_len, n_fft=None, derivative=False, dtype=None):
     """See `window` in `help(stft)`. Will return window of length `n_fft`,
     regardless of `win_len` (will pad if needed).
     """
@@ -263,6 +263,13 @@ def get_window(window, win_len, n_fft=None, derivative=False):
         # frequency-domain differentiation; see `dWx` return docs in `help(cwt)`
         diff_window = ifft(wf * 1j * xi).real
 
+    # cast `dtype`, zero denormals (extremely small numbers that slow down CPU)
+    window = _process_params_dtype(window, dtype=dtype, auto_gpu=False)
+    ftz(window)
+    if derivative:
+        diff_window = _process_params_dtype(diff_window, dtype=dtype,
+                                            auto_gpu=False)
+        ftz(diff_window)
     return (window, diff_window) if derivative else window
 
 

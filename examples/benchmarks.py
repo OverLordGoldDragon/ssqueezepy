@@ -6,12 +6,14 @@ import os
 import numpy as np
 import gc
 import pandas as pd
+import scipy.signal as sig
+import librosa
+from pywt import cwt as pcwt
+from timeit import timeit as _timeit
 
 from ssqueezepy import cwt, stft, ssq_cwt, ssq_stft, Wavelet
-from ssqueezepy.utils import process_scales
+from ssqueezepy.utils import process_scales, padsignal
 from ssqueezepy.ssqueezing import _compute_associated_frequencies
-from timeit import timeit as _timeit
-import scipy.signal as sig
 
 def timeit(fn, number=1):
     return _timeit(fn, number=number) / number
@@ -34,11 +36,11 @@ def time_ssq_cwt(x, dtype, scales, cache_wavelet, ssq_freqs):
             del _; gc.collect()
     return timeit(lambda: ssq_cwt(x, cache_wavelet=cache_wavelet, **kw))
 
-def time_ssq_stft(x, dtype, n_fft, window):
+def time_ssq_stft(x, dtype, n_fft):
     for _ in range(3):
-        _ = ssq_stft(x, window, dtype=dtype, n_fft=n_fft)
+        _ = ssq_stft(x, dtype=dtype, n_fft=n_fft)
         del _; gc.collect()
-    return timeit(lambda: ssq_stft(x, window, dtype=dtype, n_fft=n_fft))
+    return timeit(lambda: ssq_stft(x, dtype=dtype, n_fft=n_fft))
 
 def time_cwt(x, dtype, scales, cache_wavelet):
     wavelet = Wavelet(dtype=dtype)
@@ -49,20 +51,20 @@ def time_cwt(x, dtype, scales, cache_wavelet):
     return timeit(lambda: cwt(x, wavelet, scales=scales,
                               cache_wavelet=cache_wavelet))
 
-def time_stft(x, dtype, n_fft, window):
+def time_stft(x, dtype, n_fft):
     for _ in range(3):
-        _ = stft(x, window, dtype=dtype, n_fft=n_fft)
+        _ = stft(x, dtype=dtype, n_fft=n_fft)
         del _; gc.collect()
-    return timeit(lambda: stft(x,window,  dtype=dtype, n_fft=n_fft))
+    return timeit(lambda: stft(x, dtype=dtype, n_fft=n_fft))
 
-def time_all(x, dtype, scales, cache_wavelet, ssq_freqs, n_fft, window):
+def time_all(x, dtype, scales, cache_wavelet, ssq_freqs, n_fft):
     num = str(len(x))[:-3] + 'k'
     return {num: '',
             f'{num}-cwt':      time_cwt(x, dtype, scales, cache_wavelet),
-            f'{num}-stft':     time_stft(x, dtype, n_fft, window),
+            f'{num}-stft':     time_stft(x, dtype, n_fft),
             f'{num}-ssq_cwt':  time_ssq_cwt(x, dtype, scales, cache_wavelet,
                                             ssq_freqs),
-            f'{num}-ssq_stft': time_ssq_stft(x, dtype, n_fft, window)}
+            f'{num}-ssq_stft': time_ssq_stft(x, dtype, n_fft)}
 
 #%%# Setup ###################################################################
 # warmup
@@ -77,7 +79,6 @@ del _, wavelet
 N0, N1 = 10000, 160000  # selected such that CWT pad length ratios are same
 n_rows = 300
 n_fft = n_rows * 2 - 2
-window = sig.windows.dpss(n_fft, 4)  # TODO
 
 wavelet = Wavelet()
 scales = process_scales('log-piecewise', N1, wavelet=wavelet)[:n_rows]
@@ -98,8 +99,7 @@ dtype = 'float32'
 
 for N in (N0, N1):
     x = np.random.randn(N)
-    t_all['base'].update(time_all(x, dtype=dtype, window=window.astype(dtype),
-                                  cache_wavelet=False, **kw))
+    t_all['base'].update(time_all(x, dtype=dtype, cache_wavelet=False, **kw))
     print_report(f"/ N={N}", t_all['base'])
 
 #%%# Parallel + wavelet cache #################################################
@@ -110,8 +110,8 @@ os.environ['SSQ_GPU'] = '0'
 t_all['parallel'] = {}
 for N in (N0, N1):
     x = np.random.randn(N)
-    t_all['parallel'].update(time_all(x, dtype='float32', window=window,
-                                      cache_wavelet=True, **kw))
+    t_all['parallel'].update(time_all(x, dtype='float32', cache_wavelet=True,
+                                      **kw))
     print_report(f"/ N={N}", t_all['parallel'])
 
 #%%# GPU + wavelet cache #################################################
@@ -121,13 +121,40 @@ os.environ['SSQ_GPU'] = '1'
 t_all['gpu'] = {}
 for N in (N0, N1):
     x = np.random.randn(N)
-    t_all['gpu'].update(time_all(x, dtype='float32', window=window,
-                                 cache_wavelet=True, **kw))
+    t_all['gpu'].update(time_all(x, dtype='float32', cache_wavelet=True, **kw))
     print_report(f"/ N={N}", t_all['gpu'])
 
 #%%
 df = pd.DataFrame(t_all)
 print(df)
+
+#%% PyWavelets
+# too slow, do only once
+for N in (N0, N1):
+    x = np.random.randn(N)
+    xp = padsignal(x)
+    t = timeit(lambda: pcwt(xp, wavelet='cmor1.5-1.0', scales=scales,
+                            method='fft'))
+    print("pywt_cwt-%s:" % N, t)
+
+#%% Scipy
+for N in (N0, N1):
+    x = np.random.randn(N)
+    xp = padsignal(x)
+    t = timeit(lambda: sig.cwt(xp, wavelet=sig.morlet,
+                               widths=np.arange(4, 4 + len(scales))))
+    print("scipy_cwt-%s:" % N, t)
+#%%
+for N in (N0, N1):
+    x = np.random.randn(N)
+    t = timeit(lambda: sig.stft(x, nperseg=n_fft, nfft=n_fft, noverlap=n_fft-1))
+    print("scipy_stft-%s:" % N, t)
+#%% Librosa
+# NOTE: we bench here with float64 since float32 is slower for librosa as of 0.8.0
+for N in (N0, N1):
+    x = np.random.randn(N)
+    t = timeit(lambda: librosa.stft(x, n_fft=n_fft, hop_length=1, dtype='float64'))
+    print("librosa_stft-%s:" % N, t)
 
 #%%#
 """
@@ -143,4 +170,16 @@ i7-7700HQ, GTX 1070
 160k-stft       1.761838  0.647517  0.064341
 160k-ssq_cwt   14.446583  3.157575  0.085638
 160k-ssq_stft   4.649919  2.500497  0.159171
+
+pywt_cwt-10000:  3.5802361100000097
+pywt_cwt-160000: 12.683934910000016
+
+scipy_cwt-10000:  0.5228888900000129
+scipy_cwt-160000: 10.741505060000009
+
+scipy_stft-10000: 0.11830254000001332
+scipy_stft-160000: 1.92775223000001
+
+librosa_stft-10000: 0.09194287000000259
+librosa_stft-160000: 1.463814400000001
 """

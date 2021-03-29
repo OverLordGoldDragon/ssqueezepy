@@ -38,7 +38,8 @@ See [Performance guide](https://github.com/OverLordGoldDragon/ssqueezepy/blob/ma
 
 ## Benchmarks
 
-[Code](https://github.com/OverLordGoldDragon/ssqueezepy/blob/master/examples/benchmarks.py). Transforms use padding, `float32` precision (`float64` supported), and output shape `(300, len(x))`. `pyfftw` not used, which'd speed 1-thread & parallel further. Benched on author's i7-7700HQ, GTX 1070.
+[Code](https://github.com/OverLordGoldDragon/ssqueezepy/blob/master/examples/benchmarks.py). Transforms use padding, `float32` precision (`float64` supported), and output shape 
+`(300, len(x))`, averaged over 10 runs. `pyfftw` not used, which'd speed 1-thread & parallel further. Benched on author's i7-7700HQ, GTX 1070.
 
 `len(x)`-transform | 1-thread CPU | parallel | gpu | pywavelets | scipy | librosa
 :----------------:|:----------------:|:-----------------:|:-----------------:|:-----------------:|:-----------------:|:-----------------:

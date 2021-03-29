@@ -128,12 +128,12 @@ def IS_PARALLEL():
     """Returns False if 'SSQ_PARALLEL' environment flag was set to '0', or
     if `parallel` in `configs.ini` is set to `0`; former overrides latter.
     """
-    par_env = (os.environ.get('SSQ_PARALLEL', '1') == '0')
-    if par_env:
+    not_par_env = (os.environ.get('SSQ_PARALLEL', '1') == '0')
+    if not_par_env:
         return False
 
-    par_config = (gdefaults('configs.IS_PARALLEL', parallel=None) == 0)
-    if par_config:
+    not_par_config = (gdefaults('configs.IS_PARALLEL', parallel=None) == 0)
+    if not_par_config:
         return False
 
     return True
