@@ -9,6 +9,10 @@ on:
         - ".coveragerc"
         - "requirements.txt"
         - "requirements-dev.txt"
+    
+    push:
+      branches:
+        - master
 
 jobs:
     build-conda:

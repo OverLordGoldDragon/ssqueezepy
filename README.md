@@ -3,7 +3,7 @@
 
 # Synchrosqueezing in Python
 
-![Action Status](https://github.com/OverLordGoldDragon/ssqueezepy/actions/workflows/conda.yml/badge.svg)
+[![ssqueezepy CI](https://github.com/OverLordGoldDragon/ssqueezepy/actions/workflows/conda.yml/badge.svg)](https://github.com/OverLordGoldDragon/ssqueezepy/actions/workflows/conda.yml)
 [![codecov](https://codecov.io/gh/OverLordGoldDragon/ssqueezepy/branch/master/graph/badge.svg?token=8L7YPN5N19)](https://codecov.io/gh/OverLordGoldDragon/ssqueezepy)
 [![PyPI version](https://badge.fury.io/py/ssqueezepy.svg)](https://badge.fury.io/py/ssqueezepy)
 [![Codacy Badge](https://app.codacy.com/project/badge/Grade/7cee422639034bcebe0f10ca4b95a506)](https://www.codacy.com/gh/OverLordGoldDragon/ssqueezepy/dashboard?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=OverLordGoldDragon/ssqueezepy&amp;utm_campaign=Badge_Grade)
