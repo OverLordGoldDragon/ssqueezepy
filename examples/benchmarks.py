@@ -60,10 +60,10 @@ def time_stft(x, dtype, n_fft):
 def time_all(x, dtype, scales, cache_wavelet, ssq_freqs, n_fft):
     num = str(len(x))[:-3] + 'k'
     return {num: '',
-            # f'{num}-cwt':      time_cwt(x, dtype, scales, cache_wavelet),
+            f'{num}-cwt':      time_cwt(x, dtype, scales, cache_wavelet),
             f'{num}-stft':     time_stft(x, dtype, n_fft),
-            # f'{num}-ssq_cwt':  time_ssq_cwt(x, dtype, scales, cache_wavelet,
-            #                                 ssq_freqs),
+            f'{num}-ssq_cwt':  time_ssq_cwt(x, dtype, scales, cache_wavelet,
+                                            ssq_freqs),
             f'{num}-ssq_stft': time_ssq_stft(x, dtype, n_fft)
             }
 
@@ -91,7 +91,7 @@ kw = dict(scales=scales, ssq_freqs=ssq_freqs, n_fft=n_fft)
 t_all = {}
 
 #%%# Baseline ################################################################
-print("// BASELINE (dtype=float32, cache_wavelet=False)")
+print("// BASELINE (dtype=float32, cache_wavelet=True)")
 
 os.environ['SSQ_PARALLEL'] = '0'
 os.environ['SSQ_GPU'] = '0'
@@ -100,11 +100,10 @@ dtype = 'float32'
 
 for N in (N0, N1):
     x = np.random.randn(N)
-    t_all['base'].update(time_all(x, dtype=dtype, cache_wavelet=False, **kw))
-    print(t_all['base'])
-    # print_report(f"/ N={N}", t_all['base'])
+    t_all['base'].update(time_all(x, dtype=dtype, cache_wavelet=True, **kw))
+    print_report(f"/ N={N}", t_all['base'])
 
-#%%# Parallel + wavelet cache #################################################
+#%%# Parallel + wavelet cache ################################################
 print("// PARALLEL + CACHE (dtype=float32, cache_wavelet=True)")
 
 os.environ['SSQ_PARALLEL'] = '1'
@@ -114,10 +113,9 @@ for N in (N0, N1):
     x = np.random.randn(N)
     t_all['parallel'].update(time_all(x, dtype='float32', cache_wavelet=True,
                                       **kw))
-    print(t_all['parallel'])
-    # print_report(f"/ N={N}", t_all['parallel'])
+    print_report(f"/ N={N}", t_all['parallel'])
 
-#%%# GPU + wavelet cache #################################################
+#%%# GPU + wavelet cache #####################################################
 print("// GPU + CACHE (dtype=float32, cache_wavelet=True)")
 
 os.environ['SSQ_GPU'] = '1'
@@ -131,8 +129,7 @@ for N in (N0, N1):
 df = pd.DataFrame(t_all)
 print(df)
 
-#%% PyWavelets
-# too slow, do only once
+#%% PyWavelets ###############################################################
 for N in (N0, N1):
     x = np.random.randn(N)
     xp = padsignal(x)
@@ -147,11 +144,13 @@ for N in (N0, N1):
     t = timeit(lambda: sig.cwt(xp, wavelet=sig.morlet,
                                widths=np.arange(4, 4 + len(scales))))
     print("scipy_cwt-%s:" % N, t)
+
 #%%
 for N in (N0, N1):
     x = np.random.randn(N)
     t = timeit(lambda: sig.stft(x, nperseg=n_fft, nfft=n_fft, noverlap=n_fft-1))
     print("scipy_stft-%s:" % N, t)
+
 #%% Librosa
 # NOTE: we bench here with float64 since float32 is slower for librosa as of 0.8.0
 for N in (N0, N1):
@@ -164,14 +163,14 @@ for N in (N0, N1):
 i7-7700HQ, GTX 1070
                     base  parallel       gpu
 10k
-10k-cwt         0.601458  0.046184  0.003928
+10k-cwt         0.126293  0.046184  0.003928
 10k-stft          0.1081  0.038459  0.005337
-10k-ssq_cwt     0.836697  0.147907  0.009412
-10k-ssq_stft    0.292463  0.146660  0.028790
+10k-ssq_cwt     0.372002  0.147907  0.009412
+10k-ssq_stft    0.282463  0.146660  0.027790
 160k
-160k-cwt        9.618773  1.252456  0.036721
+160k-cwt        2.985540  1.252456  0.036721
 160k-stft       1.657803  0.418435  0.064341
-160k-ssq_cwt   14.446583  3.157575  0.085638
+160k-ssq_cwt    8.384496  3.157575  0.085638
 160k-ssq_stft   4.649919  2.483205  0.159171
 
 pywt_cwt-10000:  3.5802361100000097
@@ -183,6 +182,6 @@ scipy_cwt-160000: 10.741505060000009
 scipy_stft-10000: 0.11830254000001332
 scipy_stft-160000: 1.92775223000001
 
-librosa_stft-10000: 0.09194287000000259
-librosa_stft-160000: 1.463814400000001
+librosa_stft-10000: 0.09094287000000259
+librosa_stft-160000: 1.383814400000001
 """

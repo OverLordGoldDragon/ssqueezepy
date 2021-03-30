@@ -5,8 +5,7 @@ from .utils import WARN, padsignal, buffer, unbuffer, window_norm
 from .utils import _process_fs_and_t
 from .utils.fft_utils import fft, ifft, rfft, irfft, fftshift, ifftshift
 from .utils.backend import torch, is_tensor
-# from .algos import zero_denormals
-from ftz import ftz as zero_denormals
+from .algos import zero_denormals
 from .wavelets import _xifn, _process_params_dtype
 from .configs import gdefaults, USE_GPU
 
@@ -109,15 +108,17 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=None, t=None,
     def _stft(xp, window, diff_window, n_fft, hop_len, fs, modulated, derivative):
         Sx = buffer(xp, n_fft, n_fft - hop_len, modulated)
         if derivative:
-            dSx = Sx.copy() if not is_tensor(Sx) else Sx.detach().clone()
+            dSx = buffer(xp, n_fft, n_fft - hop_len, modulated)
+
         if modulated:
-            window, diff_window = [ifftshift(g, astensor=True)
-                                   for g in (window, diff_window)]
+            window = ifftshift(window, astensor=True)
+            if derivative:
+                diff_window = ifftshift(diff_window, astensor=True) * fs
 
         reshape = (-1, 1) if xp.ndim == 1 else (1, -1, 1)
         Sx *= window.reshape(*reshape)
         if derivative:
-            dSx *= (diff_window.reshape(*reshape) * fs)
+            dSx *= (diff_window.reshape(*reshape))
 
         # keep only positive frequencies (Hermitian symmetry assuming real `x`)
         axis = 0 if xp.ndim == 1 else 1

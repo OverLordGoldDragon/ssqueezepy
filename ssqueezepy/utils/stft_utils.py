@@ -17,7 +17,7 @@ __all__ = [
 ]
 
 
-def buffer(x, seg_len, n_overlap, modulated=False, mult=None, parallel=None):
+def buffer(x, seg_len, n_overlap, modulated=False, parallel=None):
     """Build 2D array where each column is a successive slice of `x` of length
     `seg_len` and overlapping by `n_overlap` (or equivalently incrementing
     starting index of each slice by `hop_len = seg_len - n_overlap`).
@@ -26,9 +26,6 @@ def buffer(x, seg_len, n_overlap, modulated=False, mult=None, parallel=None):
 
     Supports batched input with samples along dim 0, i.e. `(n_inputs, input_len)`.
     See `help(stft)` on `modulated`.
-
-    Optionally multiplies by 1D `mult` (len == `seg_len`), equivalent to
-        `buffer(x) * mult.reshape(-1, 1)`
 
     Ex:
         x = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
@@ -46,7 +43,7 @@ def buffer(x, seg_len, n_overlap, modulated=False, mult=None, parallel=None):
     s21 = s20 - 1 if (seg_len % 2 == 1) else s20
 
     args = (seg_len, n_segs, hop_len, s20, s21, modulated)
-    if S.is_tensor(x):  # TODO implement fully on GPU
+    if S.is_tensor(x):
         if x.ndim == 1:
             out = _buffer_gpu(x, seg_len, n_segs, hop_len, s20, s21, modulated)
 
@@ -54,72 +51,51 @@ def buffer(x, seg_len, n_overlap, modulated=False, mult=None, parallel=None):
             out = x.new_zeros((len(x), seg_len, n_segs))
             for _x, _out in zip(x, out):
                 _buffer_gpu(_x,  *args, out=_out)
-
-        if mult is not None:
-            reshape = (-1, 1) if x.ndim == 1 else (1, -1, 1)
-            out *= mult.reshape(*reshape)
-
     else:
-        parallel = parallel if parallel is not None else IS_PARALLEL()
+        parallel = parallel or IS_PARALLEL()
         fn = _buffer_par if parallel else _buffer
 
         if x.ndim == 1:
-            out = np.zeros((seg_len, n_segs), dtype=x.dtype, order="F")
-            fn(x, out, *args, mult=mult)
+            out = np.zeros((seg_len, n_segs), dtype=x.dtype, order='F')
+            fn(x, out, *args)
 
         elif x.ndim == 2:
-            out = np.zeros((len(x), seg_len, n_segs), dtype=x.dtype, order="F")
+            out = np.zeros((len(x), seg_len, n_segs), dtype=x.dtype, order='F')
             for _x, _out in zip(x, out):
-                fn(_x, _out, *args, mult=mult)
+                fn(_x, _out, *args)
     return out
 
 
 @jit(nopython=True, cache=True)
-def _buffer(x, out, seg_len, n_segs, hop_len, s20, s21, modulated=False,
-            mult=None):
+def _buffer(x, out, seg_len, n_segs, hop_len, s20, s21, modulated=False):
     for i in range(n_segs):
         if not modulated:
             start = hop_len * i
             end   = start + seg_len
-            if mult is None:
-                out[:, i] = x[start:end]
-            else:
-                out[:, i] = x[start:end] * mult
+            out[:, i] = x[start:end]
         else:
             start0 = hop_len * i
             end0   = start0 + s21
             start1 = end0
             end1   = start1 + s20
-            if mult is None:
-                out[:s20, i] = x[start1:end1]
-                out[s20:, i] = x[start0:end0]
-            else:
-                out[:s20, i] = x[start1:end1] * mult[:s20]
-                out[s20:, i] = x[start0:end0] * mult[s20:]
+            out[:s20, i] = x[start1:end1]
+            out[s20:, i] = x[start0:end0]
 
 
 @jit(nopython=True, cache=True, parallel=True)
-def _buffer_par(x, out, seg_len, n_segs, hop_len, s20, s21, modulated=False,
-                mult=None):
+def _buffer_par(x, out, seg_len, n_segs, hop_len, s20, s21, modulated=False):
     for i in prange(n_segs):
         if not modulated:
             start = hop_len * i
             end   = start + seg_len
-            if mult is None:
-                out[:, i] = x[start:end]
-            else:
-                out[:, i] = x[start:end] * mult
+            out[:, i] = x[start:end]
         else:
             start0 = hop_len * i
             end0   = start0 + s21
             start1 = end0
             end1   = start1 + s20
-            if mult is None:
-                out[:s20, i] = x[start1:end1]
-                out[s20:, i] = x[start0:end0]
-            else:
-                out[:s20, i] = x[start1:end1] * mult[:s20]
-                out[s20:, i] = x[start0:end0] * mult[s20:]
+            out[:s20, i] = x[start1:end1]
+            out[s20:, i] = x[start0:end0]
 
 
 def _buffer_gpu(x, seg_len, n_segs, hop_len, s20, s21, modulated=False, out=None):
