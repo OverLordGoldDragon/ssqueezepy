@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 import numpy as np
-from .utils import WARN, EPS, pi, p2up, adm_ssq, process_scales
+from .utils import EPS32, EPS64, pi, p2up, adm_ssq, process_scales
 from .utils import trigdiff, _process_fs_and_t
+from .utils import backend as S
+from .algos import replace_under_abs, phase_cwt_cpu, phase_cwt_gpu
 from .ssqueezing import ssqueeze, _check_ssqueezing_args
 from .wavelets import Wavelet
 from ._cwt import cwt
@@ -10,13 +12,16 @@ from ._cwt import cwt
 def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
             ssq_freqs=None, padtype='reflect', squeezing='sum', maprange='peak',
             difftype='trig', difforder=None, gamma=None, vectorized=True,
-            preserve_transform=True, order=0):
+            preserve_transform=None, astensor=True, order=0, patience=0,
+            flipud=True, cache_wavelet=None, get_w=False, get_dWx=False):
     """Synchrosqueezed Continuous Wavelet Transform.
     Implements the algorithm described in Sec. III of [1].
 
+    Uses `wavelet.dtype` precision.
+
     # Arguments:
         x: np.ndarray
-            Input vector, 1D.
+            Input vector(s), 1D or 2D. See `help(cwt)`.
 
         wavelet: str / tuple[str, dict] / `wavelets.Wavelet`
             Wavelet sampled in Fourier frequency domain. See `help(cwt)`.
@@ -27,7 +32,7 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
         nv: int / None
             Number of voices (wavelets per octave). Suggested >= 16.
 
-        fs, t
+        fs, t: float, np.ndarray
             See `help(_cwt.cwt)`.
 
         ssq_freqs: str['log', 'linear'] / np.ndarray / None
@@ -49,18 +54,22 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
                 - 'maximal': fm=1/dT, fM=1/(2*dt), always. Data's fundamental
                 and Nyquist frequencies, determined from `fs` (or `t`).
                 Other mappings can never span outside this range.
+
                 - ('peak', 'energy'): sets fm and fM based on center frequency
                 associated with `wavelet` at maximum and minimum scale,
                 respectively. See `help(wavelets.center_frequency)`.
+
                 - 'peak': the frequency-domain trimmed bell will have its peak
                 at Nyquist, meaning all other frequencies are beneath, so each
                 scale is still correctly resolved but with downscaled energies.
                 With sufficiently-spanned `scales`, coincides with 'maximal'.
+
                 - 'energy': however, the bell's spectral energy is centered
                 elsewhere, as right-half of bell is partly or entirely trimmed
                 (left-half can be trimmed too). Use for energy-centric mapping,
                 which for sufficiently-spanned `scales` will always have lesser
                 fM (but ~same fM).
+
                 - tuple: sets `ssq_freqrange` directly.
 
         difftype: str['trig', 'phase', 'numeric']
@@ -90,15 +99,42 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
             Whether to vectorize CWT, i.e. compute quantities for all scales at
             once, which is faster but uses more memory.
 
-        preserve_transform: bool (default True)
+        preserve_transform: bool (default None) / None
             Whether to return `Wx` as directly output from `cwt` (it might be
             altered by `ssqueeze` or `phase_transform`). Uses more memory
             per storing extra copy of `Wx`.
+                - Defaults to True if `'SSQ_GPU' == '0'`, else False.
+
+        astensor: bool (default True)
+            If `'SSQ_GPU' == '1'`, whether to return arrays as on-GPU tensors
+            or move them back to CPU & convert to Numpy arrays.
 
         order: int (default 0) / tuple[int]
             `order > 0` computes ssq of `cwt` taken with higher-order GMWs.
             If tuple, computes ssq of average of `cwt`s taken at each specified
             order. See `help(_cwt.cwt_higher_order)`.
+
+        patience: int / tuple[int, int]
+            pyFFTW parameter for faster FFT on CPU; see `help(ssqueezepy.FFT)`.
+
+        flipud: bool (default True)
+            See `help(ssqueeze)`.
+
+        cache_wavelet: bool (default None) / None
+            See `help(cwt)`.
+
+        get_w, get_dWx: bool (default False)
+            `get_w`:
+                True: will compute phase transform separately, assign it to
+                array `w` and return it.
+                False: will compute synchrosqueezing directly from `Wx` and
+                `dWx` without assigning to intermediate array, which is faster
+                (by 20-30%) and takes less memory.
+            `get_dWx`:
+                True: will return dWx
+                False: discards dWx after computing `w` or synchrosqueezing.
+                `get_dWx=True` with `get_w=True` uses most memory.
+            These options do not affect `Tx`.
 
     # Returns:
         Tx: np.ndarray [nf x n]
@@ -111,9 +147,9 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
             Frequencies associated with rows of `Tx`.
         scales: np.ndarray [na]
             Scales associated with rows of `Wx`.
-        w: np.ndarray [na x n]
+        w: np.ndarray [na x n]  (if `get_w=True`)
             Phase transform for each element of `Wx`.
-        dWx: [na x n] np.ndarray
+        dWx: [na x n] np.ndarray (if `get_dWx=True`)
             See `help(_cwt.cwt)`.
 
     # References:
@@ -138,27 +174,20 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
         https://github.com/ebrevdo/synchrosqueezing/blob/master/synchrosqueezing/
         synsq_cwt_fw.m
     """
-    def _process_args(N, scales, fs, t, nv, difftype, difforder, squeezing,
-                      maprange, wavelet):
-        if difftype not in ('trig', 'phase', 'numeric'):
-            raise ValueError("`difftype` must be one of: direct, phase, numeric"
-                             " (got %s)" % difftype)
-        if difforder is not None:
-            if difftype != 'numeric':
-                WARN("`difforder` is ignored if `difftype != 'numeric'")
-            elif difforder not in (1, 2, 4):
-                raise ValueError("`difforder` must be one of: 1, 2, 4 "
-                                 "(got %s)" % difforder)
-        elif difftype == 'numeric':
-            difforder = 4
-
-        _check_ssqueezing_args(squeezing, maprange, wavelet)
-
+    def _process_args(x, scales, fs, t, nv, difftype, difforder, squeezing,
+                      maprange, wavelet, get_w):
+        if x.ndim == 2 and get_w:
+            raise NotImplementedError("`get_w=True` unsupported with batched "
+                                      "input.")
+        difforder = _check_ssqueezing_args(squeezing, maprange, wavelet,
+                                           difftype, difforder, get_w,
+                                           transform='cwt')
         if nv is None and not isinstance(scales, np.ndarray):
             nv = 32
 
+        N = x.shape[-1]
         dt, fs, t = _process_fs_and_t(fs, t, N)
-        return dt, fs, difforder, nv
+        return N, dt, fs, difforder, nv
 
     def _phase_transform(Wx, dWx, N, dt, gamma, difftype, difforder):
         if difftype == 'trig':
@@ -177,9 +206,9 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
             w = phase_cwt_num(Wx, dt, difforder, gamma)
         return Wx, w
 
-    N = len(x)
-    dt, fs, difforder, nv = _process_args(N, scales, fs, t, nv, difftype,
-                                          difforder, squeezing, maprange, wavelet)
+    N, dt, fs, difforder, nv = _process_args(x, scales, fs, t, nv, difftype,
+                                             difforder, squeezing, maprange,
+                                             wavelet, get_w)
     wavelet = Wavelet._init_if_not_isinstance(wavelet, N=N)
 
     # CWT with higher-order GMWs
@@ -187,13 +216,15 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
         # keep padding for `trigdiff`
         kw = dict(wavelet=wavelet, scales=scales, fs=fs, t=t, nv=nv,
                   l1_norm=True, derivative=False, padtype=padtype, rpadded=True,
-                  vectorized=vectorized)
+                  vectorized=vectorized, cache_wavelet=cache_wavelet)
         _, n1, _ = p2up(N)
         average = isinstance(order, (tuple, list, range))
 
         Wx, scales = cwt(x, order=order, average=average, **kw)
         dWx = trigdiff(Wx, fs, rpadded=True, N=N, n1=n1)
         Wx = Wx[:, n1:n1 + N]
+        if S.is_tensor(Wx):
+            Wx = Wx.contiguous()
 
     scales, cwt_scaletype, *_ = process_scales(scales, N, wavelet, nv=nv,
                                                get_params=True)
@@ -204,25 +235,61 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
         rpadded = (difftype == 'numeric')
         Wx, scales, dWx = cwt(x, wavelet, scales=scales, fs=fs, nv=nv,
                               l1_norm=True, derivative=True, padtype=padtype,
-                              rpadded=rpadded, vectorized=vectorized)
+                              rpadded=rpadded, vectorized=vectorized,
+                              patience=patience, cache_wavelet=cache_wavelet)
 
-    _Wx = Wx.copy() if preserve_transform else Wx
-    gamma = gamma or np.sqrt(EPS)
-    _Wx, w = _phase_transform(_Wx, dWx, N, dt, gamma, difftype, difforder)
+    # make copy of `Wx` if specified
+    if preserve_transform is None:
+        preserve_transform = not S.is_tensor(Wx)
+    if preserve_transform:
+        _Wx = (Wx.copy() if not S.is_tensor(Wx) else
+               Wx.detach().clone())
+    else:
+        _Wx = Wx
 
+    # gamma
+    if gamma is None:
+        gamma = np.sqrt(EPS64 if S.is_dtype(Wx, 'complex128') else EPS32)
+
+    # compute `w` if `get_w` and free `dWx` from memory if `not get_dWx`
+    if get_w:
+        _Wx, w = _phase_transform(_Wx, dWx, N, dt, gamma, difftype, difforder)
+        _dWx = None  # don't use in `ssqueeze`
+        if not get_dWx:
+            dWx = None
+    else:
+        w = None
+        _dWx = dWx
+
+    # default to same scheme used by `scales`
     if ssq_freqs is None:
-        # default to same scheme used by `scales`
         ssq_freqs = cwt_scaletype
+    # affects `maprange` computation if non-tuple
+    was_padded = bool(padtype is not None)
 
-    Tx, ssq_freqs = ssqueeze(_Wx, w, scales=scales, fs=fs, ssq_freqs=ssq_freqs,
-                             transform='cwt', squeezing=squeezing,
-                             maprange=maprange, wavelet=wavelet)
+    # synchrosqueeze
+    Tx, ssq_freqs = ssqueeze(_Wx, w, ssq_freqs, scales, fs=fs, t=t,
+                             squeezing=squeezing, maprange=maprange,
+                             wavelet=wavelet, gamma=gamma, was_padded=was_padded,
+                             flipud=flipud, dWx=_dWx, transform='cwt')
 
     if difftype == 'numeric':
         Wx = Wx[:, 4:-4]
-        w  = w[:,  4:-4]
         Tx = Tx[:, 4:-4]
-    return Tx, Wx, ssq_freqs, scales, w, dWx
+        w  = w[:,  4:-4] if w is not None else None
+
+    if not astensor and S.is_tensor(Tx):
+        Tx, Wx, w, dWx = [g.cpu().numpy() if S.is_tensor(g) else g
+                          for g in (Tx, Wx, w, dWx)]
+
+    if get_w and get_dWx:
+        return Tx, Wx, ssq_freqs, scales, w, dWx
+    elif get_w:
+        return Tx, Wx, ssq_freqs, scales, w
+    elif get_dWx:
+        return Tx, Wx, ssq_freqs, scales, dWx
+    else:
+        return Tx, Wx, ssq_freqs, scales
 
 
 def issq_cwt(Tx, wavelet='gmw', cc=None, cw=None):
@@ -332,7 +399,7 @@ def _process_component_inversion_args(cc, cw):
     return cc, cw, full_inverse
 
 
-def phase_cwt(Wx, dWx, difftype='trig', gamma=None):
+def phase_cwt(Wx, dWx, difftype='trig', gamma=None, parallel=None):
     """Calculate the phase transform at each (scale, time) pair:
           w[a, b] = Im((1/2pi) * d/db (Wx[a,b]) / Wx[a,b])
     See above Eq 20.3 in [1], or Eq 13 in [2].
@@ -355,7 +422,8 @@ def phase_cwt(Wx, dWx, difftype='trig', gamma=None):
                 derivative of trigonometric interpolation; see [4]). Implements
                 as described in Sec IIIB of [2].
                 - 'phase': differentiate by taking forward finite-difference of
-                unwrapped angle of `Wx`
+                unwrapped angle of `Wx`. Does not support GPU or multi-threaded
+                CPU execution.
 
         gamma: float / None
             CWT phase threshold. Sets `w=inf` for small values of `Wx` where
@@ -364,6 +432,9 @@ def phase_cwt(Wx, dWx, difftype='trig', gamma=None):
             This is used to zero `Wx` where `w=0` in computing `Tx` to ignore
             contributions from points with indeterminate phase.
             Default = sqrt(machine epsilon) = np.sqrt(np.finfo(np.float64).eps)
+
+        parallel: bool (default `ssqueezepy.IS_PARALLEL()`)
+            Whether to use multiple CPU threads (ignored if input is tensor).
 
     # Returns:
         w: np.ndarray
@@ -391,23 +462,37 @@ def phase_cwt(Wx, dWx, difftype='trig', gamma=None):
         https://github.com/ebrevdo/synchrosqueezing/blob/master/synchrosqueezing/
         phase_cwt.m
     """
+    def _process_input(Wx, parallel, gamma):
+        S.warn_if_tensor_and_par(Wx, parallel)
+        gpu = S.is_tensor(Wx)
+        if difftype != 'trig':
+            if gpu:
+                raise ValueError("`difftype != 'trig'` unsupported with tensor "
+                                 "inputs.")
+            elif parallel:
+                raise ValueError("`difftype != 'trig'` unsupported with "
+                                 "`parallel`.")
+        if gamma is None:
+            gamma = np.sqrt(EPS64 if S.is_dtype(Wx, 'complex128') else EPS32)
+        return gamma, gpu
+
+    gamma, gpu = _process_input(Wx, parallel, gamma)
+
     if difftype == 'trig':
-        with np.errstate(divide='ignore', invalid='ignore'):
-            w = np.imag(dWx / Wx) / (2*pi)
+        if gpu:
+            w = phase_cwt_gpu(Wx, dWx, gamma)
+        else:
+            w = phase_cwt_cpu(Wx, dWx, gamma, parallel)
+
     elif difftype == 'phase':
         # TODO gives bad results; shouldn't we divide by Wx?
         u = np.unwrap(np.angle(Wx)).T
         w = np.vstack([np.diff(u, axis=0), u[-1] - u[0]]).T / (2*pi)
+        np.abs(w, out=w)
+        replace_under_abs(w, ref=Wx, value=gamma, replacement=np.inf)
     else:
         raise ValueError(f"unsupported `difftype` '{difftype}'; must be one of "
                          "'trig', 'phase'.")
-
-    # treat negative phases as positive; these are in small minority, and
-    # slightly aid invertibility (as less of `Wx` is zeroed in ssqueezing)
-    w = np.abs(w)
-
-    gamma = gamma or np.sqrt(EPS)
-    w[np.abs(Wx) < gamma] = np.inf
     return w
 
 
@@ -476,19 +561,20 @@ def phase_cwt_num(Wx, dt, difforder=4, gamma=None):
             w /= (12 * dt)
         return w
 
-    # epsilon from Daubechies, H-T Wu, et al.
-    # gamma from Brevdo, H-T Wu, et al.
-    gamma = gamma or np.sqrt(EPS)
     if difforder not in (1, 2, 4):
         raise ValueError("`difforder` must be one of: 1, 2, 4 "
                          "(got %s)" % difforder)
 
     w = _differentiate(Wx, dt)
-    w[np.abs(Wx) < gamma] = np.inf
 
     # calculate inst. freq for each scale
     # 2*pi norm per discretized inverse FT rather than inverse DFT
     w = np.real(-1j * w / Wx) / (2*pi)
+
+    # epsilon from Daubechies, H-T Wu, et al.
+    # gamma from Brevdo, H-T Wu, et al.
+    gamma = gamma or np.sqrt(EPS64 if Wx.dtype == np.cfloat else EPS32)
+    w[np.abs(Wx) < gamma] = np.inf
 
     # see `phase_cwt`, though negatives may no longer be in minority
     w = np.abs(w)

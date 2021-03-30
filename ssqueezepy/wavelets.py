@@ -1,15 +1,14 @@
 # -*- coding: utf-8 -*-
 import numpy as np
-import logging
-from numpy.fft import ifft, fftshift, ifftshift
+import gc
 from numba import jit
 from types import FunctionType
 from scipy import integrate
 from .algos import find_maximum
-from .configs import gdefaults
-
-pi = np.pi
-NOTE = lambda msg: logging.warning("NOTE: %s" % msg)
+from .configs import gdefaults, USE_GPU, IS_PARALLEL
+from .utils import backend as S
+from .utils.fft_utils import ifft, fftshift, ifftshift
+from .utils.backend import torch, Q, atleast_1d
 
 
 class Wavelet():
@@ -20,6 +19,23 @@ class Wavelet():
     `Wavelet.VISUALS`   for names of visualizations    passable to `viz()`.
     `viz()` to run visuals, `info()` to print relevant wavelet info.
 
+    # Arguments:
+        wavelet: str / tuple[str, dict] /FunctionType
+            Name of supported wavelet (must be one of `Wavelet.SUPPORTED`)
+            or custom function. Or tuple, name of wavelet and its configs,
+            e.g. `('morlet', {'mu': 5})`.
+
+        N: int
+            Default length of wavelet.
+
+        dtype: str / type (np.dtype) / None
+            dtype at which wavelets are generated; can't change after __init__.
+            Must be one of `Wavelet.DTYPES`. If None, uses value from
+            `configs.ini`, global (if set) or wavelet-specific.
+
+            'float32' is unsupported for GMW's `norm='energy'` and will be
+            overridden by 'float64' (with a warning if it was passed to __init__).
+
     # Example:
         wavelet = Wavelet(('morlet', {'mu': 7}), N=1024)
         plt.plot(wavelet(scale=8))
@@ -27,8 +43,17 @@ class Wavelet():
     SUPPORTED = {'gmw', 'morlet', 'bump', 'cmhat', 'hhhat'}
     VISUALS = {'time-frequency', 'heatmap', 'waveforms', 'filterbank',
                'harea', 'std_t', 'std_w', 'anim:time-frequency'}
+    DTYPES = {'float32', 'float64'}
+    # TODO ensure everything is accounted
+    # Attributes whose data is stored on GPU (if env flag 'SSQ_GPU' == '1')
+    ON_GPU = {'xi', '_Psih', '_Psih_scale'}
+    # Time-frequency attributes
+    TF_PROPS = {'wc', 'wc_ct', 'scalec_ct', 'std_t', 'std_w',
+                'std_t_d', 'std_w_d'}
 
-    def __init__(self, wavelet='gmw', N=1024):
+    def __init__(self, wavelet='gmw', N=1024, dtype=None):
+        self._dtype = self._process_dtype(dtype, as_str=True
+                                          ) if dtype is not None else None
         self._validate_and_set_wavelet(wavelet)
 
         self.N = N  # also sets _xi
@@ -46,14 +71,15 @@ class Wavelet():
         real), will drop it; set to None to disable.
         """
         if w is not None:
-            psih = self.fn(w)
+            psih = self.fn(S.asarray(w, self.dtype))
         else:
             psih = self.fn(self.xifn(scale, N))
 
         if not nohalf:
             psih = self._halve_nyquist(psih)
-        if (psih.dtype == np.complex and (imag_th is not None) and
-            (psih.imag.sum() / psih.real.sum() < imag_th)):
+        if (S.is_dtype(psih, ('complex64', 'complex128')) and
+                (imag_th is not None) and
+                (psih.imag.sum() / psih.real.sum() < imag_th)):
             psih = psih.real
         return psih
 
@@ -69,14 +95,12 @@ class Wavelet():
         return psih
 
     def psifn(self, w=None, *, scale=None, N=None):
-        """Compute time-domain wavelet; simply ifft(psih) with appropriate
+        """Compute time-domain wavelet; simply `ifft(psih)` with appropriate
         extra steps.
         """
         psih = self(w, scale=scale, N=N, nohalf=False)
-        if psih.ndim == 1:
-            pn = (-1)**np.arange(len(psih))
-        elif psih.ndim == 2:
-            pn = (-1)**np.arange(psih.shape[1])
+        if psih.ndim in (1, 2):
+            pn = (-1)**S.arange(psih.shape[-1], dtype=self.dtype)
         else:
             raise ValueError("`psih` must yield to 1D or 2D (got %s)" % psih.ndim)
 
@@ -92,7 +116,7 @@ class Wavelet():
             N=128: [0, 1, 2, ..., 64, -63, -62, ..., -1] * (2*pi / N) * scale
             N=129: [0, 1, 2, ..., 64, -64, -63, ..., -1] * (2*pi / N) * scale
         """
-        if isinstance(scale, np.ndarray) and scale.size > 1:
+        if isinstance(scale, (np.ndarray, torch.Tensor)) and len(scale) > 1:
             if scale.squeeze().ndim > 1:
                 raise ValueError("2D `scale` unsupported")
             elif scale.ndim == 1:
@@ -100,11 +124,39 @@ class Wavelet():
         elif scale is None:
             scale = 1.
 
+        scale = S.asarray(scale, dtype=self.dtype)
         if N is None:
             xi = scale * self.xi
         else:
-            xi = scale * _xifn(scale=1., N=N)
+            xi = scale * S.asarray(_xifn(scale=1., N=N,
+                                         dtype=getattr(np, self.dtype)))
         return xi
+
+    def Psih(self, scale=None, N=None, nohalf=True):
+        """Return pre-computed `psih` at scale(s) `scale` of length `N` if
+        same `scale` & `N` were passed previously, else compute anew.
+
+        `dtype` will override `self.dtype` if not None.
+
+        If both `scale` & `N` are None, will return previously computed `Psih`.
+        """
+        pN = getattr(self, '_Psih_N', S.array([-1]))
+        ps = getattr(self, '_Psih_scale', S.array([-1]))
+        N_is_None = N is None
+        N = N or self.N
+        if ((scale is None and N_is_None) or
+                (N == pN and (len(scale) == len(ps) and S.allclose(scale, ps)))):
+            return self._Psih
+
+        # first empty existing to free memory
+        if getattr(self, '_Psih', None) is not None:
+            self._Psih = None
+            gc.collect()
+
+        self._Psih = self(scale=scale, N=N, nohalf=nohalf)
+        self._Psih_N = N
+        self._Psih_scale = scale
+        return self._Psih
 
     @property
     def N(self):
@@ -113,13 +165,20 @@ class Wavelet():
 
     @N.setter
     def N(self, value):
+        """Ensure `xi` always matches `N`."""
         self._N = value
-        self._xi = _xifn(scale=1, N=value)  # ensure xi always matches N
+        self._xi = S.asarray(_xifn(scale=1, N=value,
+                                   dtype=getattr(np, self.dtype)))
 
     @property
     def xi(self):
         """`xi` computed at `scale=1` and `N=self.N`. See `help(Wavelet.xifn)`."""
         return self._xi
+
+    @property
+    def dtype(self):
+        """dtype at which psih and psi are generated; can't change post-init."""
+        return self._dtype
 
     #### Properties ##########################################################
     @property
@@ -135,7 +194,7 @@ class Wavelet():
         if self.config:
             cfg = ""
             for k, v in self.config.items():
-                if k in ('norm', 'centered_scale'):
+                if k in ('norm', 'centered_scale', 'dtype'):
                     # too long, no real need
                     continue
                 elif k == 'order' and v == 0:
@@ -235,15 +294,19 @@ class Wavelet():
         return self.std_w_d / (2*pi)
 
     #### Misc ################################################################
-    def info(self, nondim=True):
+    def info(self, nondim=True, reset=False):
         """Prints time & frequency resolution quantities. Refer to pertinent
         methods' docstrings on how each quantity is computed, and to
         tests/props_test.py on various dependences (e.g. `std_t` on `N`).
+        If `reset`, will recompute all quantities (can be used with e.g. new `N`).
 
         See `help(Wavelet.x)`, x: `std_t, std_w, wc, wc_ct, scalec_ct`.
 
         Detailed overview: https://dsp.stackexchange.com/q/72042/50076
         """
+        if reset:
+            self.reset_properties()
+
         if nondim:
             cfg = self.config_str
             dim_t = dim_w = "non-dimensional"
@@ -267,6 +330,14 @@ class Wavelet():
                "\tHeisenberg area:  {:.12f}"
                ).format(self.name, cfg, wc, wc_txt,
                         std_t, dim_t, std_w, dim_w, harea))
+
+    def reset_properties(self):
+        """Reset time-frequency properties (`Wavelet.TF_PROPS`), i.e.
+        recompute for current `self.N`.
+        """
+        for name in self.TF_PROPS:
+            setattr(self, f'_{name}', None)
+            getattr(self, name)  # trigger recomputation
 
     def viz(self, name='overview', **kw):
         """`Wavelet.VISUALS` for list of supported `name`s."""
@@ -312,6 +383,20 @@ class Wavelet():
             title = title[:title.find(f"N={N}")].rstrip(', ')
         return title
 
+    @classmethod
+    def _process_dtype(self, dtype, as_str=None):
+        """Ensures `dtype` is supported, and converts per `as_str` (if True,
+        numpy/torch -> str, else vice versa; if None, returns as-is).
+        """
+        if isinstance(dtype, str):
+            assert_is_one_of(dtype, 'dtype', Wavelet.DTYPES)
+            if not as_str:
+                return getattr(Q, dtype)
+        elif not isinstance(dtype, (type, np.dtype, torch.dtype)):
+            raise TypeError("`dtype` must be string or type (np./torch.dtype) "
+                            "(got %s)" % dtype)
+        return dtype if not as_str else str(dtype).split('.')[-1]
+
     #### Init ################################################################
     @classmethod
     def _init_if_not_isinstance(self, wavelet, **kw):
@@ -322,8 +407,29 @@ class Wavelet():
         return Wavelet(wavelet, **kw)
 
     def _validate_and_set_wavelet(self, wavelet):
+        def process_dtype(wavopts, user_passed_float32):
+            """Handles GMW's `norm='energy'` w/ dtype='float32'."""
+            if wavopts.get('norm', 'bandpass') == 'energy':
+                if user_passed_float32:
+                    WARN("`norm='energy'` w/ `dtype='float32'` is unsupported; "
+                         "will use 'float64' instead.")
+                wavopts['dtype'] = 'float64'
+                self._dtype = 'float64'
+            elif self.dtype is not None:
+                wavopts['dtype'] = self.dtype
+
+        def set_dtype_from_out():
+            # 32 will promote to 64 if other params are 64
+            out_dtype = self.fn(S.asarray([1.], dtype='float32')).dtype
+            if any(tp in str(out_dtype) for tp in ('complex64', 'complex128')):
+                # 'bump' wavelet case
+                out_dtype = ('float32' if 'complex64' in str(out_dtype) else
+                             'float64')
+            self._dtype = self._process_dtype(out_dtype, as_str=True)
+
         if isinstance(wavelet, FunctionType):
             self.fn = wavelet
+            set_dtype_from_out()
             self.config = {}
             return
 
@@ -340,35 +446,35 @@ class Wavelet():
         elif isinstance(wavelet, str):
             wavopts = {}
 
+        user_passed_float32 = any('float32' in str(t)
+                                  for t in (self.dtype, wavopts.get('dtype', 0)))
         if isinstance(wavelet, str):
             wavelet = wavelet.lower()
             module = 'wavelets' if wavelet != 'gmw' else '_gmw'
             wavopts = gdefaults(f"{module}.{wavelet}", get_all=True,
                                 as_dict=True, default_order=True, **wavopts)
 
-        if wavelet == 'gmw':
-            self.fn = gmw(**wavopts)
-        elif wavelet == 'morlet':
-            self.fn = morlet(**wavopts)
-        elif wavelet == 'bump':
-            self.fn = bump(**wavopts)
-        elif wavelet == 'cmhat':
-            self.fn = cmhat(**wavopts)
-        elif wavelet == 'hhhat':
-            self.fn = hhhat(**wavopts)
-        else:
-            raise ValueError(f"wavelet '{wavelet}' is not supported; pass "
-                             "in fn=custom_fn, or use one of:", ', '.join(
-                                 Wavelet.SUPPORTED))
+        process_dtype(wavopts, user_passed_float32)
+        assert_is_one_of(wavelet, 'wavelet', Wavelet.SUPPORTED)
+        self.fn = {
+            'gmw':    gmw,
+            'morlet': morlet,
+            'bump':   bump,
+            'cmhat':  cmhat,
+            'hhhat':  hhhat,
+        }[wavelet](**wavopts)
+
+        if self.dtype is None:
+            set_dtype_from_out()
         self.config = wavopts
 
 
 @jit(nopython=True, cache=True)
-def _xifn(scale, N):
+def _xifn(scale, N, dtype=np.float64):
     """N=128: [0, 1, 2, ..., 64, -63, -62, ..., -1] * (2*pi / N) * scale
        N=129: [0, 1, 2, ..., 64, -64, -63, ..., -1] * (2*pi / N) * scale
     """
-    xi = np.zeros(N)
+    xi = np.zeros(N, dtype=dtype)
     h = scale * (2 * pi) / N
     for i in range(N // 2 + 1):
         xi[i] = i * h
@@ -376,8 +482,19 @@ def _xifn(scale, N):
         xi[i] = (i - N) * h
     return xi
 
+def _process_params_dtype(*params, dtype, auto_gpu=True):
+    if dtype is None:
+        dtype = S.asarray(params[0]).dtype
+    if auto_gpu:
+        dtype = Wavelet._process_dtype(dtype, as_str=True)
+        params = [S.astype(S.asarray(p), dtype) for p in params]
+    else:
+        dtype = Wavelet._process_dtype(dtype, as_str=True)
+        params = [np.asarray(p).astype(dtype) for p in params]
+    return params if len(params) > 1 else params[0]
+
 #### Wavelet functions ######################################################
-def morlet(mu=None):
+def morlet(mu=None, dtype=None):
     """Higher `mu` -> greater frequency, lesser time resolution.
     Recommended range: 4 to 16. For `mu > 6` the wavelet is almsot exactly
     Gaussian for most scales, providing maximum joint resolution.
@@ -388,53 +505,105 @@ def morlet(mu=None):
     https://en.wikipedia.org/wiki/Morlet_wavelet#Definition
     https://www.desmos.com/calculator/cuypxm8s1y
     """
-    mu = gdefaults('wavelets.morlet', mu=mu)
+    mu, dtype = gdefaults('wavelets.morlet', mu=mu, dtype=dtype)
     cs = (1 + np.exp(-mu**2) - 2 * np.exp(-3/4 * mu**2)) ** (-.5)
     ks = np.exp(-.5 * mu**2)
-    return lambda w: _morlet(w, mu, cs, ks)
+    mu, cs, ks = _process_params_dtype(mu, cs, ks, dtype=dtype)
+
+    # all other consts go to `C`; needed for numba.jit to not type promote to
+    # float64 due to Python floats (e.g. `2.`)
+    C = S.asarray([-.5, np.sqrt(2) * cs * pi**.25], dtype=dtype)
+
+    fn = _morlet_gpu if USE_GPU() else (_morlet_par if IS_PARALLEL() else _morlet)
+    return lambda w: fn(atleast_1d(w, dtype), mu, ks, C)
 
 @jit(nopython=True, cache=True)
-def _morlet(w, mu, cs, ks):
-    return np.sqrt(2) * cs * pi**.25 * (np.exp(-.5 * (w - mu)**2)
-                                        - ks * np.exp(-.5 * w**2))
+def _morlet(w, mu, ks, C):
+    return C[1]* (np.exp(C[0] * (w - mu)**2) - ks * np.exp(C[0] * w**2))
+
+@jit(nopython=True, cache=True, parallel=True)
+def _morlet_par(w, mu, ks, C):
+    return C[1]* (np.exp(C[0] * (w - mu)**2) - ks * np.exp(C[0] * w**2))
+
+def _morlet_gpu(w, mu, ks, C):
+    return C[1] * (torch.exp(C[0] * (w - mu)**2) - ks * torch.exp(C[0] * w**2))
 
 
-def bump(mu=None, s=None, om=None):
+def bump(mu=None, s=None, om=None, dtype=None):
     """Bump wavelet.
     https://www.mathworks.com/help/wavelet/gs/choose-a-wavelet.html
     """
-    mu, s, om = gdefaults('wavelets.bump', mu=mu, s=s, om=om)
-    return lambda w: _bump(w, (w - mu) / s, om, s)
+    mu, s, om, dtype = gdefaults('wavelets.bump', mu=mu, s=s, om=om, dtype=dtype)
+    if 'float' in dtype:
+        dtype = 'complex' + str(2 * int(dtype.strip('float')))
+    mu, s, om = [S.asarray(g, dtype) for g in (mu, s, om)]
+    C = S.asarray([2 * pi * 1j * om, .443993816053287], dtype=dtype)
+    C0 = S.asarray(.999, dtype='float' + str(int(dtype.strip('complex'))//2))
+
+    fn = _bump_gpu if USE_GPU() else (_bump_par if IS_PARALLEL() else _bump)
+    return lambda w: fn(atleast_1d(w, dtype), (atleast_1d(w, dtype) - mu) / s,
+                        s, C, C0)
 
 @jit(nopython=True, cache=True)
-def _bump(w, _w, om, s):
-    return np.exp(2 * pi * 1j * om * w) / s * (
-        np.abs(_w) < .999) * np.exp(-1. / (1 - (_w * (np.abs(_w) < .999))**2)
-                                    ) / .443993816053287
+def _bump(w, _w, s, C, C0):
+    return np.exp(C[0] * w) / s * (
+        np.abs(_w) < C0) * np.exp(
+            -1 / (1 - (_w * (np.abs(_w) < C0))**2)) / C[1]
+
+@jit(nopython=True, cache=True, parallel=True)
+def _bump_par(w, _w, s, C, C0):
+    return np.exp(C[0] * w) / s * (
+        np.abs(_w) < C0) * np.exp(
+            -1 / (1 - (_w * (np.abs(_w) < C0))**2)) / C[1]
+
+def _bump_gpu(w, _w, s, C, C0):
+    return torch.exp(C[0] * w) / s * (
+        torch.abs(_w) < C0) * torch.exp(
+            -1 / (1 - (_w * (torch.abs(_w) < C0))**2)) / C[1]
 
 
-def cmhat(mu=None, s=None):
+def cmhat(mu=None, s=None, dtype=None):
     """Complex Mexican Hat wavelet.
     https://en.wikipedia.org/wiki/Complex_mexican_hat_wavelet
     """
-    mu, s = gdefaults('wavelets.cmhat', mu=mu, s=s)
-    return lambda w: _cmhat(w - mu, s)
+    mu, s, dtype = gdefaults('wavelets.cmhat', mu=mu, s=s, dtype=dtype)
+    mu, s = _process_params_dtype(mu, s, dtype=dtype)
+    C = S.asarray([5/2, 2 * np.sqrt(2/3) * pi**(-1/4)], dtype=dtype)
+
+    fn = _cmhat_gpu if USE_GPU() else (_cmhat_par if IS_PARALLEL() else _cmhat)
+    return lambda w: fn(atleast_1d(w, dtype) - mu, s, C)
 
 @jit(nopython=True, cache=True)
-def _cmhat(_w, s):
-    return 2 * np.sqrt(2/3) * pi**(-1/4) * (
-        s**(5/2) * _w**2 * np.exp(-s**2 * _w**2 / 2) * (_w >= 0))
+def _cmhat(_w, s, C):
+    return C[1] * (s**C[0] * _w**2 * np.exp(-s**2 * _w**2 / 2) * (_w >= 0))
+
+@jit(nopython=True, cache=True, parallel=True)
+def _cmhat_par(_w, s, C):
+    return C[1] * (s**C[0] * _w**2 * np.exp(-s**2 * _w**2 / 2) * (_w >= 0))
+
+def _cmhat_gpu(_w, s, C):
+    return C[1] * (s**C[0] * _w**2 * torch.exp(-s**2 * _w**2 / 2) * (_w >= 0))
 
 
-def hhhat(mu=None):
+def hhhat(mu=None, dtype=None):
     """Hilbert analytic function of Hermitian Hat."""
-    mu = gdefaults('wavelets.hhhat', mu=mu)
-    return lambda w: _hhhat(w - mu)
+    mu, dtype = gdefaults('wavelets.hhhat', mu=mu, dtype=dtype)
+    mu = _process_params_dtype(mu, dtype=dtype)
+    C = S.asarray([-1/2, 2 / np.sqrt(5) * pi**(-1/4)], dtype=dtype)
+
+    fn = _hhhat_gpu if USE_GPU() else (_hhhat_par if IS_PARALLEL() else _hhhat)
+    return lambda w: fn(atleast_1d(w, dtype) - mu, C)
 
 @jit(nopython=True, cache=True)
-def _hhhat(_w):
-    return 2/np.sqrt(5)*pi**(-1/4) * (_w * (1 + _w) * np.exp(-1/2 * _w**2)
-                                      ) * (1 + np.sign(_w))
+def _hhhat(_w, C):
+    return C[1] * (_w * (1 + _w) * np.exp(C[0] * _w**2)) * (1 + np.sign(_w))
+
+@jit(nopython=True, cache=True, parallel=True)
+def _hhhat_par(_w, C):
+    return C[1] * (_w * (1 + _w) * np.exp(C[0] * _w**2)) * (1 + np.sign(_w))
+
+def _hhhat_gpu(_w, C):
+    return C[1] * (_w * (1 + _w) * torch.exp(C[0] * _w**2)) * (1 + torch.sign(_w))
 
 
 #### Wavelet properties ######################################################
@@ -509,9 +678,10 @@ def center_frequency(wavelet, scale=None, N=1024, kind='energy', force_int=None,
         print("wc={}".format(wc))
 
     def _params(wavelet, scale, N):
-        w = aifftshift(_xifn(1, N))
-        psih = wavelet(scale * w)
+        w = S.asarray(aifftshift(_xifn(1, N)))
+        psih = asnumpy(wavelet(S.asarray(scale) * w))
         apsih2 = np.abs(psih)**2
+        w = asnumpy(w)
         return w, psih, apsih2
 
     def _energy_wc(wavelet, scale, N, force_int):
@@ -538,7 +708,7 @@ def center_frequency(wavelet, scale=None, N=1024, kind='energy', force_int=None,
         wc, _ = find_maximum(wavelet.fn)
         # need `scale` such that `wavelet` peaks at `scale * xi.max()/4`
         # thus: `wc = scale * (pi/2)` --> `scale = (4/pi)*wc`
-        scale = (4/pi) * wc
+        scale = S.asarray((4/pi) * wc)
         w, psih, apsih2 = _params(wavelet, scale, N)
         return float(wc), (w, psih, apsih2)
 
@@ -609,7 +779,7 @@ def freq_resolution(wavelet, scale=10, N=1024, nondim=True, force_int=True,
         scale = (4/pi) * wavelet.wc_ct
 
     w = aifftshift(_xifn(1, N))
-    psih = wavelet(scale * w)
+    psih = asnumpy(wavelet(scale * w))
     wce = center_frequency(wavelet, scale, force_int=force_int, kind='energy')
 
     apsih2 = np.abs(psih)**2
@@ -697,7 +867,7 @@ def time_resolution(wavelet, scale=10, N=1024, min_decay=1e3, max_mult=2,
         """Ensure `psi` decays sufficiently at integration bounds"""
         for mult in np.arange(min_mult, max_mult + 1):
             Nt = int(mult * N)
-            apsi2 = np.abs(wavelet.psifn(scale=scale, N=Nt))**2
+            apsi2 = np.abs(asnumpy(wavelet.psifn(scale=scale, N=Nt)))**2
             # ensure sufficient decay at endpoints (assumes ~symmetric decay)
             if apsi2.max() / apsi2[:max(10, Nt//100)].mean() > min_decay:
                 break
@@ -725,8 +895,8 @@ def time_resolution(wavelet, scale=10, N=1024, min_decay=1e3, max_mult=2,
     Nt = len(t)
 
     xi = _xifn(1, Nt)
-    psih = wavelet(scale * xi, nohalf=False)
-    psi = ifft(psih * (-1)**np.arange(Nt))
+    psih = asnumpy(wavelet(scale * xi, nohalf=False))
+    psi = asnumpy(ifft(psih * (-1)**np.arange(Nt)))
 
     apsi2 = np.abs(psi)**2
     var_t = (integrate.trapz(t**2 * apsi2, t) /
@@ -806,4 +976,5 @@ def isinstance_by_name(obj, ref):
 from ._gmw import gmw
 from . import visuals
 from .visuals import plot, _viz_cwt_scalebounds
-from .utils.common import assert_is_one_of
+from .utils.common import WARN, NOTE, pi, assert_is_one_of
+from .utils.backend import asnumpy

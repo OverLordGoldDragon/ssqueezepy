@@ -27,7 +27,7 @@ def test_energy_center_frequency():
         errs = np.zeros(len(mus))
 
         for i, mu in enumerate(mus):
-            wavelet = Wavelet(('morlet', {'mu': mu}))
+            wavelet = Wavelet(('morlet', {'mu': mu, 'dtype': 'float64'}))
             wc = center_frequency(wavelet, scale=scale0, N=N0, kind='energy')
             errs[i] = abs((wc / wc0) - (mu / mu0))
 
@@ -43,7 +43,7 @@ def test_energy_center_frequency():
         """
         scales = 2**(np.arange(16, 53) / 8)  # [4, ..., 90.5]
         errs = np.zeros(len(scales))
-        wavelet = Wavelet(('morlet', {'mu': mu0}))
+        wavelet = Wavelet(('morlet', {'mu': mu0, 'dtype': 'float64'}))
 
         for i, scale in enumerate(scales):
             wc = center_frequency(wavelet, scale=scale, N=N0, kind='energy')
@@ -60,7 +60,7 @@ def test_energy_center_frequency():
         """
         scales = 2**(np.arange(53, 81) / 8)  # [90.5, ..., 1024]
         errs = np.zeros(len(scales))
-        wavelet = Wavelet(('morlet', {'mu': mu0}))
+        wavelet = Wavelet(('morlet', {'mu': mu0, 'dtype': 'float64'}))
 
         for i, scale in enumerate(scales):
             wc = center_frequency(wavelet, scale=scale, N=N0, kind='energy')
@@ -73,7 +73,7 @@ def test_energy_center_frequency():
         """Independent"""
         Ns = (np.array([.25, .5, 2, 4, 9]) * N0).astype('int64')
         errs = np.zeros(len(Ns))
-        wavelet = Wavelet(('morlet', {'mu': mu0}))
+        wavelet = Wavelet(('morlet', {'mu': mu0, 'dtype': 'float64'}))
 
         for i, N in enumerate(Ns):
             wc = center_frequency(wavelet, scale=scale0, N=N, kind='energy')
@@ -86,7 +86,7 @@ def test_energy_center_frequency():
     scale0 = 10
     N0 = 1024
 
-    wavelet0 = Wavelet(('morlet', {'mu': mu0}))
+    wavelet0 = Wavelet(('morlet', {'mu': mu0, 'dtype': 'float64'}))
     wc0 = center_frequency(wavelet0, scale=scale0, N=N0, kind='energy')
 
     args = (wc0, mu0, scale0, N0)
@@ -109,7 +109,7 @@ def test_time_resolution():
         errs = np.zeros((2, len(mus)))
 
         for i, mu in enumerate(mus):
-            wavelet = Wavelet(('morlet', {'mu': mu}))
+            wavelet = Wavelet(('morlet', {'mu': mu, 'dtype': 'float64'}))
             std_t_nd = time_resolution(wavelet, scale0, N0, nondim=True)
             std_t_d  = time_resolution(wavelet, scale0, N0, nondim=False)
 
@@ -135,7 +135,7 @@ def test_time_resolution():
         """
         scales = 2**(np.arange(16, 81) / 8)  # [4, ..., 1024]
         errs = np.zeros((2, len(scales)))
-        wavelet = Wavelet(('morlet', {'mu': mu0}))
+        wavelet = Wavelet(('morlet', {'mu': mu0, 'dtype': 'float64'}))
         kw = dict(wavelet=wavelet, N=N0, force_int=False)
 
         for i, scale in enumerate(scales):
@@ -157,7 +157,7 @@ def test_time_resolution():
         """
         Ns = (np.array([.1, 1/3, .5, 2, 4, 9]) * N0).astype('int64')
         errs = np.zeros((2, len(Ns)))
-        wavelet = Wavelet(('morlet', {'mu': mu0}))
+        wavelet = Wavelet(('morlet', {'mu': mu0, 'dtype': 'float64'}))
 
         for i, N in enumerate(Ns):
             std_t_nd = time_resolution(wavelet, scale0, N, nondim=True)
@@ -173,7 +173,7 @@ def test_time_resolution():
     scale0 = 10
     N0 = 1024
 
-    wavelet0 = Wavelet(('morlet', {'mu': mu0}))
+    wavelet0 = Wavelet(('morlet', {'mu': mu0, 'dtype': 'float64'}))
     std_t_nd0 = time_resolution(wavelet0, scale0, N0, nondim=True)
     std_t_d0  = time_resolution(wavelet0, scale0, N0, nondim=False)
 
@@ -190,7 +190,7 @@ def test_freq_resolution():
         errs = np.zeros((2, len(mus)))
 
         for i, mu in enumerate(mus):
-            wavelet = Wavelet(('morlet', {'mu': mu}))
+            wavelet = Wavelet(('morlet', {'mu': mu, 'dtype': 'float64'}))
             std_w_nd = freq_resolution(wavelet, scale0, N0, nondim=True)
             std_w_d  = freq_resolution(wavelet, scale0, N0, nondim=False)
 
@@ -210,7 +210,7 @@ def test_freq_resolution():
         """
         scales = 2**(np.arange(16, 81) / 8)  # [4, ..., 1024]
         errs = np.zeros((2, len(scales)))
-        wavelet = Wavelet(('morlet', {'mu': mu0}))
+        wavelet = Wavelet(('morlet', {'mu': mu0, 'dtype': 'float64'}))
 
         for i, scale in enumerate(scales):
             std_w_nd = freq_resolution(wavelet, scale, N0, nondim=True)
@@ -226,7 +226,7 @@ def test_freq_resolution():
         """Independent"""
         Ns = (np.array([.25, .5, 2, 4, 9]) * N0).astype('int64')
         errs = np.zeros((2, len(Ns)))
-        wavelet = Wavelet(('morlet', {'mu': mu0}))
+        wavelet = Wavelet(('morlet', {'mu': mu0, 'dtype': 'float64'}))
 
         for i, N in enumerate(Ns):
             std_w_nd = freq_resolution(wavelet, scale0, N, nondim=True)
@@ -242,7 +242,7 @@ def test_freq_resolution():
     scale0 = 10
     N0 = 1024
 
-    wavelet0 = Wavelet(('morlet', {'mu': mu0}))
+    wavelet0 = Wavelet(('morlet', {'mu': mu0, 'dtype': 'float64'}))
     std_w_nd0 = freq_resolution(wavelet0, scale0, N0, nondim=True)
     std_w_d0  = freq_resolution(wavelet0, scale0, N0, nondim=False)
 

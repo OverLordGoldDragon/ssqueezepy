@@ -5,4 +5,6 @@ coveralls
 pytest
 pytest-cov
 pycode
+pycodestyle
 librosa
+pyfftw

@@ -1,12 +1,20 @@
 # -*- coding: utf-8 -*-
+import os
 import pytest
 import numpy as np
 from ssqueezepy import ssq_cwt, issq_cwt, ssq_stft, issq_stft
 from ssqueezepy import cwt, icwt, stft, istft
 from ssqueezepy._stft import get_window
 from ssqueezepy.toolkit import lin_band
+try:
+    from librosa import stft as lstft
+except Exception as e:
+    import logging
+    logging.warn("librosa import failed with:\n%s" % str(e))
+
 
 VIZ = 0  # set to 1 to enable various visuals and run without pytest
+os.environ['SSQ_GPU'] = '0'  # in case concurrent tests set it to '1'
 
 
 #### Helper methods ##########################################################
@@ -50,7 +58,7 @@ def high_freqs(N):
 
 #### Tests ###################################################################
 test_fns = (echirp, lchirp, fast_transitions, low_freqs, high_freqs)
-wavelet = ('gmw', {'beta': 8})
+wavelet = ('gmw', {'beta': 8, 'dtype': 'float64'})
 th = .1
 
 
@@ -130,10 +138,10 @@ def test_component_inversion():
     x += np.sqrt(noise_var) * np.random.randn(len(x))
 
     wavelet = ('gmw', {'beta': 6})
-    Tx, *_ = ssq_cwt(x, wavelet, scales='log:maximal', nv=32, t=ts)
+    Tx, *_ = ssq_cwt(x, wavelet, scales='log:maximal', nv=32, t=ts, flipud=0)
 
     # hand-coded, subject to failure
-    bw, slope, offset = .035, .45, .45
+    bw, slope, offset = .035, .44, .58
     Cs, freqband = lin_band(Tx, slope, offset, bw, norm=(0, 2e-1))
 
     xrec = issq_cwt(Tx, wavelet, Cs, freqband)[0]
@@ -145,8 +153,8 @@ def test_component_inversion():
     err_spc = mad_rms(axof, axrecf)
     print("signal   MAD/RMS: %.6f" % err_sig)
     print("spectrum MAD/RMS: %.6f" % err_spc)
-    assert err_sig <= .42, f"{err_sig} > .42"
-    assert err_spc <= .14, f"{err_spc} > .14"
+    assert err_sig <= .40, f"{err_sig} > .40"
+    assert err_spc <= .15, f"{err_spc} > .15"
 
 
 def test_stft():
@@ -155,21 +163,20 @@ def test_stft():
     """
     th = 1e-14
     for N in (128, 129):
-        x = np.random.randn(N)
-        for n_fft in (120, 121):
-            for hop_len in (1, 2, 3):
-                for modulated in (True, False):
+      x = np.random.randn(N)
+      for n_fft in (120, 121):
+        for hop_len in (1, 2, 3):
+          for modulated in (True, False):
+            kw = dict(hop_len=hop_len, n_fft=n_fft, modulated=modulated)
 
-                    kw = dict(hop_len=hop_len, n_fft=n_fft, modulated=modulated)
+            Sx = stft(x, dtype='float64', **kw)
+            xr = istft(Sx, N=len(x), **kw)
 
-                    Sx = stft(x, **kw)
-                    xr = istft(Sx, N=len(x), **kw)
-
-                    txt = ("\nSTFT: (N, n_fft, hop_len, modulated) = ({}, {}, "
-                           "{}, {})").format(N, n_fft, hop_len, modulated)
-                    assert len(x) == len(xr), "%s != %s %s" % (N, len(xr), txt)
-                    mae = np.abs(x - xr).mean()
-                    assert mae < th, "MAE = %.2e > %.2e %s" % (mae, th, txt)
+            txt = ("\nSTFT: (N, n_fft, hop_len, modulated) = ({}, {}, "
+                   "{}, {})").format(N, n_fft, hop_len, modulated)
+            assert len(x) == len(xr), "%s != %s %s" % (N, len(xr), txt)
+            mae = np.abs(x - xr).mean()
+            assert mae < th, "MAE = %.2e > %.2e %s" % (mae, th, txt)
 
 
 def test_ssq_stft():
@@ -180,28 +187,32 @@ def test_ssq_stft():
     """
     th = 1e-1
     for N in (128, 129):
-        x = np.random.randn(N)
-        for n_fft in (120, 121):
-            for window_scaling in (1., .5):
-                if window_scaling == 1:
-                    window = None
-                else:
-                    window = get_window(window, win_len=n_fft//1, n_fft=n_fft)
-                    window *= window_scaling
+      x = np.random.randn(N)
+      for n_fft in (120, 121):
+        for window_scaling in (1., .5):
+          if window_scaling == 1:
+              window = None
+          else:
+              window = get_window(window, win_len=n_fft//1, n_fft=n_fft)
+              window *= window_scaling
 
-                Sx, *_ = ssq_stft(x, window=window, n_fft=n_fft)
-                xr = issq_stft(  Sx, window=window, n_fft=n_fft)
+          Sx, *_ = ssq_stft(x, window=window, n_fft=n_fft)
+          xr = issq_stft(  Sx, window=window, n_fft=n_fft)
 
-                txt = ("\nSSQ_STFT: (N, n_fft, window_scaling) = ({}, {}, {})"
-                       ).format(N, n_fft, window_scaling)
-                assert len(x) == len(xr), "%s != %s %s" % (N, len(xr), txt)
-                mae = np.abs(x - xr).mean()
-                assert mae < th, "MAE = %.2e > %.2e %s" % (mae, th, txt)
+          txt = ("\nSSQ_STFT: (N, n_fft, window_scaling) = ({}, {}, {})"
+                 ).format(N, n_fft, window_scaling)
+          assert len(x) == len(xr), "%s != %s %s" % (N, len(xr), txt)
+          mae = np.abs(x - xr).mean()
+          assert mae < th, "MAE = %.2e > %.2e %s" % (mae, th, txt)
 
 
 def test_stft_vs_librosa():
-    from librosa import stft as lstft
+    try:
+        lstft
+    except:
+        return
 
+    np.random.seed(0)
     # try all even/odd combos
     for N in (512, 513):
       for hop_len in (1, 2, 3):
@@ -209,7 +220,7 @@ def test_stft_vs_librosa():
           for win_len in (N//8, N//8 - 1):
              x = np.random.randn(N)
              Sx  = stft( x, n_fft=n_fft, hop_len=hop_len,    win_len=win_len,
-                         window='hann', modulated=False)
+                         window='hann', modulated=False, dtype='float64')
              lSx = lstft(x, n_fft=n_fft, hop_length=hop_len, win_length=win_len,
                          window='hann')
 
@@ -219,8 +230,10 @@ def test_stft_vs_librosa():
                  elif (((N % 2 == 0) and hop_len == 2) or
                        ((N % 2 == 1) and hop_len == 3)):
                      lSx = lSx[:, :-1]
-             mae = np.mean(np.abs(Sx - lSx))
-             assert mae < 1e-15, "MAE: %s" % mae
+             mae = np.abs(Sx - lSx).mean()
+             assert np.allclose(Sx, lSx), (
+                 "N={}, hop_len={}, n_fft={}, win_len={}, MAE={}"
+                 ).format(N, hop_len, n_fft, win_len, mae)
 
 
 def _maybe_viz(Wx, xo, xrec, title, err):

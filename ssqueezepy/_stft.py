@@ -1,14 +1,17 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 import scipy.signal as sig
-from numpy.fft import fft, ifft, rfft, irfft, fftshift, ifftshift
 from .utils import WARN, padsignal, buffer, unbuffer, window_norm
 from .utils import _process_fs_and_t
-from .wavelets import _xifn
+from .utils.fft_utils import fft, ifft, rfft, irfft, fftshift, ifftshift
+from .utils.backend import torch, is_tensor
+from .algos import zero_denormals
+from .wavelets import _xifn, _process_params_dtype
+from .configs import gdefaults, USE_GPU
 
 
 def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=None, t=None,
-         padtype='reflect', modulated=True, derivative=False):
+         padtype='reflect', modulated=True, derivative=False, dtype=None):
     """Short-Time Fourier Transform.
 
     `modulated=True` computes "modified" variant from [1] which is advantageous
@@ -16,7 +19,7 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=None, t=None,
 
     # Arguments:
         x: np.ndarray
-            Input vector, 1D.
+            Input vector(s), 1D or 2D. See `help(cwt)`.
 
         window: str / np.ndarray / None
             STFT windowing kernel. If string, will fetch per
@@ -29,9 +32,10 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=None, t=None,
             with `win_len == n_fft`.
 
         n_fft: int >= 0 / None
-            FFT length, or STFT column length. If `win_len < n_fft`, will
-            pad `window`. Every STFT column is `fft(window * x_slice)`.
-            Defaults to `len(x)`, up to 2048.
+            FFT length, or `(STFT column length) // 2 + 1`.
+            If `win_len < n_fft`, will pad `window`. Every STFT column is
+            `fft(window * x_slice)`.
+            Defaults to `len(x)//hop_len`, up to 512.
 
         win_len: int >= 0 / None
             Length of `window` to use. Used to generate a window if `window`
@@ -44,10 +48,9 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=None, t=None,
             Must be 1 for invertible synchrosqueezed STFT.
 
         fs: float / None
-            Sampling frequency of `x`. Defaults to 1, which makes ssq
-            frequencies range from 0 to 0.5*fs, i.e. as fraction of reference
-            sampling rate up to Nyquist limit. Used to compute `dSx` and
-            `ssq_freqs`.
+            Sampling frequency of `x`. Defaults to 1, which makes ssq frequencies
+            range from 0 to 0.5*fs, i.e. as fraction of reference sampling rate
+            up to Nyquist limit. Used to compute `dSx` and `ssq_freqs`.
 
         t: np.ndarray / None
             Vector of times at which samples are taken (eg np.linspace(0, 1, n)).
@@ -66,6 +69,11 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=None, t=None,
 
         derivative: bool (default False)
             Whether to compute and return `dSx`. Uses `fs`.
+
+        dtype: str['float32', 'float64'] / None
+            Compute precision; use 'float32` for speed & memory at expense of
+            accuracy (negligible for most purposes).
+            If None, uses value from `configs.ini`.
 
     **Modulation**
         `True` will center DFT cisoids at the window for each shift `u`:
@@ -98,38 +106,58 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=None, t=None,
         https://arxiv.org/abs/1006.2533
     """
     def _stft(xp, window, diff_window, n_fft, hop_len, fs, modulated, derivative):
-        Sx  = buffer(xp, n_fft, n_fft - hop_len)
-        dSx = Sx.copy()
-        Sx  *= window.reshape(-1, 1)
-        dSx *= diff_window.reshape(-1, 1)
+        Sx = buffer(xp, n_fft, n_fft - hop_len, modulated)
+        if derivative:
+            dSx = buffer(xp, n_fft, n_fft - hop_len, modulated)
 
         if modulated:
-            # TODO this can be made more efficient; buffer(modulated=True)
-            # shift windowed slices so they're always DFT-centered (about n=0),
-            # thus shifting bases (cisoids) along the window: e^(-j*(w - u))
-            Sx = ifftshift(Sx, axes=0)
+            window = ifftshift(window, astensor=True)
             if derivative:
-                dSx = ifftshift(dSx, axes=0)
+                diff_window = ifftshift(diff_window, astensor=True) * fs
+
+        reshape = (-1, 1) if xp.ndim == 1 else (1, -1, 1)
+        Sx *= window.reshape(*reshape)
+        if derivative:
+            dSx *= (diff_window.reshape(*reshape))
 
         # keep only positive frequencies (Hermitian symmetry assuming real `x`)
-        Sx = rfft(Sx, axis=0)
+        axis = 0 if xp.ndim == 1 else 1
+        Sx = rfft(Sx, axis=axis, astensor=True)
         if derivative:
-            dSx = rfft(dSx, axis=0) * fs
+            dSx = rfft(dSx, axis=axis, astensor=True)
         return (Sx, dSx) if derivative else (Sx, None)
 
-    _, fs, _ = _process_fs_and_t(fs, t, len(x))
-    n_fft = n_fft or min(len(x), 2048)
+    # process args
+    assert x.ndim in (1, 2)
+    N = x.shape[-1]
+    _, fs, _ = _process_fs_and_t(fs, t, N)
+    n_fft = n_fft or min(N//hop_len, 512)
+
+    # process `window`, make `diff_window`, check NOLA, enforce `dtype`
     if win_len is None:
         win_len = (len(window) if isinstance(window, np.ndarray) else
                    n_fft)
-    window, diff_window = get_window(window, win_len, n_fft, derivative=True)
+    dtype = gdefaults('_stft.stft', dtype=dtype)
+    window, diff_window = get_window(window, win_len, n_fft, derivative=True,
+                                     dtype=dtype)
     _check_NOLA(window, hop_len)
+    x = _process_params_dtype(x, dtype=dtype, auto_gpu=False)
 
-    padlength = len(x) + n_fft - 1  # pad `x` to length `padlength`
+    # pad `x` to length `padlength`
+    padlength = N + n_fft - 1
     xp = padsignal(x, padtype, padlength=padlength)
 
+    # arrays -> tensors if using GPU
+    if USE_GPU():
+        xp, window, diff_window = [torch.as_tensor(g, device='cuda') for g in
+                                   (xp, window, diff_window)]
+    # take STFT
     Sx, dSx = _stft(xp, window, diff_window, n_fft, hop_len, fs, modulated,
                     derivative)
+
+    # ensure indexing works as expected downstream (cupy)
+    Sx  = Sx.contiguous()  if is_tensor(Sx)  else Sx
+    dSx = dSx.contiguous() if is_tensor(dSx) else dSx
 
     return (Sx, dSx) if derivative else Sx
 
@@ -194,7 +222,7 @@ def istft(Sx, window=None, n_fft=None, win_len=None, hop_len=1, N=None,
     return x
 
 
-def get_window(window, win_len, n_fft=None, derivative=False):
+def get_window(window, win_len, n_fft=None, derivative=False, dtype=None):
     """See `window` in `help(stft)`. Will return window of length `n_fft`,
     regardless of `win_len` (will pad if needed).
     """
@@ -237,6 +265,14 @@ def get_window(window, win_len, n_fft=None, derivative=False):
         # frequency-domain differentiation; see `dWx` return docs in `help(cwt)`
         diff_window = ifft(wf * 1j * xi).real
 
+    # cast `dtype`, zero denormals (extremely small numbers that slow down CPU)
+    window = _process_params_dtype(window, dtype=dtype, auto_gpu=False)
+    zero_denormals(window)
+
+    if derivative:
+        diff_window = _process_params_dtype(diff_window, dtype=dtype,
+                                            auto_gpu=False)
+        zero_denormals(diff_window)
     return (window, diff_window) if derivative else window
 
 

@@ -6,6 +6,7 @@ Tests:
     - Consistency of `Wavelet`-compatible implems with that of full `morsewave`
     - GMW L1 & L2 norms work as expected
 """
+import os
 import pytest
 import numpy as np
 from ssqueezepy.wavelets import Wavelet
@@ -13,16 +14,18 @@ from ssqueezepy._gmw import compute_gmw, morsewave
 
 # no visuals here but 1 runs as regular script instead of pytest, for debugging
 VIZ = 0
+os.environ['SSQ_GPU'] = '0'  # in case concurrent tests set it to '1'
 
 
 def test_api_vs_full():
+    os.environ['SSQ_GPU'] = '0'
     for gamma, beta in [(3, 60), (4, 80)]:
       for norm in ('bandpass', 'energy'):
         for scale in (1, 2):
           for N in (512, 513):
             kw = dict(N=N, gamma=gamma, beta=beta, norm=norm)
             kw2 = dict(scale=scale, time=True, centered_scale=True,
-                       norm_scale=True)
+                       norm_scale=True, dtype='float64')
             psih_s, psi_s = compute_gmw(**kw, **kw2)
             psih_f, psi_f = morsewave(**kw, freqs=1 / scale)
 
@@ -33,6 +36,7 @@ def test_api_vs_full():
 
 
 def test_api_vs_full_higher_order():
+    os.environ['SSQ_GPU'] = '0'
     for gamma, beta in [(3, 60), (4, 80)]:
       for order in (1, 2):
         for norm in ('bandpass', 'energy'):
@@ -40,7 +44,7 @@ def test_api_vs_full_higher_order():
             for N in (512, 513):
               kw = dict(N=N, gamma=gamma, beta=beta, norm=norm)
               kw2 = dict(scale=scale, time=True, centered_scale=True,
-                         norm_scale=True)
+                         norm_scale=True, dtype='float64')
               psih_s, psi_s = compute_gmw(**kw, **kw2, order=order)
               psih_f, psi_f = morsewave(**kw, freqs=1/scale, K=order + 1)
 
@@ -56,6 +60,7 @@ def test_norm():
     """Test that L1-normed time-domain wavelet's L1 norm is fixed at 2,
              and L2-normed freq-domain wavelet's L2 norm is fixed at `N`.
     """
+    os.environ['SSQ_GPU'] = '0'
     th = 1e-3
 
     for gamma, beta in [(3, 60), (4, 80)]:
@@ -64,7 +69,8 @@ def test_norm():
           for N in (512, 513):
             for centered_scale in (True, False):
               kw = dict(N=N, scale=scale, gamma=gamma, beta=beta, norm=norm,
-                        centered_scale=centered_scale, time=True, norm_scale=True)
+                        centered_scale=centered_scale, time=True,
+                        norm_scale=True, dtype='float64')
               psih, psi = compute_gmw(**kw)
 
               if norm == 'bandpass':
@@ -77,6 +83,7 @@ def test_norm():
 
 def test_wavelet():
     """Test that `gmw` is a valid `Wavelet`."""
+    os.environ['SSQ_GPU'] = '0'
     wavelet = Wavelet('gmw')
     wavelet.info()
     wavelet.viz()

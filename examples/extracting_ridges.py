@@ -3,6 +3,9 @@
 
 Ridge extraction on signals with varying time-frequency characteristics.
 """
+if __name__ != '__main__':
+    raise Exception("ran example file as non-main")
+
 import numpy as np
 import scipy.signal as sig
 from ssqueezepy import ssq_cwt, ssq_stft, extract_ridges, TestSignals

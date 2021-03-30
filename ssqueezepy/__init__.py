@@ -27,13 +27,14 @@ SOFTWARE.
 """
 
 
-__version__ = '0.6.0'
+__version__ = '0.6.1'
 __title__ = 'ssqueezepy'
 __author__ = 'OverLordGoldDragon'
 __license__ = __doc__
 __project_url__ = 'https://github.com/OverLordGoldDragon/ssqueezepy'
 
 
+from . import utils
 from . import ssqueezing
 from . import _cwt
 from . import _stft
@@ -43,7 +44,6 @@ from . import _gmw
 from . import _test_signals
 from . import wavelets
 from . import ridge_extraction
-from . import utils
 from . import toolkit
 from . import visuals
 from . import algos
@@ -60,7 +60,17 @@ from ._gmw import *
 from ._test_signals import *
 from .wavelets import *
 from .ridge_extraction import *
+from .utils.fft_utils import *
+
+from .configs import IS_PARALLEL, USE_GPU
 
 
 def wavs():
     return wavelets.Wavelet.SUPPORTED
+
+
+_modules_toplevel = [
+    '_cwt', '_gmw', '_ssq_cwt', '_ssq_stft', '_stft', '_test_signals', 'algos',
+    'configs', 'experimental', 'ridge_extraction', 'ssqueezing', 'toolkit',
+    'visuals', 'wavelets', 'utils'
+]

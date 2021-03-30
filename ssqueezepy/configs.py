@@ -17,6 +17,12 @@ logging.basicConfig(format='')
 WARN = lambda msg: logging.warning("WARNING: %s" % msg)
 path = os.path.join(os.path.dirname(__file__), 'configs.ini')
 
+try:
+    import torch
+    import cupy
+except:
+    torch, cupy = None, None
+
 
 def gdefaults(module_and_obj=None, get_all=False, as_dict=None,
               default_order=False, **kw):
@@ -31,7 +37,9 @@ def gdefaults(module_and_obj=None, get_all=False, as_dict=None,
         obj = stack[1][3]
         module = stack[1][1].split(os.path.sep)[-1].rstrip('.py')
     else:
-        module, obj = module_and_obj.split('.')
+        # may have e.g. `utils.common.obj`
+        mos = module_and_obj.split('.')
+        module, obj = '.'.join(mos[:-1]), mos[-1]
 
     # fetch latest
     GDEFAULTS = _get_gdefaults()
@@ -114,6 +122,29 @@ def _get_gdefaults():
             key, value = [s.strip(' ') for s in line.split('=')]
             GDEFAULTS[module][obj][key] = process_value(value)
     return GDEFAULTS
+
+
+def IS_PARALLEL():
+    """Returns False if 'SSQ_PARALLEL' environment flag was set to '0', or
+    if `parallel` in `configs.ini` is set to `0`; former overrides latter.
+    """
+    not_par_env = (os.environ.get('SSQ_PARALLEL', '1') == '0')
+    if not_par_env:
+        return False
+
+    not_par_config = (gdefaults('configs.IS_PARALLEL', parallel=None) == 0)
+    if not_par_config:
+        return False
+
+    return True
+
+
+def USE_GPU():
+    if os.environ.get('SSQ_GPU', '0') == '1':
+        if torch is None or cupy is None:
+            raise ValueError("'SSQ_GPU' requires PyTorch and CuPy installed.")
+        return True
+    return False
 
 
 GDEFAULTS = _get_gdefaults()

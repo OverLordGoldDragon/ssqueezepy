@@ -1,3 +1,7 @@
+# -*- coding: utf-8 -*-
+if __name__ != '__main__':
+    raise Exception("ran example file as non-main")
+
 import numpy as np
 from numpy.fft import rfft
 
@@ -36,10 +40,10 @@ Wx, *_ = cwt(x, t=ts, **kw)
 pkw = dict(abs=1, cmap='bone')
 _Tx = np.pad(Tx, [[4, 4]])  # improve display of top- & bottom-most freqs
 imshow(Wx, **pkw)
-imshow(np.flipud(_Tx), norm=(0, 4e-1), **pkw)
+imshow(_Tx, norm=(0, 4e-1), **pkw)
 
 #%%# Estimate inversion ridge ###############################################
-bw, slope, offset = .035, .45, .45
+bw, slope, offset = .035, -.46, -1.8
 Cs, freqband = lin_band(Tx, slope, offset, bw, norm=(0, 4e-1))
 
 #%%###########################################################################

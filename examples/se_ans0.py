@@ -1,5 +1,9 @@
+# -*- coding: utf-8 -*-
 """Code for https://dsp.stackexchange.com/a/71399/50076
 """
+if __name__ != '__main__':
+    raise Exception("ran example file as non-main")
+
 import numpy as np
 import matplotlib.pyplot as plt
 from ssqueezepy import ssq_cwt, cwt

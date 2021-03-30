@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
-"""Lazy tests just to ensure nothing breaks
+"""Lazy tests just to ensure nothing breaks.
+
+`z_` to ensure test runs last per messing with module namespaces.
 """
 #### Disable Numba JIT during testing, as pytest can't measure its coverage ##
 # TODO find shorter way to do this
-print("numba.njit is now monke")
-print("numba.jit  is now monke")
 def njit(fn):
     def decor(*args, **kw):
         return fn(*args, **kw)
@@ -12,45 +12,60 @@ def njit(fn):
 
 def jit(*args, **kw):
     def wrap(fn):
-        def decor(*_args, **_kw):
-            return fn(*_args, **_kw)
-        return decor
+        return fn
     return wrap
 
 import numba
 njit_orig = numba.njit
 jit_orig  = numba.jit
-numba.njit = njit
-numba.jit  = jit
 ##############################################################################
+import os
 import pytest
 import numpy as np
 from ssqueezepy._cwt import _icwt_norm
 from ssqueezepy.configs import gdefaults
 from ssqueezepy import Wavelet, TestSignals, ssq_cwt, issq_cwt, cwt, icwt
-from ssqueezepy import issq_stft, ssqueeze, get_window
+from ssqueezepy import ssq_stft, issq_stft, ssqueeze, get_window, extract_ridges
 from ssqueezepy import _gmw, utils, visuals, wavelets, toolkit
+from ssqueezepy.utils.common import find_closest_parallel_is_faster
+from ssqueezepy.ssqueezing import _check_ssqueezing_args
 
 #### Ensure cached imports reloaded ##########################################
 from types import ModuleType
 from imp import reload
 import ssqueezepy
 
-reload(numba)
-numba.njit = njit
-numba.jit  = jit
-reload(ssqueezepy)
-for name in dir(ssqueezepy):
-    obj = getattr(ssqueezepy, name)
-    if isinstance(obj, ModuleType):
-        reload(obj)
+
+def reload_all():
+    reload(ssqueezepy)
+    for name in dir(ssqueezepy):
+        obj = getattr(ssqueezepy, name)
+        if isinstance(obj, ModuleType) and name in ssqueezepy._modules_toplevel:
+            reload(obj)
+
 ##############################################################################
 
 # no visuals here but 1 runs as regular script instead of pytest, for debugging
 VIZ = 0
 
+def test_numba_monke():
+    """Run this *at test time* rather than collection so changes
+    don't apply to other test files. This is for coverage of @jit'd funcs.
+    """
+    numba.njit = njit
+    numba.jit  = jit
+    print("numba.njit is now monke")
+    print("numba.jit  is now monke")
+
+    reload(numba)
+    numba.njit = njit
+    numba.jit  = jit
+    reload_all()
+
 
 def test_ssq_cwt():
+    os.environ['SSQ_GPU'] = '0'  # in case concurrent tests set it to '1'
+    np.random.seed(5)
     x = np.random.randn(64)
     for wavelet in ('morlet', ('morlet', {'mu': 20}), 'bump'):
         Tx, *_ = ssq_cwt(x, wavelet)
@@ -60,7 +75,7 @@ def test_ssq_cwt():
     params = dict(
         squeezing=('lebesgue',),
         scales=('linear', 'log:minimal', 'linear:naive',
-                np.power(2**(1/16), np.arange(1, 32))),
+                np.power(2**(1/8), np.arange(1, 32))),
         difftype=('phase', 'numeric'),
         padtype=('zero', 'replicate'),
         maprange=('maximal', 'energy', 'peak', (1, 32)),
@@ -68,19 +83,23 @@ def test_ssq_cwt():
 
     for name in params:
         for value in params[name]:
+            errored = True
             try:
                 if name == 'maprange' and value in ('maximal', (1, 32)):
-                    _ = ssq_cwt(**kw, **{name: value}, scales='log')
+                    _ = ssq_cwt(**kw, **{name: value}, scales='log', get_w=1)
                 else:
-                    _ = ssq_cwt(**kw, **{name: value})
-            except Exception as e:
-                raise Exception(f"{name}={value} failed with:\n{e}")
+                    _ = ssq_cwt(**kw, **{name: value}, get_w=1)
+                errored = False
+            finally:
+                if errored:
+                    print(f"\n{name}={value} failed\n")
 
-    _ = ssq_cwt(x, wavelet, fs=2, difftype='numeric', difforder=2)
-    _ = ssq_cwt(x, wavelet, fs=2, difftype='numeric', difforder=1)
+    _ = ssq_cwt(x, wavelet, fs=2, difftype='numeric', difforder=2, get_w=1)
+    _ = ssq_cwt(x, wavelet, fs=2, difftype='numeric', difforder=1, get_w=1)
 
 
 def test_cwt():
+    os.environ['SSQ_GPU'] = '0'
     x = np.random.randn(64)
     Wx, *_ = cwt(x, 'morlet', vectorized=True)
     _ = icwt(Wx, 'morlet', one_int=True)
@@ -100,12 +119,14 @@ def test_cwt():
 
 
 def test_ssq_stft():
+    os.environ['SSQ_GPU'] = '0'
     Tsx = np.random.randn(128, 128)
     pass_on_error(issq_stft, Tsx, modulated=False)
     pass_on_error(issq_stft, Tsx, hop_len=2)
 
 
 def test_wavelets():
+    os.environ['SSQ_GPU'] = '0'
     for wavelet in ('morlet', ('morlet', {'mu': 4}), 'bump'):
         wavelet = Wavelet(wavelet)
 
@@ -150,6 +171,7 @@ def test_toolkit():
 
 
 def test_visuals():
+    os.environ['SSQ_GPU'] = '0'
     x = np.random.randn(10)
     visuals.hist(x, show=1, stats=1)
 
@@ -175,6 +197,7 @@ def test_visuals():
 
 
 def test_utils():
+    os.environ['SSQ_GPU'] = '0'
     _ = utils.buffer(np.random.randn(20), 4, 1)
 
     wavelet = Wavelet(('morlet', {'mu': 6}))
@@ -230,6 +253,7 @@ def test_anim():
 
 
 def test_ssqueezing():
+    os.environ['SSQ_GPU'] = '0'
     Wx = np.random.randn(4, 4)
     w = np.abs(Wx)
 
@@ -276,6 +300,7 @@ def test_morse_utils():
 
 
 def test_test_signals():
+    os.environ['SSQ_GPU'] = '0'
     tsigs = TestSignals()
     pass_on_error(tsigs, dft='doot')
 
@@ -295,6 +320,7 @@ def test_test_signals():
 
 
 def test_cwt_higher_order():
+    os.environ['SSQ_GPU'] = '0'
     N = 256
 
     tsigs = TestSignals()
@@ -315,6 +341,7 @@ def test_cwt_higher_order():
 
 
 def test_viz_gmw_orders():
+    os.environ['SSQ_GPU'] = '0'
     N = 256
     gamma, beta, norm = 3, 60, 'bandpass'
     n_orders = 3
@@ -324,6 +351,7 @@ def test_viz_gmw_orders():
 
 def test_trigdiff():
     """Ensure `trigdiff` matches `cwt(derivative=True)`."""
+    os.environ['SSQ_GPU'] = '0'
     N = 256
     x = np.random.randn(N)
     Wx, _, dWx = cwt(x, derivative=True, rpadded=True)
@@ -333,7 +361,8 @@ def test_trigdiff():
     dWx = dWx[:, n1:n1+N]
 
     mae = np.mean(np.abs(dWx - dWx2))
-    assert mae < 1e-15, mae
+    th = 1e-15 if dWx.dtype == np.cfloat else 1e-7
+    assert mae < th, mae
 
 
 def test_logscale_transition_idx():
@@ -349,6 +378,89 @@ def test_logscale_transition_idx():
 
         tidx = utils.logscale_transition_idx(scales)
         assert idx == tidx, "{} != {}".format(idx, tidx)
+
+
+def test_dtype():
+    """Ensure `cwt` and `ssq_cwt` compute at appropriate precision depending
+    on `Wavelet.dtype`, returning float32 & complex64 arrays for single precision.
+    """
+    os.environ['SSQ_GPU'] = '0'
+    wav32, wav64 = Wavelet(dtype='float32'), Wavelet(dtype='float64')
+    x = np.random.randn(256)
+    outs32    = ssq_cwt(x, wav32)
+    outs64    = ssq_cwt(x, wav64)
+    outs32_o2 = ssq_cwt(x, wav32, order=2)
+
+    names = ('Tx', 'Wx', 'ssq_freqs', 'scales', 'w', 'dWx')
+    outs32    = {k: v for k, v in zip(names, outs32)}
+    outs32_o2 = {k: v for k, v in zip(names, outs32_o2)}
+    outs64    = {k: v for k, v in zip(names, outs64)}
+
+    for k, v in outs32.items():
+        if k == 'ssq_freqs':
+            assert v.dtype == np.float64, ("float32", k, v.dtype)
+            continue
+        assert v.dtype in (np.float32, np.complex64),  ("float32", k, v.dtype)
+    for k, v in outs32_o2.items():
+        if k == 'ssq_freqs':
+            assert v.dtype == np.float64, ("float32", k, v.dtype)
+            continue
+        assert v.dtype in (np.float32, np.complex64),  ("float32", k, v.dtype)
+    for k, v in outs64.items():
+        if k == 'ssq_freqs':
+            assert v.dtype == np.float64, ("float32", k, v.dtype)
+            continue
+        assert v.dtype in (np.float64, np.complex128), ("float64", k, v.dtype)
+
+
+def test_find_closest_parallel_is_faster():
+    find_closest_parallel_is_faster((50, 200))
+
+
+def test_wavelet_info():
+    for parallel in ('0', '1'):
+        os.environ['SSQ_PARALLEL'] = parallel
+        Wavelet(('gmw', {'norm': 'bandpass'})).info()
+        Wavelet(('gmw', {'norm': 'energy'})).info()
+        Wavelet(('gmw', {'norm': 'bandpass', 'order': 1})).info()
+        Wavelet(('gmw', {'norm': 'energy', 'order': 1})).info()
+
+        for name in ('morlet', 'bump', 'cmhat', 'hhhat'):
+            Wavelet(name).info()
+
+
+def test_ridge_extraction():
+    """For @jit coverage."""
+    Wx, scales = cwt(np.random.randn(128))
+    _ = extract_ridges(Wx, scales, transform='cwt', parallel=False)
+    _ = extract_ridges(Wx, scales, transform='cwt', parallel=True)
+
+
+def test_check_ssqueezing_args():
+    pass_on_error(_check_ssqueezing_args, 1)
+    pass_on_error(_check_ssqueezing_args, 'sum', maprange=('a', 'b'))
+    pass_on_error(_check_ssqueezing_args, 'sum', maprange=dict(a=1))
+    pass_on_error(_check_ssqueezing_args, 'sum', maprange='peak')
+    pass_on_error(_check_ssqueezing_args, 'sum', difftype='o')
+    pass_on_error(_check_ssqueezing_args, 'sum', difftype='phase', get_w=0)
+    pass_on_error(_check_ssqueezing_args, 'sum', difftype='phase', difforder=4,
+                  get_w=1)
+    pass_on_error(_check_ssqueezing_args, 'sum', difftype='numeric', difforder=3,
+                  get_w=1)
+
+    _check_ssqueezing_args('sum', difftype='phase', difforder=4, get_w=1)
+    _check_ssqueezing_args('sum', maprange='peak', transform='stft')
+
+
+def test_misc():
+    _ = cwt(np.random.randn(128), 'gmw', cache_wavelet=True)
+    _ = cwt(np.random.randn(128), Wavelet(), cache_wavelet=True, vectorized=False)
+
+    _ = ssq_stft(np.random.randn(100), get_w=1, get_dWx=1)
+
+    pass_on_error(cwt, np.random.randn(2, 2, 2))
+    pass_on_error(cwt, 5)
+    pass_on_error(ssq_stft, np.random.randn(2, 2, 2), get_w=1)
 
 
 def test_configs():
@@ -379,6 +491,12 @@ if __name__ == '__main__':
         test_viz_gmw_orders()
         test_trigdiff()
         test_logscale_transition_idx()
+        test_dtype()
+        test_find_closest_parallel_is_faster()
+        test_wavelet_info()
+        test_ridge_extraction()
+        test_check_ssqueezing_args()
+        test_misc()
         test_configs()
     else:
         pytest.main([__file__, "-s"])
@@ -387,10 +505,6 @@ if __name__ == '__main__':
     reload(numba)
     numba.njit = njit_orig
     numba.jit  = jit_orig
-    reload(ssqueezepy)
-    for name in dir(ssqueezepy):
-        obj = getattr(ssqueezepy, name)
-        if isinstance(obj, ModuleType):
-            reload(obj)
+    reload_all()
     print("numba.njit is no longer monke")
     print("numba.jit  is no longer monke")

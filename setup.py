@@ -6,7 +6,7 @@
 
 """
 ssqueezepy
-======
+==========
 
 Synchrosqueezing, wavelet transforms, and time-frequency analysis in Python
 
