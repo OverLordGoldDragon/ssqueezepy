@@ -26,19 +26,19 @@ Synchrosqueezing is a powerful _reassignment method_ that focuses time-frequency
 
 
 ## Installation
-`pip install ssqueezepy`. Or, for latest version (most likely stable): 
+`pip install ssqueezepy`. Or, for latest version (most likely stable):
 
 `pip install git+https://github.com/OverLordGoldDragon/ssqueezepy`
 
 ## GPU & CPU acceleration
 
-Multi-threaded execution is enabled by default (disable via `os.environ['SSQ_PARALLEL'] = '0'`). GPU requires [CuPy >= 8.0.0](https://docs.cupy.dev/en/stable/install.html) 
-and [PyTorch >= 1.8.0](https://pytorch.org/get-started/locally/) installed (enable via `os.environ['SSQ_GPU'] = '1'`). `pyfftw` optionally supported for maximum CPU FFT speed. 
+Multi-threaded execution is enabled by default (disable via `os.environ['SSQ_PARALLEL'] = '0'`). GPU requires [CuPy >= 8.0.0](https://docs.cupy.dev/en/stable/install.html)
+and [PyTorch >= 1.8.0](https://pytorch.org/get-started/locally/) installed (enable via `os.environ['SSQ_GPU'] = '1'`). `pyfftw` optionally supported for maximum CPU FFT speed.
 See [Performance guide](https://github.com/OverLordGoldDragon/ssqueezepy/blob/master/ssqueezepy/README.md#performance-guide).
 
 ## Benchmarks
 
-[Code](https://github.com/OverLordGoldDragon/ssqueezepy/blob/master/examples/benchmarks.py). Transforms use padding, `float32` precision (`float64` supported), and output shape 
+[Code](https://github.com/OverLordGoldDragon/ssqueezepy/blob/master/examples/benchmarks.py). Transforms use padding, `float32` precision (`float64` supported), and output shape
 `(300, len(x))`, averaged over 10 runs. `pyfftw` not used, which'd speed 1-thread & parallel further. Benched on author's i7-7700HQ, GTX 1070.
 
 `len(x)`-transform | 1-thread CPU | parallel | gpu | pywavelets | scipy | librosa
@@ -110,10 +110,10 @@ from ssqueezepy import ssq_cwt, ssq_stft
 def viz(x, Tx, Wx):
     plt.imshow(np.abs(Wx), aspect='auto', cmap='jet')
     plt.show()
-    plt.imshow(np.flipud(np.abs(Tx)), aspect='auto', vmin=0, vmax=.2, cmap='jet')
-    plt.show()   
+    plt.imshow(np.abs(Tx), aspect='auto', vmin=0, vmax=.2, cmap='jet')
+    plt.show()
 
-#%%# Define signal ####################################    
+#%%# Define signal ####################################
 N = 2048
 t = np.linspace(0, 10, N, endpoint=False)
 xo = np.cos(2 * np.pi * 2 * (np.exp(t / 2.2) - 1))
@@ -132,10 +132,10 @@ viz(x, Twx, Wx)
 
 #%%# STFT + SSQ STFT ##################################
 Tsxo, Sxo, *_ = ssq_stft(xo)
-viz(xo, Tsxo, np.flipud(Sxo))
+viz(xo, np.flipud(Tsxo), np.flipud(Sxo))
 
 Tsx, Sx, *_ = ssq_stft(x)
-viz(x, Tsx, np.flipud(Sx))
+viz(x, np.flipud(Tsx), np.flipud(Sx))
 ```
 
 Also see ridge extraction [README](https://github.com/OverLordGoldDragon/ssqueezepy/tree/master/examples/ridge_extraction).
@@ -156,14 +156,14 @@ The Discrete Fourier Transform lays the foundation of signal processing with rea
 ## Contributors (noteworthy)
 
  - [David Bondesson](https://github.com/DavidBondesson): ridge extraction (`ridge_extraction.py`; `examples/`: `extracting_ridges.py`, `ridge_extraction/README.md`)
- 
+
 
 ## References
 
 `ssqueezepy` was originally ported from MATLAB's [Synchrosqueezing Toolbox](https://github.com/ebrevdo/synchrosqueezing), authored by E. Brevdo and G. Thakur [1]. Synchrosqueezed Wavelet Transform was introduced by I. Daubechies and S. Maes [2], which was followed-up in [3], and adapted to STFT in [4]. Many implementation details draw from [5]. Ridge extraction based on [6].
 
-  1. G. Thakur, E. Brevdo, N.-S. Fučkar, and H.-T. Wu. ["The Synchrosqueezing algorithm for time-varying spectral analysis: robustness properties and new paleoclimate applications"](https://arxiv.org/abs/1105.0010), Signal Processing 93:1079-1094, 2013. 
-  2. I. Daubechies, S. Maes. ["A Nonlinear squeezing of the Continuous Wavelet Transform Based on Auditory Nerve Models"](https://services.math.duke.edu/%7Eingrid/publications/DM96.pdf). 
+  1. G. Thakur, E. Brevdo, N.-S. Fučkar, and H.-T. Wu. ["The Synchrosqueezing algorithm for time-varying spectral analysis: robustness properties and new paleoclimate applications"](https://arxiv.org/abs/1105.0010), Signal Processing 93:1079-1094, 2013.
+  2. I. Daubechies, S. Maes. ["A Nonlinear squeezing of the Continuous Wavelet Transform Based on Auditory Nerve Models"](https://services.math.duke.edu/%7Eingrid/publications/DM96.pdf).
   3. I. Daubechies, J. Lu, H.T. Wu. ["Synchrosqueezed Wavelet Transforms: a Tool for Empirical Mode Decomposition"](https://arxiv.org/pdf/0912.2437.pdf), Applied and Computational Harmonic Analysis 30(2):243-261, 2011.
   4. G. Thakur, H.T. Wu. ["Synchrosqueezing-based Recovery of Instantaneous Frequency from Nonuniform Samples"](https://arxiv.org/abs/1006.2533), SIAM Journal on Mathematical Analysis, 43(5):2078-2095, 2011.
   5. Mallat, S. ["Wavelet Tour of Signal Processing 3rd ed"](https://www.di.ens.fr/~mallat/papiers/WaveletTourChap1-2-3.pdf).

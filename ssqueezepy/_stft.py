@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 import scipy.signal as sig
-from ftz import ftz
 from .utils import WARN, padsignal, buffer, unbuffer, window_norm
 from .utils import _process_fs_and_t
 from .utils.fft_utils import fft, ifft, rfft, irfft, fftshift, ifftshift
 from .utils.backend import torch, is_tensor
+# from .algos import zero_denormals
+from ftz import ftz as zero_denormals
 from .wavelets import _xifn, _process_params_dtype
 from .configs import gdefaults, USE_GPU
 
@@ -265,11 +266,12 @@ def get_window(window, win_len, n_fft=None, derivative=False, dtype=None):
 
     # cast `dtype`, zero denormals (extremely small numbers that slow down CPU)
     window = _process_params_dtype(window, dtype=dtype, auto_gpu=False)
-    ftz(window)
+    zero_denormals(window)
+
     if derivative:
         diff_window = _process_params_dtype(diff_window, dtype=dtype,
                                             auto_gpu=False)
-        ftz(diff_window)
+        zero_denormals(diff_window)
     return (window, diff_window) if derivative else window
 
 

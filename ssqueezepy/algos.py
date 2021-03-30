@@ -589,6 +589,29 @@ def _replace_under_abs_gpu(w, Wx, value=0., replacement=0.):
     _run_on_gpu(kernel, blockspergrid, threadsperblock,
                 *kernel_args, **kernel_kw)
 
+
+def zero_denormals(x, parallel=None):
+    """Denormals are very small non-zero numbers that can significantly slow CPU
+    execution (e.g. FFT). See https://github.com/scipy/scipy/issues/13764
+    """
+    # take a little bigger than smallest, seems to improve FFT speed
+    parallel = parallel if parallel is not None else IS_PARALLEL()
+    tiny = 1000 * np.finfo(x.dtype).tiny
+    fn = _zero_denormals_par if parallel else _zero_denormals
+    fn(x.ravel(), tiny)
+
+@jit(nopython=True, cache=True)
+def _zero_denormals(x, tiny):
+    for i in range(x.size):
+        if x[i] < tiny and x[i] > -tiny:
+            x[i] = 0
+
+@jit(nopython=True, cache=True, parallel=True)
+def _zero_denormals_par(x, tiny):
+    for i in prange(x.size):
+        if x[i] < tiny and x[i] > -tiny:
+            x[i] = 0
+
 #### misc (short) ############################################################
 @jit(nopython=True, cache=True)
 def _min_neglect_idx(arr, th=1e-12):

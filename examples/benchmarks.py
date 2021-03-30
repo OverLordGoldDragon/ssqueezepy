@@ -60,11 +60,12 @@ def time_stft(x, dtype, n_fft):
 def time_all(x, dtype, scales, cache_wavelet, ssq_freqs, n_fft):
     num = str(len(x))[:-3] + 'k'
     return {num: '',
-            f'{num}-cwt':      time_cwt(x, dtype, scales, cache_wavelet),
+            # f'{num}-cwt':      time_cwt(x, dtype, scales, cache_wavelet),
             f'{num}-stft':     time_stft(x, dtype, n_fft),
-            f'{num}-ssq_cwt':  time_ssq_cwt(x, dtype, scales, cache_wavelet,
-                                            ssq_freqs),
-            f'{num}-ssq_stft': time_ssq_stft(x, dtype, n_fft)}
+            # f'{num}-ssq_cwt':  time_ssq_cwt(x, dtype, scales, cache_wavelet,
+            #                                 ssq_freqs),
+            f'{num}-ssq_stft': time_ssq_stft(x, dtype, n_fft)
+            }
 
 #%%# Setup ###################################################################
 # warmup
@@ -100,7 +101,8 @@ dtype = 'float32'
 for N in (N0, N1):
     x = np.random.randn(N)
     t_all['base'].update(time_all(x, dtype=dtype, cache_wavelet=False, **kw))
-    print_report(f"/ N={N}", t_all['base'])
+    print(t_all['base'])
+    # print_report(f"/ N={N}", t_all['base'])
 
 #%%# Parallel + wavelet cache #################################################
 print("// PARALLEL + CACHE (dtype=float32, cache_wavelet=True)")
@@ -112,7 +114,8 @@ for N in (N0, N1):
     x = np.random.randn(N)
     t_all['parallel'].update(time_all(x, dtype='float32', cache_wavelet=True,
                                       **kw))
-    print_report(f"/ N={N}", t_all['parallel'])
+    print(t_all['parallel'])
+    # print_report(f"/ N={N}", t_all['parallel'])
 
 #%%# GPU + wavelet cache #################################################
 print("// GPU + CACHE (dtype=float32, cache_wavelet=True)")
@@ -162,14 +165,14 @@ i7-7700HQ, GTX 1070
                     base  parallel       gpu
 10k
 10k-cwt         0.601458  0.046184  0.003928
-10k-stft          0.1118  0.040012  0.005337
+10k-stft          0.1081  0.038459  0.005337
 10k-ssq_cwt     0.836697  0.147907  0.009412
-10k-ssq_stft    0.297463  0.151736  0.028790
+10k-ssq_stft    0.292463  0.146660  0.028790
 160k
 160k-cwt        9.618773  1.252456  0.036721
-160k-stft       1.761838  0.647517  0.064341
+160k-stft       1.657803  0.418435  0.064341
 160k-ssq_cwt   14.446583  3.157575  0.085638
-160k-ssq_stft   4.649919  2.500497  0.159171
+160k-ssq_stft   4.649919  2.483205  0.159171
 
 pywt_cwt-10000:  3.5802361100000097
 pywt_cwt-160000: 12.683934910000016
