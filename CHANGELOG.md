@@ -13,6 +13,7 @@
  - `ssq_cwt(flipud=True)` default now returns `Tx = np.flipud(Tx)` relative to previous versions
  - `ssq_cwt` & `ssq_stft` number of variables returned now depend on `get_w, get_dWx` parameters; see docstrings
  - `dtype` defaults to `'float32'` (can change via `configs.ini`); neither `cwt` nor `stft`, for most applications, require extreme precision like filters do, so defaults should prioritize compute
+ - `TestSignals.make_signals()` now returns list of signals by default instead of dict with meta info (now accessible via `get_params=True`)
 
 #### FIXES
  - `ssq_stft` would still default `n_fft = len(x)`; defaulter line removed, delegated to `stft`.
