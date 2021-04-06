@@ -638,8 +638,11 @@ def imshow(data, title=None, show=1, cmap=None, norm=None, complex=None, abs=0,
            yticks=None, xticks=None, xlabel=None, ylabel=None, **kw):
     if (ax or fig) and complex:
         NOTE("`ax` and `fig` ignored if `complex`")
-    ax  = ax  or plt.gca()
-    fig = fig or plt.gcf()
+    if complex:
+        fig, ax = plt.subplots(1, 2)
+    else:
+        ax  = ax  or plt.gca()
+        fig = fig or plt.gcf()
 
     if norm is None:
         mx = np.max(np.abs(data))
@@ -654,9 +657,8 @@ def imshow(data, title=None, show=1, cmap=None, norm=None, complex=None, abs=0,
     if abs:
         ax.imshow(np.abs(data), **_kw)
     elif complex:
-        fig, axes = plt.subplots(1, 2)
-        axes[0].imshow(data.real, **_kw)
-        axes[1].imshow(data.imag, **_kw)
+        ax[0].imshow(data.real, **_kw)
+        ax[1].imshow(data.imag, **_kw)
         plt.subplots_adjust(left=0, right=1, bottom=0, top=1,
                             wspace=0, hspace=0)
     else:

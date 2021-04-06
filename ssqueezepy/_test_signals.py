@@ -481,7 +481,7 @@ class TestSignals():
                 If not None, will also plot DFT of each signal along the signal.
                 If `'cols'`, will stack horizontally - if `'rows'`, vertically.
         """
-        data = self.make_signals(signals, N)
+        data = self.make_signals(signals, N, get_params=True)
         if dft not in (None, 'rows', 'cols'):
             raise ValueError(f"`dft` must be 'rows', 'cols', or None (got {dft})")
         elif dft == 'cols':
@@ -510,7 +510,7 @@ class TestSignals():
         Also see `help(ssqueezepy._test_signals)`, and
         `help(TestSignals.make_signals)`.
         """
-        data = self.make_signals(signals, N)
+        data = self.make_signals(signals, N, get_params=True)
         default_pkw = dict(abs=1, cmap='jet', show=1)
 
         for name, (x, t, (fparams, aparams)) in data.items():
@@ -529,13 +529,14 @@ class TestSignals():
                     imshow(out, **pkw)
 
     #### utils ###############################################################
-    def make_signals(self, signals='all', N=None):
+    def make_signals(self, signals='all', N=None, get_params=False):
         """Generates `signals` signals of length `N`.
 
-        Returns dictionary of `{name: x, t, (fparams, aparams)}`, where `x` is
-        the signal, `t` is its time vector, `fparams` is a dict of keyword args
-        to the carrier, and `aparams` to the amplitude modulator (if applicable,
-        e.g. `lchirp:am-sine').
+        Returns list of signals `[x0, x1, ...]` (or if `get_params`, dictionary
+        of `{name: x, t, (fparams, aparams)}`), where `x` is the signal,
+        `t` is its time vector, `fparams` is a dict of keyword argsto the carrier,
+        and `aparams` to the amplitude modulator (if applicable, e.g.
+        `lchirp:am-sine').
         `fparams` may additionally contain a special kwarg: `snr`, not passed to
         carrier `fn`, that adds random normal noise of SNR `snr` to signal.
 
@@ -582,6 +583,11 @@ class TestSignals():
                 x += noise
 
             data[name] = (x, t, (fparams, aparams))
+
+        if not get_params:
+            data = [d[0] for d in data.values()]
+            if len(data) == 1:
+                data = data[0]
         return data
 
     @classmethod
