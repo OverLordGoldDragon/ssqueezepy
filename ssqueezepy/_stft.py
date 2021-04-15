@@ -278,6 +278,7 @@ def get_window(window, win_len, n_fft=None, derivative=False, dtype=None):
 
 def _check_NOLA(window, hop_len):
     """https://gauss256.github.io/blog/cola.html"""
-    if not sig.check_NOLA(window, len(window), len(window) - hop_len):
+    if (hop_len > len(window) or
+            not sig.check_NOLA(window, len(window), len(window) - hop_len)):
         WARN("`window` fails Non-zero Overlap Add (NOLA) criterion; STFT "
              "not invertible")
