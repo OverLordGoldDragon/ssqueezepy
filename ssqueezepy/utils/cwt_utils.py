@@ -697,6 +697,8 @@ def _process_fs_and_t(fs, t, N):
     """Ensures `t` is uniformly-spaced and of same length as `x` (==N)
     and returns `fs` and `dt` based on it, or from defaults if `t` is None.
     """
+    if fs is not None and t is not None:
+        WARN("`t` will override `fs` (both were passed)")
     if t is not None:
         if len(t) != N:
             # not explicitly used anywhere but ensures wrong `t` wasn't supplied

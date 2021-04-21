@@ -2,7 +2,7 @@
 import numpy as np
 from ._stft import stft, get_window, _check_NOLA
 from ._ssq_cwt import _invert_components, _process_component_inversion_args
-from .utils.cwt_utils import _process_fs_and_t
+from .utils.cwt_utils import _process_fs_and_t, infer_scaletype
 from .utils.common import WARN, EPS32, EPS64
 from .utils import backend as S
 from .utils.backend import torch
@@ -28,6 +28,7 @@ def ssq_stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=None, t=Non
 
         ssq_freqs, squeezing
             See `help(ssqueezing.ssqueeze)`.
+            `ssq_freqs`, if array, must be linearly distributed.
 
         gamma: float / None
             See `help(_ssq_cwt.phase_cwt)`.
@@ -74,6 +75,11 @@ def ssq_stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=None, t=Non
         raise NotImplementedError("`get_w=True` unsupported with batched input.")
     _, fs, _ = _process_fs_and_t(fs, t, x.shape[-1])
     _check_ssqueezing_args(squeezing)
+    # assert ssq_freqs, if array, is linear
+    if (isinstance(ssq_freqs, np.ndarray) and
+            infer_scaletype(ssq_freqs) != 'linear'):
+        raise ValueError("`ssq_freqs` must be linearly distributed "
+                         "for `ssq_stft`")
 
     Sx, dSx = stft(x, window, n_fft=n_fft, win_len=win_len, hop_len=hop_len,
                    fs=fs, padtype=padtype, modulated=modulated, derivative=True,
