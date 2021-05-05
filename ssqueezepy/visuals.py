@@ -634,8 +634,8 @@ def viz_gmw_orders(N=1024, n_orders=3, scale=5, gamma=3, beta=60,
 
 #### Visual tools ## messy code ##############################################
 def imshow(data, title=None, show=1, cmap=None, norm=None, complex=None, abs=0,
-           w=None, h=None, ridge=0, ticks=1, aspect='auto', ax=None, fig=None,
-           yticks=None, xticks=None, xlabel=None, ylabel=None, **kw):
+           w=None, h=None, ridge=0, ticks=1, borders=1, aspect='auto', ax=None,
+           fig=None, yticks=None, xticks=None, xlabel=None, ylabel=None, **kw):
     if (ax or fig) and complex:
         NOTE("`ax` and `fig` ignored if `complex`")
     if complex:
@@ -676,6 +676,9 @@ def imshow(data, title=None, show=1, cmap=None, norm=None, complex=None, abs=0,
         ax.set_yticks([])
     if xticks is not None or yticks is not None:
         _ticks(xticks, yticks)
+    if not borders:
+        for spine in ax.spines:
+            ax.spines[spine].set_visible(False)
     if xlabel is not None:
         ax.set_xlabel(xlabel, weight='bold', fontsize=15)
     if ylabel is not None:
