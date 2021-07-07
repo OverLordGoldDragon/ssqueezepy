@@ -692,17 +692,21 @@ def imshow(data, title=None, show=1, cmap=None, norm=None, complex=None, abs=0,
 def plot(x, y=None, title=None, show=0, ax_equal=False, complex=0, abs=0,
          c_annot=False, w=None, h=None, dx1=False, xlims=None, ylims=None,
          vert=False, vlines=None, hlines=None, xlabel=None, ylabel=None,
-         xticks=None, yticks=None, ax=None, fig=None, ticks=True, **kw):
+         xticks=None, yticks=None, ax=None, fig=None, ticks=True, squeeze=True,
+         **kw):
     ax  = ax  or plt.gca()
     fig = fig or plt.gcf()
 
     if x is None and y is None:
         raise Exception("`x` and `y` cannot both be None")
     elif x is None:
+        y = y if not squeeze else y.squeeze()
         x = np.arange(len(y))
     elif y is None:
+        x = x if not squeeze else x.squeeze()
         y = x
         x = np.arange(len(x))
+    x, y = (x, y) if not squeeze else (x.squeeze(), y.squeeze())
 
     if vert:
         x, y = y, x
