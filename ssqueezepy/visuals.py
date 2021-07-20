@@ -693,9 +693,13 @@ def plot(x, y=None, title=None, show=0, ax_equal=False, complex=0, abs=0,
          c_annot=False, w=None, h=None, dx1=False, xlims=None, ylims=None,
          vert=False, vlines=None, hlines=None, xlabel=None, ylabel=None,
          xticks=None, yticks=None, ax=None, fig=None, ticks=True, squeeze=True,
-         **kw):
+         auto_xlims=True, **kw):
     ax  = ax  or plt.gca()
     fig = fig or plt.gcf()
+
+    if auto_xlims is None:
+        auto_xlims = bool((x is not None and len(x) != 0) or
+                          (y is not None and len(y) != 0))
 
     if x is None and y is None:
         raise Exception("`x` and `y` cannot both be None")
@@ -738,7 +742,7 @@ def plot(x, y=None, title=None, show=0, ax_equal=False, complex=0, abs=0,
     _maybe_title(title, ax=ax)
     _scale_plot(fig, ax, show=show, ax_equal=ax_equal, w=w, h=h,
                 xlims=xlims, ylims=ylims, dx1=(len(x) if dx1 else 0),
-                xlabel=xlabel, ylabel=ylabel)
+                xlabel=xlabel, ylabel=ylabel, auto_xlims=auto_xlims)
 
 
 def plots(X, Y=None, nrows=None, ncols=None, tight=True, sharex=False,
@@ -805,9 +809,13 @@ def plots(X, Y=None, nrows=None, ncols=None, tight=True, sharex=False,
 def scat(x, y=None, title=None, show=0, ax_equal=False, s=18, w=None, h=None,
          xlims=None, ylims=None, dx1=False, vlines=None, hlines=None, ticks=1,
          complex=False, abs=False, xlabel=None, ylabel=None, ax=None, fig=None,
-         **kw):
+         auto_xlims=True, **kw):
     ax  = ax  or plt.gca()
     fig = fig or plt.gcf()
+
+    if auto_xlims is None:
+        auto_xlims = bool((x is not None and len(x) != 0) or
+                          (y is not None and len(y) != 0))
 
     if x is None and y is None:
         raise Exception("`x` and `y` cannot both be None")
@@ -835,7 +843,7 @@ def scat(x, y=None, title=None, show=0, ax_equal=False, s=18, w=None, h=None,
         vhlines(hlines, kind='h')
     _scale_plot(fig, ax, show=show, ax_equal=ax_equal, w=w, h=h,
                 xlims=xlims, ylims=ylims, dx1=(len(x) if dx1 else 0),
-                xlabel=xlabel, ylabel=ylabel)
+                xlabel=xlabel, ylabel=ylabel, auto_xlims=auto_xlims)
 
 
 def plotscat(*args, **kw):
@@ -912,11 +920,15 @@ def _maybe_title(title, ax=None):
 
 
 def _scale_plot(fig, ax, show=False, ax_equal=False, w=None, h=None,
-                xlims=None, ylims=None, dx1=False, xlabel=None, ylabel=None):
-    xmin, xmax = ax.get_xlim()
-    rng = xmax - xmin
+                xlims=None, ylims=None, dx1=False, xlabel=None, ylabel=None,
+                auto_xlims=True):
+    if xlims:
+        ax.set_xlim(*xlims)
+    elif auto_xlims:
+        xmin, xmax = ax.get_xlim()
+        rng = xmax - xmin
+        ax.set_xlim(xmin + .018 * rng, xmax - .018 * rng)
 
-    ax.set_xlim(xmin + .018 * rng, xmax - .018 * rng)
     if ax_equal:
         yabsmax = max(np.abs([*ax.get_ylim()]))
         mx = max(yabsmax, max(np.abs([xmin, xmax])))
