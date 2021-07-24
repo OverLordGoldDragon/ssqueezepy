@@ -17,7 +17,7 @@ def wavelet_tf(wavelet, N=2048, scale=None, notext=False, width=1.1, height=1):
     accurately captured.
 
     `wavelet` is instance of `wavelets.Wavelet` or its valid `wavelet` argument.
-    See also: https://www.desmos.com/calculator/nqowgloycy
+    See also: https://www.desmos.com/calculator/0nslu0qivv
     """
     def pick_scale(wavelet, N):
         """Pick scale such that both time- & freq-domain wavelets look nice."""

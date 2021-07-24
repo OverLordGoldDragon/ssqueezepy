@@ -503,7 +503,7 @@ def morlet(mu=None, dtype=None):
     For full correspondence see `help(_gmw.gmw)`.
 
     https://en.wikipedia.org/wiki/Morlet_wavelet#Definition
-    https://www.desmos.com/calculator/cuypxm8s1y
+    https://www.desmos.com/calculator/0nslu0qivv
     """
     mu, dtype = gdefaults('wavelets.morlet', mu=mu, dtype=dtype)
     cs = (1 + np.exp(-mu**2) - 2 * np.exp(-3/4 * mu**2)) ** (-.5)
