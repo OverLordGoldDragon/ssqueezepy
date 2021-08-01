@@ -462,6 +462,7 @@ def phase_cwt(Wx, dWx, difftype='trig', gamma=None, parallel=None):
         https://github.com/ebrevdo/synchrosqueezing/blob/master/synchrosqueezing/
         phase_cwt.m
     """
+    # TODO warn user of small input value vs gamma
     def _process_input(Wx, parallel, gamma):
         S.warn_if_tensor_and_par(Wx, parallel)
         gpu = S.is_tensor(Wx)

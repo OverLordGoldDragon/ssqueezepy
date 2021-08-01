@@ -733,9 +733,14 @@ def plot(x, y=None, title=None, show=0, ax_equal=False, complex=0, abs=0,
         vhlines(vlines, kind='v')
     if hlines:
         vhlines(hlines, kind='h')
-    if not ticks:
+
+    ticks = ticks if isinstance(ticks, (list, tuple)) else (ticks, ticks)
+    if not ticks[0]:
         ax.set_xticks([])
+    if not ticks[1]:
         ax.set_yticks([])
+    if xticks is not None or yticks is not None:
+        _ticks(xticks, yticks)
     if xticks is not None or yticks is not None:
         _ticks(xticks, yticks)
 
