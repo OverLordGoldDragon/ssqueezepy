@@ -613,8 +613,8 @@ def center_frequency(wavelet, scale=None, N=1024, kind='energy', force_int=None,
     or 'peak-ct'.
 
     Detailed overviews:
-        https://dsp.stackexchange.com/a/76371/50076
-        https://dsp.stackexchange.com/q/72042/50076
+        (1) https://dsp.stackexchange.com/a/76371/50076
+        (2) https://dsp.stackexchange.com/q/72042/50076
 
     **Note**: implementations of `center_frequency`, `time_resolution`, and
     `freq_resolution` are discretized approximations of underlying
