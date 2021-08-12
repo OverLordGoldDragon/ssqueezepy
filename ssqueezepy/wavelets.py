@@ -612,7 +612,18 @@ def center_frequency(wavelet, scale=None, N=1024, kind='energy', force_int=None,
     """Center frequency (radian) of `wavelet`, either 'energy', 'peak',
     or 'peak-ct'.
 
-    Detailed overview: https://dsp.stackexchange.com/q/72042/50076
+    Detailed overviews:
+        https://dsp.stackexchange.com/a/76371/50076
+        https://dsp.stackexchange.com/q/72042/50076
+
+    **Note**: implementations of `center_frequency`, `time_resolution`, and
+    `freq_resolution` are discretized approximations of underlying
+    continuous-time parameters. This is a flawed approach (see (1)).
+      - Caution is advised for scales near minimum and maximim (obtained via
+        `cwt_scalebounds(..., preset='maximal')`), where inaccuracies may be
+        significant.
+      - For intermediate scales and sufficiently large N (>=1024), the methods
+        are reliable. May improve in the future
 
     # Arguments
         wavelet: wavelets.Wavelet
