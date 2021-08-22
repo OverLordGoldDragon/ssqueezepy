@@ -6,5 +6,6 @@ pytest
 pytest-cov
 pycode
 pycodestyle
+matplotlib>=3.3.0
 librosa
 pyfftw

@@ -69,6 +69,15 @@ def wavs():
     return wavelets.Wavelet.SUPPORTED
 
 
+try:
+    import matplotlib.pyplot as plt
+except ImportError:
+    class PltDummy():
+        def __getattr__(self, name):
+            raise ValueError("`ssqueezepy.visuals` requires "
+                             "`matplotlib` installed.")
+    plt = PltDummy()
+
 _modules_toplevel = [
     '_cwt', '_gmw', '_ssq_cwt', '_ssq_stft', '_stft', '_test_signals', 'algos',
     'configs', 'experimental', 'ridge_extraction', 'ssqueezing', 'toolkit',

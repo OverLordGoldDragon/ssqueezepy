@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 """Convenience visual methods"""
 import numpy as np
-import matplotlib.pyplot as plt
 from pathlib import Path
 from .algos import find_closest, find_maximum
 from .configs import gdefaults
+from . import plt
 
 
 #### Visualizations ##########################################################
@@ -324,8 +324,7 @@ def wavelet_heatmap(wavelet, scales='log', N=2048):
            title=title0 + " | Time-domain; abs-val", **kw)
 
     kw['xlabel'] = "radians"
-    imshow(Psih, abs=1, cmap='turbo', yticks=scales,
-           xticks=np.linspace(0, np.pi, N//2),
+    imshow(Psih, abs=1, yticks=scales, xticks=np.linspace(0, np.pi, N//2),
            title=title0 + " | Freq-domain; abs-val", **kw)
 
 
@@ -636,6 +635,7 @@ def viz_gmw_orders(N=1024, n_orders=3, scale=5, gamma=3, beta=60,
 def imshow(data, title=None, show=1, cmap=None, norm=None, complex=None, abs=0,
            w=None, h=None, ridge=0, ticks=1, borders=1, aspect='auto', ax=None,
            fig=None, yticks=None, xticks=None, xlabel=None, ylabel=None, **kw):
+    # axes
     if (ax or fig) and complex:
         NOTE("`ax` and `fig` ignored if `complex`")
     if complex:
@@ -644,14 +644,26 @@ def imshow(data, title=None, show=1, cmap=None, norm=None, complex=None, abs=0,
         ax  = ax  or plt.gca()
         fig = fig or plt.gcf()
 
+    # norm
     if norm is None:
         mx = np.max(np.abs(data))
         vmin, vmax = ((-mx, mx) if not abs else
                       (0, mx))
     else:
         vmin, vmax = norm
+
+    # colormap
+    import matplotlib as mpl
+    mpl33 = bool(float(mpl.__version__) >= 3.3)
     if cmap is None:
-        cmap = 'turbo' if abs else 'bwr'
+        cmap = (('turbo' if mpl33 else 'jet') if abs else
+                'bwr')
+    elif cmap == 'turbo':
+        if not mpl33:
+            from .utils import WARN
+            WARN("'turbo' colormap requires matplotlib>=3.3; using 'jet' instead")
+            cmap = 'jet'
+
     _kw = dict(vmin=vmin, vmax=vmax, cmap=cmap, aspect=aspect, **kw)
 
     if abs:
