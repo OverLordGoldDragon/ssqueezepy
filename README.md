@@ -109,9 +109,9 @@ import matplotlib.pyplot as plt
 from ssqueezepy import ssq_cwt, ssq_stft
 
 def viz(x, Tx, Wx):
-    plt.imshow(np.abs(Wx), aspect='auto', cmap='jet')
+    plt.imshow(np.abs(Wx), aspect='auto', cmap='turbo')
     plt.show()
-    plt.imshow(np.abs(Tx), aspect='auto', vmin=0, vmax=.2, cmap='jet')
+    plt.imshow(np.abs(Tx), aspect='auto', vmin=0, vmax=.2, cmap='turbo')
     plt.show()
 
 #%%# Define signal ####################################

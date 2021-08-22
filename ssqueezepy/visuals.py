@@ -324,7 +324,7 @@ def wavelet_heatmap(wavelet, scales='log', N=2048):
            title=title0 + " | Time-domain; abs-val", **kw)
 
     kw['xlabel'] = "radians"
-    imshow(Psih, abs=1, cmap='jet', yticks=scales,
+    imshow(Psih, abs=1, cmap='turbo', yticks=scales,
            xticks=np.linspace(0, np.pi, N//2),
            title=title0 + " | Freq-domain; abs-val", **kw)
 
@@ -651,7 +651,7 @@ def imshow(data, title=None, show=1, cmap=None, norm=None, complex=None, abs=0,
     else:
         vmin, vmax = norm
     if cmap is None:
-        cmap = 'jet' if abs else 'bwr'
+        cmap = 'turbo' if abs else 'bwr'
     _kw = dict(vmin=vmin, vmax=vmax, cmap=cmap, aspect=aspect, **kw)
 
     if abs:

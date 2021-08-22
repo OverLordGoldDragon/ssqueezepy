@@ -57,7 +57,7 @@ def viz(x, Tf, ridge_idxs, yticks=None, ssq=False, transform='cwt', show_x=True)
     title = "abs({}{}) w/ ridge_idxs".format("SSQ_" if ssq else "",
                                              transform.upper())
 
-    ikw = dict(abs=1, cmap='jet', yticks=yticks, title=title)
+    ikw = dict(abs=1, cmap='turbo', yticks=yticks, title=title)
     pkw = dict(linestyle='--', color='k', xlabel="Time [samples]", ylabel=ylabel,
                xlims=(0, Tf.shape[1]), ylims=(0, len(Tf)))
 
