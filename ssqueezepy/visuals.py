@@ -654,7 +654,7 @@ def imshow(data, title=None, show=1, cmap=None, norm=None, complex=None, abs=0,
 
     # colormap
     import matplotlib as mpl
-    mpl33 = bool(float(mpl.__version__) >= 3.3)
+    mpl33 = bool(float(mpl.__version__[:3]) >= 3.3)
     if cmap is None:
         cmap = (('turbo' if mpl33 else 'jet') if abs else
                 'bwr')
