@@ -246,7 +246,7 @@ def _maybe_viz(Wx, xo, xrec, title, err):
     else:
         mx = .9*mx
 
-    imshow(Wx, abs=1, norm=(0, mx), cmap='jet', show=1, title=title)
+    imshow(Wx, abs=1, norm=(0, mx), cmap='turbo', show=1, title=title)
     plot(xo, title="Original vs reconstructed | MAD/RMS=%.4f" % err)
     plot(xrec, show=1)
 

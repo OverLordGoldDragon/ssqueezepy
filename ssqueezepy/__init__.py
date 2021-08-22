@@ -34,6 +34,16 @@ __license__ = __doc__
 __project_url__ = 'https://github.com/OverLordGoldDragon/ssqueezepy'
 
 
+try:
+    import matplotlib.pyplot as plt
+except ImportError:
+    class PltDummy():
+        def __getattr__(self, name):
+            raise ValueError("`ssqueezepy.visuals` requires "
+                             "`matplotlib` installed.")
+    plt = PltDummy()
+
+
 from . import utils
 from . import ssqueezing
 from . import _cwt

@@ -43,10 +43,10 @@ variety of localization characteristics.
 """
 import inspect
 import numpy as np
-import matplotlib.pyplot as plt
 import scipy.signal as sig
 from numpy.fft import rfft
 
+from . import plt
 from ._ssq_cwt import ssq_cwt
 from ._ssq_stft import ssq_stft
 from .utils import WARN, _textwrap
@@ -207,7 +207,7 @@ class TestSignals():
             w *= (2*pi)
         return (phi, w) if get_w else phi
 
-    def echirp(self, N=None, fmin=.1, fmax=None, **tkw):
+    def echirp(self, N=None, fmin=1, fmax=None, **tkw):
         """
         >>> f(t)   = a*b^t
         >>> phi(t) = (a/ln(b)) * (b^t - b^tmin)
@@ -511,7 +511,7 @@ class TestSignals():
         `help(TestSignals.make_signals)`.
         """
         data = self.make_signals(signals, N, get_params=True)
-        default_pkw = dict(abs=1, cmap='jet', show=1)
+        default_pkw = dict(abs=1, show=1)
 
         for name, (x, t, (fparams, aparams)) in data.items():
             out = fn(x, t, (name, fparams, aparams))
@@ -819,7 +819,7 @@ class TestSignals():
             name, fparams, aparams = params
             title1, title2 = self._title_cwt(wavelet, name, x, fparams, aparams)
 
-            pkw = dict(abs=1, cmap='jet', ticks=0, fig=fig)
+            pkw = dict(abs=1, ticks=0, fig=fig)
             imshow(Wx, **pkw, ax=axes[i, 0], show=0, title=title1)
             imshow(Tx, **pkw, ax=axes[i, 1], show=0, title=title2)
 
@@ -870,7 +870,7 @@ class TestSignals():
 
         fig, axes = plt.subplots(2, 2, figsize=(w * 12, h * 12))
 
-        pkw = dict(abs=1, cmap='jet', ticks=0, fig=fig)
+        pkw = dict(abs=1, ticks=0, fig=fig)
         imshow(Wx,  **pkw, ax=axes[0, 0], show=0, title=ctitle1)
         imshow(Twx, **pkw, ax=axes[0, 1], show=0, title=ctitle2)
         imshow(Sx,  **pkw, ax=axes[1, 0], show=0, title=stitle1)
