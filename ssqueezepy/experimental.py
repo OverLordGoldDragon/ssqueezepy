@@ -120,7 +120,7 @@ def phase_transform(Wx, dWx=None, difftype='trig', difforder=4, gamma=None,
 
     # gamma
     if gamma is None:
-        gamma = np.sqrt(EPS64 if S.is_dtype(Wx, 'complex128') else EPS32)
+        gamma = 10 * (EPS64 if S.is_dtype(Wx, 'complex128') else EPS32)
 
     # take phase transform if `get_w` else only compute `dWx` (if None)
     if transform == 'cwt':
