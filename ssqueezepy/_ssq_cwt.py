@@ -97,7 +97,9 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
             (or float32)
 
             It is recommended to standardize the input, or at least not
-            pass a small-valued input, to avoid false filtering by `gamma`.
+            pass a small-valued input, to avoid false filtering by `gamma`,
+            especially if input obeys a power scaling law
+            (e.g. `~1/f` with EEG/MEG, and similar with audio).
             # TODO warn user if `x.max()` is small?
 
         vectorized: bool (default True)
