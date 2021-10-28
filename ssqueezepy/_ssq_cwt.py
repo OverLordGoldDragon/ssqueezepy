@@ -93,7 +93,12 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
                 w[abs(Wx) < beta] = inf
             This is used to zero `Wx` where `w=0` in computing `Tx` to ignore
             contributions from points with indeterminate phase.
-            Default = sqrt(machine epsilon) = np.sqrt(np.finfo(np.float64).eps)
+            Default = 10 * (machine epsilon) = 10 * np.finfo(np.float64).eps
+            (or float32)
+
+            It is recommended to standardize the input, or at least not
+            pass a small-valued input, to avoid false filtering by `gamma`.
+            # TODO warn user if `x.max()` is small?
 
         vectorized: bool (default True)
             Whether to vectorize CWT, i.e. compute quantities for all scales at
@@ -249,7 +254,7 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
 
     # gamma
     if gamma is None:
-        gamma = np.sqrt(EPS64 if S.is_dtype(Wx, 'complex128') else EPS32)
+        gamma = 10 * (EPS64 if S.is_dtype(Wx, 'complex128') else EPS32)
 
     # compute `w` if `get_w` and free `dWx` from memory if `not get_dWx`
     if get_w:
@@ -426,12 +431,7 @@ def phase_cwt(Wx, dWx, difftype='trig', gamma=None, parallel=None):
                 CPU execution.
 
         gamma: float / None
-            CWT phase threshold. Sets `w=inf` for small values of `Wx` where
-            phase computation is unstable and inaccurate (like in DFT):
-                w[abs(Wx) < beta] = inf
-            This is used to zero `Wx` where `w=0` in computing `Tx` to ignore
-            contributions from points with indeterminate phase.
-            Default = sqrt(machine epsilon) = np.sqrt(np.finfo(np.float64).eps)
+            See `help(ssqueezepy.ssq_cwt)`.
 
         parallel: bool (default `ssqueezepy.IS_PARALLEL()`)
             Whether to use multiple CPU threads (ignored if input is tensor).
@@ -462,7 +462,6 @@ def phase_cwt(Wx, dWx, difftype='trig', gamma=None, parallel=None):
         https://github.com/ebrevdo/synchrosqueezing/blob/master/synchrosqueezing/
         phase_cwt.m
     """
-    # TODO warn user of small input value vs gamma
     def _process_input(Wx, parallel, gamma):
         S.warn_if_tensor_and_par(Wx, parallel)
         gpu = S.is_tensor(Wx)
@@ -514,12 +513,7 @@ def phase_cwt_num(Wx, dt, difforder=4, gamma=None):
             Order of differentiation (default=4).
 
         gamma: float
-            CWT phase threshold. Sets `w=inf` for small values of `Wx` where
-            phase computation is unstable and inaccurate (like in DFT):
-                w[abs(Wx) < beta] = inf
-            This is used to zero `Wx` where `w=0` in computing `Tx` to ignore
-            contributions from points with indeterminate phase.
-            Default = sqrt(machine epsilon) = np.sqrt(np.finfo(np.float64).eps)
+            See `help(ssqueezepy.ssq_cwt)`.
 
     # Returns:
         w: np.ndarray
@@ -574,7 +568,7 @@ def phase_cwt_num(Wx, dt, difforder=4, gamma=None):
 
     # epsilon from Daubechies, H-T Wu, et al.
     # gamma from Brevdo, H-T Wu, et al.
-    gamma = gamma or np.sqrt(EPS64 if Wx.dtype == np.cfloat else EPS32)
+    gamma = gamma or 10 * (EPS64 if Wx.dtype == np.cfloat else EPS32)
     w[np.abs(Wx) < gamma] = np.inf
 
     # see `phase_cwt`, though negatives may no longer be in minority

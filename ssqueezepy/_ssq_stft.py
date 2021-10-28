@@ -31,7 +31,7 @@ def ssq_stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=None, t=Non
             `ssq_freqs`, if array, must be linearly distributed.
 
         gamma: float / None
-            See `help(_ssq_cwt.phase_cwt)`.
+            See `help(ssqueezepy.ssq_cwt)`.
 
         preserve_transform: bool (default True)
             Whether to return `Sx` as directly output from `stft` (it might be
@@ -98,7 +98,7 @@ def ssq_stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=None, t=Non
     Sfs = _make_Sfs(Sx, fs)
     # gamma
     if gamma is None:
-        gamma = np.sqrt(EPS64 if S.is_dtype(Sx, 'complex128') else EPS32)
+        gamma = 10 * (EPS64 if S.is_dtype(Sx, 'complex128') else EPS32)
 
     # compute `w` if `get_w` and free `dWx` from memory if `not get_dWx`
     if get_w:
@@ -208,12 +208,7 @@ def phase_stft(Sx, dSx, Sfs, gamma=None, parallel=None):
             Spans 0 to fs/2, linearly.
 
         gamma: float / None
-            STFT phase threshold. Sets `w=inf` for small values of `Sx` where
-            phase computation is unstable and inaccurate (like in DFT):
-                w[abs(Sx) < beta] = inf
-            This is used to zero `Wx` where `w=0` in computing `Tx` to ignore
-            contributions from points with indeterminate phase.
-            Default = sqrt(machine epsilon) = np.sqrt(np.finfo(np.float64).eps)
+            See `help(ssqueezepy.ssq_cwt)`.
 
     # Returns:
         w: np.ndarray
@@ -231,7 +226,7 @@ def phase_stft(Sx, dSx, Sfs, gamma=None, parallel=None):
     """
     S.warn_if_tensor_and_par(Sx, parallel)
     if gamma is None:
-        gamma = np.sqrt(EPS64 if S.is_dtype(Sx, 'complex128') else EPS32)
+        gamma = 10 * (EPS64 if S.is_dtype(Sx, 'complex128') else EPS32)
 
     if S.is_tensor(Sx):
         return phase_stft_gpu(Sx, dSx, Sfs, gamma)
