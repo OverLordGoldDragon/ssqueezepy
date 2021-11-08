@@ -67,7 +67,8 @@ def cwt_scalebounds(wavelet, N, preset=None, min_cutoff=None, max_cutoff=None,
                     cutoff=None, bin_loc=None, bin_amp=None, use_padded_N=True,
                     viz=False):
     """Finds range of scales for which `wavelet` is "well-behaved", as
-    determined by `preset`.
+    determined by `preset`. Assumes `wavelet` is uni-modal (one peak in freq
+    domain); may be inaccurate otherwise.
 
     `min_scale`: found such that freq-domain wavelet takes on `cutoff` of its max
     value on the greatest bin.
@@ -151,7 +152,7 @@ def cwt_scalebounds(wavelet, N, preset=None, min_cutoff=None, max_cutoff=None,
                 raise ValueError("must have `max_cutoff > min_cutoff` "
                                  "(got %s, %s)" % (max_cutoff, min_cutoff))
 
-        bin_loc = bin_loc or (1 if preset == 'maximal' else None)
+        bin_loc = bin_loc or (2 if preset == 'maximal' else None)
         bin_amp = bin_amp or (1 if preset == 'maximal' else None)
         cutoff  = cutoff if (cutoff is not None) else defaults['cutoff']
 
@@ -343,6 +344,7 @@ def make_scales(N, min_scale=None, max_scale=None, nv=32, scaletype='log',
     mx_pow = mn_pow + na
 
     if scaletype == 'log':
+        # TODO discretize per `logspace` instead
         scales = 2 ** (np.arange(mn_pow, mx_pow) / nv)
 
     elif scaletype == 'log-piecewise':
