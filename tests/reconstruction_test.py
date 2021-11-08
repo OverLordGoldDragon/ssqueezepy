@@ -13,7 +13,7 @@ except Exception as e:
     logging.warn("librosa import failed with:\n%s" % str(e))
 
 
-VIZ = 1  # set to 1 to enable various visuals and run without pytest
+VIZ = 0  # set to 1 to enable various visuals and run without pytest
 os.environ['SSQ_GPU'] = '0'  # in case concurrent tests set it to '1'
 
 
