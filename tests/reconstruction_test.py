@@ -13,7 +13,7 @@ except Exception as e:
     logging.warn("librosa import failed with:\n%s" % str(e))
 
 
-VIZ = 0  # set to 1 to enable various visuals and run without pytest
+VIZ = 1  # set to 1 to enable various visuals and run without pytest
 os.environ['SSQ_GPU'] = '0'  # in case concurrent tests set it to '1'
 
 
@@ -141,7 +141,7 @@ def test_component_inversion():
     Tx, *_ = ssq_cwt(x, wavelet, scales='log:maximal', nv=32, t=ts, flipud=0)
 
     # hand-coded, subject to failure
-    bw, slope, offset = .035, .44, .58
+    bw, slope, offset = .035, .44, .45
     Cs, freqband = lin_band(Tx, slope, offset, bw, norm=(0, 2e-1))
 
     xrec = issq_cwt(Tx, wavelet, Cs, freqband)[0]
@@ -154,7 +154,7 @@ def test_component_inversion():
     print("signal   MAD/RMS: %.6f" % err_sig)
     print("spectrum MAD/RMS: %.6f" % err_spc)
     assert err_sig <= .40, f"{err_sig} > .40"
-    assert err_spc <= .15, f"{err_spc} > .15"
+    assert err_spc <= .10, f"{err_spc} > .10"
 
 
 def test_stft():
