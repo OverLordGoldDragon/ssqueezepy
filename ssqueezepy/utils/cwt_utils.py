@@ -233,6 +233,7 @@ def process_scales(scales, N, wavelet=None, nv=None, get_params=False,
                 nv = _nv
             elif scaletype == 'log-piecewise':
                 nv = _nv  # will be array
+            scales = scales.reshape(-1, 1)  # ensure 2D for broadcast ops later
 
         else:
             raise TypeError("`scales` must be a string or Numpy array "
@@ -245,6 +246,7 @@ def process_scales(scales, N, wavelet=None, nv=None, get_params=False,
 
     scaletype, nv, preset = _process_args(scales, nv, wavelet)
     if isinstance(scales, (np.ndarray, torch.Tensor)):
+        scales = scales.reshape(-1, 1)
         return (scales if not get_params else
                 (scales, scaletype, len(scales), nv))
 
@@ -265,27 +267,29 @@ def infer_scaletype(scales):
 
     Returns one of: 'linear', 'log', 'log-piecewise'
     """
+    scales = asnumpy(scales).reshape(-1, 1)
     if not isinstance(scales, np.ndarray):
         raise TypeError("`scales` must be a numpy array (got %s)" % type(scales))
     elif scales.dtype not in (np.float32, np.float64):
         raise TypeError("`scales.dtype` must be np.float32 or np.float64 "
                         "(got %s)" % scales.dtype)
 
-    th = 1e-15 if scales.dtype == np.float64 else 4e-7
+    th_log = 1e-15 if scales.dtype == np.float64 else 4e-7
+    th_lin = th_log * 1e3  # less accurate for some reason
 
-    if np.mean(np.abs(np.diff(scales, 2))) < th:
+    if np.mean(np.abs(np.diff(scales, 2, axis=0))) < th_lin:
         scaletype = 'linear'
         nv = None
 
-    elif np.mean(np.abs(np.diff(np.log(scales), 2))) < th:
+    elif np.mean(np.abs(np.diff(np.log(scales), 2, axis=0))) < th_log:
         scaletype = 'log'
         # ceil to avoid faulty float-int roundoffs
-        nv = int(np.round(1 / np.diff(np.log2(scales))[0]))
+        nv = int(np.round(1 / np.diff(np.log2(scales), axis=0)[0]))
 
     elif logscale_transition_idx(scales) is None:
         raise ValueError("could not infer `scaletype` from `scales`; "
                          "`scales` array must be linear or exponential. "
-                         "(got diff(scales)=%s..." % np.diff(scales)[:4])
+                         "(got diff(scales)=%s..." % np.diff(scales, axis=0)[:4])
 
     else:
         scaletype = 'log-piecewise'
@@ -364,6 +368,7 @@ def make_scales(N, min_scale=None, max_scale=None, nv=32, scaletype='log',
     else:
         raise ValueError("`scaletype` must be 'log' or 'linear'; "
                          "got: %s" % scaletype)
+    scales = scales.reshape(-1, 1)  # ensure 2D for broadcast ops later
     return scales
 
 
@@ -371,7 +376,7 @@ def logscale_transition_idx(scales):
     """Returns `idx` that splits `scales` as `[scales[:idx], scales[idx:]]`.
     """
     scales = asnumpy(scales)
-    scales_diff2 = np.abs(np.diff(np.log(scales), 2))
+    scales_diff2 = np.abs(np.diff(np.log(scales), 2, axis=0))
     idx = np.argmax(scales_diff2) + 2
     diff2_max = scales_diff2.max()
     # every other value must be zero, assert it is so
@@ -394,7 +399,7 @@ def nv_from_scales(scales):
     of length `len(scales)` if `scaletype = 'log-piecewise'`.
     """
     scales = asnumpy(scales)
-    logdiffs = 1 / np.diff(np.log2(scales))
+    logdiffs = 1 / np.diff(np.log2(scales), axis=0)
     nv = np.vstack([logdiffs[:1], logdiffs])
 
     idx = logscale_transition_idx(scales)
