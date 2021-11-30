@@ -280,6 +280,7 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
                              wavelet=wavelet, gamma=gamma, was_padded=was_padded,
                              flipud=flipud, dWx=_dWx, transform='cwt')
 
+    # postprocessing & return
     if difftype == 'numeric':
         Wx = Wx[:, 4:-4]
         Tx = Tx[:, 4:-4]
@@ -288,6 +289,7 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
     if not astensor and S.is_tensor(Tx):
         Tx, Wx, w, dWx = [g.cpu().numpy() if S.is_tensor(g) else g
                           for g in (Tx, Wx, w, dWx)]
+    scales = scales.squeeze()
 
     if get_w and get_dWx:
         return Tx, Wx, ssq_freqs, scales, w, dWx

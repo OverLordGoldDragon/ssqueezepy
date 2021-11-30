@@ -275,9 +275,11 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
         if derivative:
             dWx *= S.astype(Q.sqrt(scales), Wx.dtype)
 
+    # postprocessing & return
     if not astensor and S.is_tensor(Wx):
         Wx, scales, dWx = [g.cpu().numpy() if S.is_tensor(g) else g
                            for g in (Wx, scales, dWx)]
+    scales = scales.squeeze()
 
     return ((Wx, scales, dWx) if derivative else
             (Wx, scales))
