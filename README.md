@@ -64,11 +64,11 @@ See [Performance guide](https://github.com/OverLordGoldDragon/ssqueezepy/blob/ma
 
 <img src="https://user-images.githubusercontent.com/16495490/99880110-c88f1180-2c2a-11eb-8932-90bf3406a20d.png">
 
-<img src="https://user-images.githubusercontent.com/16495490/150278663-28bca207-10e9-4ba7-87ce-7a095e12ccc9.png">
+<img src="https://user-images.githubusercontent.com/16495490/150281115-63a41aff-b468-4683-8928-0613a8f7bfdd.png">
 
 ### 3. Testing suite: CWT vs STFT, reflect-added parallel linear chirp
 
-<img src="https://user-images.githubusercontent.com/16495490/107452011-e7ce7880-6b61-11eb-972f-8aa5ea093dc8.png">
+<img src="https://user-images.githubusercontent.com/16495490/150281339-71c0db28-9929-4449-a5e4-5ce52a923468.png">
 
 ### 4. Ridge extraction: cubic polynom. F.M. + pure tone; noiseless & 1.69dB SNR
 
