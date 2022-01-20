@@ -64,7 +64,7 @@ See [Performance guide](https://github.com/OverLordGoldDragon/ssqueezepy/blob/ma
 
 <img src="https://user-images.githubusercontent.com/16495490/99880110-c88f1180-2c2a-11eb-8932-90bf3406a20d.png">
 
-<img src="https://user-images.githubusercontent.com/16495490/150281115-63a41aff-b468-4683-8928-0613a8f7bfdd.png">
+<img src="https://user-images.githubusercontent.com/16495490/150314341-df5c3092-4bef-4895-99ed-2765504329fd.png">
 
 ### 3. Testing suite: CWT vs STFT, reflect-added parallel linear chirp
 
