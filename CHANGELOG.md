@@ -1,3 +1,12 @@
+### 0.6.2
+
+#### FEATURES
+ - `freq_to_scale` & `scale_to_freq`, experimental
+
+#### MISC
+ - `experimental`: remove `phase_squeeze`, `phase_transform`
+
+
 ### 0.6.1 (3-24-2021): GPU & CPU acceleration; caching
 
 #### FEATURES
@@ -5,9 +14,9 @@
  - `ssqueezepy.FFT`, supporting single- & multi-threaded CPU execution, and GPU execution, optionally via `pyfftw`
  - `dtype='float32'` and `'float64'` support for `cwt, stft, ssq_cwt, ssq_stft, Wavelet`
  - `Wavelet.Psih(scale=, N=)` will store the computed wavelet(s) and, if subsequent calls have identical `scale` and `N`, will return it directly without recomputing (significant speedup).
- 
+
 #### BREAKING
- - Dependency added: `ftz` 
+ - Dependency added: `ftz`
  - Default `downsample`: 3 -> 4 in `utils.cwt_utils.make_scales`
  - `EPS` deprecated in favor of `EPS32` & `EPS64` for respective precisions
  - `ssq_cwt(flipud=True)` default now returns `Tx = np.flipud(Tx)` relative to previous versions
