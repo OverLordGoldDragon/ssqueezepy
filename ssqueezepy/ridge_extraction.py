@@ -41,20 +41,20 @@ def extract_ridges(Tf, scales, penalty=2., n_ridges=1, bw=15, transform='cwt',
             `ssq_cwt` & `ssq_stft` are still 'cwt' & 'stft'.
 
         get_params: bool (default False)
-            Whether to also compute and return `fridge` & `max_energy`.
+            Whether to also compute and return `ridge_f` & `ridge_f`.
 
         parallel: bool (default True)
             Whether to use parallelized JIT code; runs faster on some input sizes.
 
     # Returns
-        ridge_idxs: np.ndarray
+        ridge_idxs: np.ndarray [n_timeshifts x n_ridges]
             Indices for maximum frequency ridge(s).
-        fridge: np.ndarray
-            Quantities tracking maximum frequency ridges:
+        ridge_f: np.ndarray [n_timeshifts x n_ridges]
+            Quantities corresponding to extracted ridges:
                 - STFT: frequencies
                 - CWT: scales
-        max_energy: np.ndarray [n_timeshifts x n_ridges]
-            Energy maxima vectors along time axis.
+        ridge_e: np.ndarray [n_timeshifts x n_ridges]
+            Energies corresponding to extracted ridges.
 
     **bw selection**
 
@@ -123,8 +123,8 @@ def extract_ridges(Tf, scales, penalty=2., n_ridges=1, bw=15, transform='cwt',
 
     ridge_idxs = np.zeros((n_timeshifts, n_ridges), dtype=int)
     if get_params:
-        fridge     = np.zeros((n_timeshifts, n_ridges), dtype=dtype)
-        max_energy = np.zeros((n_timeshifts, n_ridges), dtype=dtype)
+        ridge_f = np.zeros((n_timeshifts, n_ridges), dtype=dtype)
+        ridge_e = np.zeros((n_timeshifts, n_ridges), dtype=dtype)
 
     penalty_matrix = generate_penalty_matrix(scales, penalty)
 
@@ -135,14 +135,14 @@ def extract_ridges(Tf, scales, penalty=2., n_ridges=1, bw=15, transform='cwt',
         ridge_idxs[:, i] = fw_bw_ridge_tracking(energy_neg_log_norm,
                                                 penalty_matrix, eps)
         if get_params:
-            max_energy[:, i] = energy[ridge_idxs[:, i], range(n_timeshifts)]
-            fridge[:, i] = scales_orig[ridge_idxs[:, i]]
+            ridge_f[:, i] = energy[     ridge_idxs[:, i], range(n_timeshifts)]
+            ridge_e[:, i] = scales_orig[ridge_idxs[:, i]]
 
         for time_idx in range(n_timeshifts):
             ridx = ridge_idxs[time_idx, i]
             energy[int(ridx - bw):int(ridx + bw), time_idx] = 0
 
-    return ((ridge_idxs, fridge, max_energy) if get_params else
+    return ((ridge_idxs, ridge_f, ridge_e) if get_params else
             ridge_idxs)
 
 
