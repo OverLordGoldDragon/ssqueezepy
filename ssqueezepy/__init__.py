@@ -5,7 +5,7 @@ MIT License
 
 Some ssqueezepy source files under other terms (see NOTICE.txt).
 
-Copyright (c) 2020 OverLordGoldDragon
+Copyright (c) 2020 John Muradeli
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -27,9 +27,9 @@ SOFTWARE.
 """
 
 
-__version__ = '0.6.1'
+__version__ = '0.6.2'
 __title__ = 'ssqueezepy'
-__author__ = 'OverLordGoldDragon'
+__author__ = 'John Muradeli'
 __license__ = __doc__
 __project_url__ = 'https://github.com/OverLordGoldDragon/ssqueezepy'
 
