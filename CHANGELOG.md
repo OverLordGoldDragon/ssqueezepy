@@ -1,10 +1,28 @@
-### 0.6.2
+### 0.6.2 (1-23-2022): QoL, cleanups, fixes
 
 #### FEATURES
  - `freq_to_scale` & `scale_to_freq`, experimental
+ - Improved auto-`scales`
+ - Optional `nan_checks`
+ - Improved default `gamma`
+
+#### BREAKING
+ - `ssq_freqs` now correctly maps frequencies to corresponding rows of `Tx` for `ssq_cwt`, no longer requiring `[::-1]`
+ - `scales` returned as 1D
+ - `extract_ridges`: `ridge_f` (formerly `fridge`) now returns `scales` rather than `log(scales)`
+ - `extract_ridges`: renamed: `fridge -> ridge_f`, `max_energy -> ridge_e`
+
+#### FIXES
+ - False warning for `t` & `fs`
+ - Extended scope of `astensor` to `scales`, `ssq_freqs`
+ - `visuals`: improve `xticks` & `yticks` handling
 
 #### MISC
+ - Added citation; README changes; docs changes
  - `experimental`: remove `phase_squeeze`, `phase_transform`
+ - `visuals.imshow`: default `cmap='turbo'`
+ - `visuals`: added `auto_xlims`, `squeeze`
+
 
 
 ### 0.6.1 (3-24-2021): GPU & CPU acceleration; caching
@@ -41,6 +59,7 @@
 
 #### NOTES
  - Undocumented changes; skimming docstrings / source code should suffice for most purposes
+
 
 
 ### 0.6.0 (2-19-2021): Generalized Morse Wavelets, Ridge Extraction, Testing Suite
@@ -100,6 +119,7 @@
  - `tests/` added: `gmw_test.py`, `test_signals_test.py`, `ridge_extraction_test.py`
  - `examples/` added: `extracting_ridges.py`, `scales_selection.py`, `ridge_extract_readme/`: `README.md`, `imgs/*`
  - Created `MANIFEST.in`
+
 
 
 ### 0.5.5 (1-14-2021): STFT & Synchrosqueezed STFT

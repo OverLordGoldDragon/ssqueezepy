@@ -17,10 +17,6 @@ def viz(x, Tf, ridge_idxs, yticks=None, ssq=False, transform='cwt', show_x=True)
         plot(x, title="x(t)", show=1,
              xlabel="Time [samples]", ylabel="Signal Amplitude [A.U.]")
 
-    if transform == 'cwt' and not ssq:
-        Tf = np.flipud(Tf)
-        ridge_idxs = len(Tf) - ridge_idxs
-
     ylabel = ("Frequency scales [1/Hz]" if (transform == 'cwt' and not ssq) else
               "Frequencies [Hz]")
     title = "abs({}{}) w/ ridge_idxs".format("SSQ_" if ssq else "",
@@ -28,7 +24,7 @@ def viz(x, Tf, ridge_idxs, yticks=None, ssq=False, transform='cwt', show_x=True)
 
     ikw = dict(abs=1, cmap='turbo', yticks=yticks, title=title)
     pkw = dict(linestyle='--', color='k', xlabel="Time [samples]", ylabel=ylabel,
-               xlims=(0, Tf.shape[1]), ylims=(0, len(Tf)))
+               xlims=(0, Tf.shape[1]))
 
     imshow(Tf, **ikw, show=0)
     plot(ridge_idxs, **pkw, show=1)
@@ -38,9 +34,10 @@ def tf_transforms(x, t, wavelet='morlet', window=None, padtype='wrap',
                   penalty=.5, n_ridges=2, cwt_bw=15, stft_bw=15,
                   ssq_cwt_bw=4, ssq_stft_bw=4):
     kw_cwt  = dict(t=t, padtype=padtype)
-    kw_stft = dict(fs=1/(t[1] - t[0]), padtype=padtype)
+    kw_stft = dict(fs=1/(t[1] - t[0]), padtype=padtype, flipud=1)
     Twx, Wx, ssq_freqs_c, scales, *_ = ssq_cwt(x,  wavelet, **kw_cwt)
     Tsx, Sx, ssq_freqs_s, Sfs, *_    = ssq_stft(x, window,  **kw_stft)
+    Sx, Sfs = Sx[::-1], Sfs[::-1]
 
     ckw = dict(penalty=penalty, n_ridges=n_ridges, transform='cwt')
     skw = dict(penalty=penalty, n_ridges=n_ridges, transform='stft')

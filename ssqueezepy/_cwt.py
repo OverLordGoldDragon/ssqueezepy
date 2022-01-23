@@ -12,7 +12,7 @@ from .wavelets import Wavelet
 def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
         l1_norm=True, derivative=False, padtype='reflect', rpadded=False,
         vectorized=True, astensor=True, cache_wavelet=None, order=0, average=None,
-        patience=0):
+        nan_checks=True, patience=0):
     """Continuous Wavelet Transform, discretized, as described in
     Sec. 4.3.3 of [1] and Sec. IIIA of [2]. Uses FFT convolution via frequency-
     domain wavelets matching (padded) input's length.
@@ -91,6 +91,10 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
             Whether to compute quantities for all scales at once, which is
             faster but uses more memory.
 
+        astensor: bool (default True)
+            If `'SSQ_GPU' == '1'`, whether to return arrays as on-GPU tensors
+            or move them back to CPU & convert to Numpy arrays.
+
         cache_wavelet: bool (default None) / None
             If True, will store `wavelet` computations for all `scales` in
             `wavelet._Psih` (only if `vectorized`).
@@ -105,6 +109,10 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
 
         average: bool / None
             Only used for tuple `order`; see `help(_cwt.cwt_higher_order)`.
+
+        nan_checks: bool (default True)
+            Checks whether input has `nan` or `inf` values, and zeros them.
+            `False` saves compute.
 
         patience: int / tuple[int, int]
             pyFFTW parameter for faster FFT on CPU; see `help(ssqueezepy.FFT)`.
@@ -180,7 +188,8 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
         elif x.ndim not in (1, 2):
             raise ValueError("`x` must be 1D or 2D (got x.ndim == %s)" % x.ndim)
 
-        if np.isnan(x.max()) or np.isinf(x.max()) or np.isinf(x.min()):
+        if nan_checks and (
+                np.isnan(x.max()) or np.isinf(x.max()) or np.isinf(x.min())):
             WARN("found NaN or inf values in `x`; will zero")
             replace_at_inf_or_nan(x, replacement=0.)
 

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © OverLordGoldDragon
+# Copyright © 2020 John Muradeli
 # Licensed under the terms of the MIT License
 # (see ssqueezepy/__init__.py for details)
 
@@ -48,8 +48,8 @@ setup(
     packages=find_packages(exclude=['tests', 'examples']),
     url="https://github.com/OverLordGoldDragon/ssqueezepy",
     license="MIT",
-    author="OverLordGoldDragon",
-    author_email="16495490+OverLordGoldDragon@users.noreply.github.com",
+    author="John Muradeli",
+    author_email="john.muradeli@gmail.com",
     description=("Synchrosqueezing, wavelet transforms, and "
                  "time-frequency analysis in Python"),
     long_description=read_file('README.md'),

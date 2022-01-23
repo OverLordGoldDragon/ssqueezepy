@@ -12,8 +12,9 @@ from ._cwt import cwt
 def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
             ssq_freqs=None, padtype='reflect', squeezing='sum', maprange='peak',
             difftype='trig', difforder=None, gamma=None, vectorized=True,
-            preserve_transform=None, astensor=True, order=0, patience=0,
-            flipud=True, cache_wavelet=None, get_w=False, get_dWx=False):
+            preserve_transform=None, astensor=True, order=0, nan_checks=True,
+            patience=0, flipud=True, cache_wavelet=None,
+            get_w=False, get_dWx=False):
     """Synchrosqueezed Continuous Wavelet Transform.
     Implements the algorithm described in Sec. III of [1].
 
@@ -121,6 +122,10 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
             If tuple, computes ssq of average of `cwt`s taken at each specified
             order. See `help(_cwt.cwt_higher_order)`.
 
+        nan_checks: bool (default True)
+            Checks whether input has `nan` or `inf` values, and zeros them.
+            `False` saves compute.
+
         patience: int / tuple[int, int]
             pyFFTW parameter for faster FFT on CPU; see `help(ssqueezepy.FFT)`.
 
@@ -207,7 +212,7 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
             w = phase_cwt(Wx, None, difftype, gamma)
         elif difftype == 'numeric':
             # !!! tested to be very inaccurate for small scales
-            # calculate derivative numericly
+            # calculate derivative numerically
             _, n1, _ = p2up(N)
             Wx = Wx[:, (n1 - 4):(n1 + N + 4)]
             w = phase_cwt_num(Wx, dt, difforder, gamma)
@@ -221,9 +226,10 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
     # CWT with higher-order GMWs
     if isinstance(order, (tuple, list, range)) or order > 0:
         # keep padding for `trigdiff`
-        kw = dict(wavelet=wavelet, scales=scales, fs=fs, t=t, nv=nv,
+        kw = dict(wavelet=wavelet, scales=scales, fs=fs, nv=nv,
                   l1_norm=True, derivative=False, padtype=padtype, rpadded=True,
-                  vectorized=vectorized, cache_wavelet=cache_wavelet)
+                  vectorized=vectorized, astensor=True,
+                  cache_wavelet=cache_wavelet, nan_checks=nan_checks)
         _, n1, _ = p2up(N)
         average = isinstance(order, (tuple, list, range))
 
@@ -243,7 +249,8 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
         Wx, scales, dWx = cwt(x, wavelet, scales=scales, fs=fs, nv=nv,
                               l1_norm=True, derivative=True, padtype=padtype,
                               rpadded=rpadded, vectorized=vectorized,
-                              patience=patience, cache_wavelet=cache_wavelet)
+                              astensor=True, patience=patience,
+                              cache_wavelet=cache_wavelet, nan_checks=nan_checks)
 
     # make copy of `Wx` if specified
     if preserve_transform is None:
@@ -275,7 +282,7 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
     was_padded = bool(padtype is not None)
 
     # synchrosqueeze
-    Tx, ssq_freqs = ssqueeze(_Wx, w, ssq_freqs, scales, fs=fs, t=t,
+    Tx, ssq_freqs = ssqueeze(_Wx, w, ssq_freqs, scales, fs=fs,
                              squeezing=squeezing, maprange=maprange,
                              wavelet=wavelet, gamma=gamma, was_padded=was_padded,
                              flipud=flipud, dWx=_dWx, transform='cwt')
@@ -287,8 +294,9 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
         w  = w[:,  4:-4] if w is not None else None
 
     if not astensor and S.is_tensor(Tx):
-        Tx, Wx, w, dWx = [g.cpu().numpy() if S.is_tensor(g) else g
-                          for g in (Tx, Wx, w, dWx)]
+        Tx, Wx, w, dWx, scales, ssq_freqs = [
+            g.cpu().numpy() if S.is_tensor(g) else g
+            for g in (Tx, Wx, w, dWx, scales, ssq_freqs)]
     scales = scales.squeeze()
 
     if get_w and get_dWx:

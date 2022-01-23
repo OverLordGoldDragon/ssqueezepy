@@ -635,6 +635,16 @@ def viz_gmw_orders(N=1024, n_orders=3, scale=5, gamma=3, beta=60,
 def imshow(data, title=None, show=1, cmap=None, norm=None, complex=None, abs=0,
            w=None, h=None, ridge=0, ticks=1, borders=1, aspect='auto', ax=None,
            fig=None, yticks=None, xticks=None, xlabel=None, ylabel=None, **kw):
+    """
+    norm: color norm, tuple of (vmin, vmax)
+    abs: take abs(data) before plotting
+    ticks: False to not plot x & y ticks
+    borders: False to not display plot borders
+    w, h: rescale width & height
+    kw: passed to `plt.imshow()`
+
+    others
+    """
     # axes
     if (ax or fig) and complex:
         NOTE("`ax` and `fig` ignored if `complex`")
@@ -687,7 +697,7 @@ def imshow(data, title=None, show=1, cmap=None, norm=None, complex=None, abs=0,
         ax.set_xticks([])
         ax.set_yticks([])
     if xticks is not None or yticks is not None:
-        _ticks(xticks, yticks)
+        _ticks(xticks, yticks, ax)
     if not borders:
         for spine in ax.spines:
             ax.spines[spine].set_visible(False)
@@ -706,6 +716,16 @@ def plot(x, y=None, title=None, show=0, ax_equal=False, complex=0, abs=0,
          vert=False, vlines=None, hlines=None, xlabel=None, ylabel=None,
          xticks=None, yticks=None, ax=None, fig=None, ticks=True, squeeze=True,
          auto_xlims=True, **kw):
+    """
+    norm: color norm, tuple of (vmin, vmax)
+    abs: take abs(data) before plotting
+    complex: plot `x.real` & `x.imag`
+    ticks: False to not plot x & y ticks
+    w, h: rescale width & height
+    kw: passed to `plt.imshow()`
+
+    others
+    """
     ax  = ax  or plt.gca()
     fig = fig or plt.gcf()
 
@@ -752,9 +772,9 @@ def plot(x, y=None, title=None, show=0, ax_equal=False, complex=0, abs=0,
     if not ticks[1]:
         ax.set_yticks([])
     if xticks is not None or yticks is not None:
-        _ticks(xticks, yticks)
+        _ticks(xticks, yticks, ax)
     if xticks is not None or yticks is not None:
-        _ticks(xticks, yticks)
+        _ticks(xticks, yticks, ax)
 
     _maybe_title(title, ax=ax)
     _scale_plot(fig, ax, show=show, ax_equal=ax_equal, w=w, h=h,
@@ -906,19 +926,27 @@ def _fmt(*nums):
     return [(("%.3e" % n) if (abs(n) > 1e3 or abs(n) < 1e-3) else
              ("%.3f" % n)) for n in nums]
 
-def _ticks(xticks, yticks):
+def _ticks(xticks, yticks, ax):
     def fmt(ticks):
         return ("%.d" if all(float(h).is_integer() for h in ticks) else
                 "%.2f")
 
     if yticks is not None:
-        idxs = np.linspace(0, len(yticks) - 1, 8).astype('int32')
-        yt = [fmt(yticks) % h for h in np.asarray(yticks)[idxs]]
-        plt.yticks(idxs, yt)
+        if not hasattr(yticks, '__len__') and not yticks:
+            ax.set_yticks([])
+        else:
+            idxs = np.linspace(0, len(yticks) - 1, 8).astype('int32')
+            yt = [fmt(yticks) % h for h in np.asarray(yticks)[idxs]]
+            ax.set_yticks(idxs)
+            ax.set_yticklabels(yt)
     if xticks is not None:
-        idxs = np.linspace(0, len(xticks) - 1, 8).astype('int32')
-        xt = [fmt(xticks) % h for h in np.asarray(xticks)[idxs]]
-        plt.xticks(idxs, xt)
+        if not hasattr(xticks, '__len__') and not xticks:
+            ax.set_xticks([])
+        else:
+            idxs = np.linspace(0, len(xticks) - 1, 8).astype('int32')
+            xt = [fmt(xticks) % h for h in np.asarray(xticks)[idxs]]
+            ax.set_xticks(idxs)
+            ax.set_xticklabels(xt)
 
 def _maybe_title(title, ax=None):
     if title is None:
