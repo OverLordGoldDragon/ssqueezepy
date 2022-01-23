@@ -102,7 +102,7 @@ See [Performance guide](https://github.com/OverLordGoldDragon/ssqueezepy/blob/ma
 
 In a nutshell, synchrosqueezing exploits _redundancy_ of a time-frequency representation to sparsely localize oscillations, by imposing a _prior_. That is, we _assume_ `x` is well-captured by AM-FM components, e.g. based on our knowledge of the underlying process. We surpass Heisenberg's limitations, but only for a _subset_ of all possible signals.
 
-Convolve with localized kernels
+Convolve with localized, analytic kernels
 
 <img src="https://raw.githubusercontent.com/OverLordGoldDragon/StackExchangeAnswers/main/SignalProcessing/Q78512%20-%20Wavelet%20Scattering%20explanation/cwt.gif" width="650">
 
