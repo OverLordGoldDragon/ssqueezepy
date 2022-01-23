@@ -77,7 +77,7 @@ def ssq_stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=None, t=Non
     _check_ssqueezing_args(squeezing)
     # assert ssq_freqs, if array, is linear
     if (isinstance(ssq_freqs, np.ndarray) and
-            infer_scaletype(ssq_freqs) != 'linear'):
+            infer_scaletype(ssq_freqs)[0] != 'linear'):
         raise ValueError("`ssq_freqs` must be linearly distributed "
                          "for `ssq_stft`")
 
@@ -118,8 +118,9 @@ def ssq_stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=None, t=Non
                              maprange='maximal', transform='stft')
     # return
     if not astensor and S.is_tensor(Tx):
-        Tx, Sx, w, dSx = [g.cpu().numpy() if S.is_tensor(g) else g
-                          for g in (Tx, Sx, w, dSx)]
+        Tx, Sx, ssq_freqs, Sfs, w, dSx = [
+            g.cpu().numpy() if S.is_tensor(g) else g
+            for g in (Tx, Sx, ssq_freqs, Sfs, w, dSx)]
 
     if get_w and get_dWx:
         return Tx, Sx, ssq_freqs, Sfs, w, dSx

@@ -208,6 +208,12 @@ def ssqueeze(Wx, w=None, ssq_freqs=None, scales=None, Sfs=None, fs=None, t=None,
         for _Tx, _w, _Wx, _dWx in zip(Tx, w, Wx, dWx):
             _ssqueeze(_Tx, _w, _Wx, _dWx, *args)
 
+    # `scales` go high -> low
+    if transform == 'cwt' and not flipud:
+        ssq_freqs = ssq_freqs[::-1]
+    elif flipud:
+        ssq_freqs = ssq_freqs[::-1]
+
     return Tx, ssq_freqs
 
 

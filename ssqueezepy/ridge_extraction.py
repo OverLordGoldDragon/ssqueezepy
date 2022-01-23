@@ -50,7 +50,9 @@ def extract_ridges(Tf, scales, penalty=2., n_ridges=1, bw=15, transform='cwt',
         ridge_idxs: np.ndarray
             Indices for maximum frequency ridge(s).
         fridge: np.ndarray
-            Frequencies tracking maximum frequency ridge(s).
+            Quantities tracking maximum frequency ridges:
+                - STFT: frequencies
+                - CWT: scales
         max_energy: np.ndarray [n_timeshifts x n_ridges]
             Energy maxima vectors along time axis.
 
@@ -113,9 +115,9 @@ def extract_ridges(Tf, scales, penalty=2., n_ridges=1, bw=15, transform='cwt',
     scales, eps, penalty = [np.asarray(x, dtype=dtype)
                             for x in (scales, eps, penalty)]
 
+    scales_orig = scales.copy()
     scales = (np.log(scales) if transform == 'cwt' else
-              scales)
-    scales = scales.squeeze()
+              scales).squeeze()
     energy = np.abs(Tf)**2
     n_timeshifts = Tf.shape[1]
 
@@ -134,7 +136,7 @@ def extract_ridges(Tf, scales, penalty=2., n_ridges=1, bw=15, transform='cwt',
                                                 penalty_matrix, eps)
         if get_params:
             max_energy[:, i] = energy[ridge_idxs[:, i], range(n_timeshifts)]
-            fridge[:, i] = scales[ridge_idxs[:, i]]
+            fridge[:, i] = scales_orig[ridge_idxs[:, i]]
 
         for time_idx in range(n_timeshifts):
             ridx = ridge_idxs[time_idx, i]

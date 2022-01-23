@@ -98,8 +98,19 @@ See [Performance guide](https://github.com/OverLordGoldDragon/ssqueezepy/blob/ma
 <img src="https://raw.githubusercontent.com/OverLordGoldDragon/ssqueezepy/master/examples/imgs/morlet_5vs20_tf.png">
 <img src="https://user-images.githubusercontent.com/16495490/107297978-e6338080-6a8d-11eb-8a11-60bfd6e4137d.png">
 
-<hr>
+## How's it work?
 
+In a nutshell, synchrosqueezing exploits _redundancy_ of a time-frequency representation to sparsely localize oscillations, by imposing a _prior_. That is, we _assume_ `x` is well-captured by AM-FM components, e.g. based on our knowledge of the underlying process. We surpass Heisenberg's limitations, but only for a _subset_ of all possible signals.
+
+Convolve with localized kernels
+
+<img src="https://raw.githubusercontent.com/OverLordGoldDragon/StackExchangeAnswers/main/SignalProcessing/Q78512%20-%20Wavelet%20Scattering%20explanation/cwt.gif" width="650">
+
+compute phase transform, then combine oscillations with a shared rate
+
+<img src="https://user-images.githubusercontent.com/16495490/150680428-4a651934-85c6-45e8-8a19-c9b4165e5381.png" width="700">
+
+<hr>
 
 ## Minimal example
 

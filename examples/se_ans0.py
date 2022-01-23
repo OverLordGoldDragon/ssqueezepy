@@ -25,14 +25,15 @@ x = cos_f([f], N=N)
 Wx, scales, *_ = cwt(x, wavelet, fs=N)
 
 #%%# Show, print max row
-imshow(Wx, abs=1, yticks=scales, title="f=%d, N=%d" % (f, N), show=1)
+imshow(Wx, abs=1, yticks=scales, title="f=%d, N=%d" % (f, N), show=1,
+       cmap='bone')
 mxidx = np.where(np.abs(Wx) == np.abs(Wx).max())[0][0]
 print("Max row idx:", mxidx, flush=True)
 
 #%%# Plot aroundI max row
 idxs = slice(mxidx - 30, mxidx + 20)
 Wxz = Wx[idxs]
-imshow(Wxz, abs=1, title="abs(CWT), zoomed", show=0)
+imshow(Wxz, abs=1, title="abs(CWT), zoomed", show=0, cmap='bone')
 plt.axhline(30, color='r')
 plt.show()
 
@@ -78,7 +79,7 @@ wavelet = ('morlet', {'mu': 5})
 Tx, *_ = ssq_cwt(s, wavelet, t=t)
 #%%# 'cheat' a little; could use boundary wavelets instead (not implemented)
 aTxz = np.abs(Tx)[:, len(t) // 8:]
-imshow(aTxz, abs=1, title="abs(SSWT(s(t)))", show=1)
+imshow(aTxz, abs=1, title="abs(SSWT(s(t)))", show=1, cmap='bone')
 #%%
 mxidx = np.where(np.abs(aTxz) == np.abs(aTxz).max())[0][0]
 plot(aTxz[mxidx], title="max row of abs(SSWT(s(t)))", show=1)
