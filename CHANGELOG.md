@@ -1,4 +1,4 @@
-### 0.6.2 (1-23-2022): QoL, cleanups, fixes
+### 0.6.3 (1-23-2022): QoL, cleanups, fixes
 
 #### FEATURES
  - `freq_to_scale` & `scale_to_freq`, experimental

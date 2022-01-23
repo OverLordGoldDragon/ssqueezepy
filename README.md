@@ -173,7 +173,7 @@ The Discrete Fourier Transform lays the foundation of signal processing with rea
 
 Short form:
 
-> John Muradeli, ssqueezepy, 2020. GitHub repository, https://github.com/OverLordGoldDragon/ssqueezepy/. DOI: 10.5281/zenodo.5080514
+> John Muradeli, ssqueezepy, 2020. GitHub repository, https://github.com/OverLordGoldDragon/ssqueezepy/. DOI: 10.5281/zenodo.5080508
 
 BibTeX:
 
@@ -183,7 +183,7 @@ BibTeX:
   author={John Muradeli},
   journal={GitHub. Note: https://github.com/OverLordGoldDragon/ssqueezepy/},
   year={2020},
-  doi={10.5281/zenodo.5080514},
+  doi={10.5281/zenodo.5080508},
 }
 ```
 

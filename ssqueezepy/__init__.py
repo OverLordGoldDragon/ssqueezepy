@@ -27,7 +27,7 @@ SOFTWARE.
 """
 
 
-__version__ = '0.6.2'
+__version__ = '0.6.3'
 __title__ = 'ssqueezepy'
 __author__ = 'John Muradeli'
 __license__ = __doc__
