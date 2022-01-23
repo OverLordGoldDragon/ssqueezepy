@@ -100,7 +100,7 @@ See [Performance guide](https://github.com/OverLordGoldDragon/ssqueezepy/blob/ma
 
 ## How's it work?
 
-In a nutshell, synchrosqueezing exploits _redundancy_ of a time-frequency representation to sparsely localize oscillations, by imposing a _prior_. That is, we _assume_ `x` is well-captured by AM-FM components, e.g. based on our knowledge of the underlying process. We surpass Heisenberg's limitations, but only for a _subset_ of all possible signals.
+In a nutshell, synchrosqueezing exploits _redundancy_ of a time-frequency representation to sparsely localize oscillations, by imposing a _prior_. That is, we _assume_ `x` is well-captured by AM-FM components, e.g. based on our knowledge of the underlying process. We surpass Heisenberg's limitations, but only for a _subset_ of all possible signals. It's also akin to an _attention_ mechanism.
 
 Convolve with localized, analytic kernels
 
