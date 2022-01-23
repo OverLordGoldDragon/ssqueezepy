@@ -7,7 +7,7 @@
 [![codecov](https://codecov.io/gh/OverLordGoldDragon/ssqueezepy/branch/master/graph/badge.svg?token=8L7YPN5N19)](https://codecov.io/gh/OverLordGoldDragon/ssqueezepy)
 [![PyPI version](https://badge.fury.io/py/ssqueezepy.svg)](https://badge.fury.io/py/ssqueezepy)
 [![Codacy Badge](https://app.codacy.com/project/badge/Grade/7cee422639034bcebe0f10ca4b95a506)](https://www.codacy.com/gh/OverLordGoldDragon/ssqueezepy/dashboard?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=OverLordGoldDragon/ssqueezepy&amp;utm_campaign=Badge_Grade)
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.5080514.svg)](https://doi.org/10.5281/zenodo.5080514)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.5080508.svg)](https://doi.org/10.5281/zenodo.5080508)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 <!-- [![Build Status](https://travis-ci.com/OverLordGoldDragon/ssqueezepy.svg?branch=master)](https://travis-ci.com/OverLordGoldDragon/ssqueezepy)
 [![Coverage Status](https://coveralls.io/repos/github/OverLordGoldDragon/ssqueezepy/badge.svg?branch=master&service=github)](https://coveralls.io/github/OverLordGoldDragon/ssqueezepy) -->
