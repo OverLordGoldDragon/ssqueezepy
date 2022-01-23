@@ -2,9 +2,25 @@
 
 #### FEATURES
  - `freq_to_scale` & `scale_to_freq`, experimental
+ - Optional `nan_checks`
+ - Improved auto-`scales`
+ - Improved default `gamma`
+
+#### BREAKING
+ - `ssq_freqs` now correctly maps frequencies to corresponding rows of `Tx` for `ssq_cwt`, no longer requiring `[::-1]`
+ - `scales` returned as 1D
+
+#### FIXES
+ - False warning for `t` & `fs`
+ - Extended scope of `astensor` to `scales`, `ssq_freqs`
+ - `visuals`: improve `xticks` & `yticks` handling
 
 #### MISC
+ - Added citation; README changes; docs changes
  - `experimental`: remove `phase_squeeze`, `phase_transform`
+ - `visuals.imshow`: default `cmap='turbo'`
+ - `visuals`: added `auto_xlims`, `squeeze`
+
 
 
 ### 0.6.1 (3-24-2021): GPU & CPU acceleration; caching
