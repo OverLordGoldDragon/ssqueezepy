@@ -135,8 +135,8 @@ def extract_ridges(Tf, scales, penalty=2., n_ridges=1, bw=15, transform='cwt',
         ridge_idxs[:, i] = fw_bw_ridge_tracking(energy_neg_log_norm,
                                                 penalty_matrix, eps)
         if get_params:
-            ridge_f[:, i] = energy[     ridge_idxs[:, i], range(n_timeshifts)]
-            ridge_e[:, i] = scales_orig[ridge_idxs[:, i]]
+            ridge_f[:, i] = scales_orig[ridge_idxs[:, i]]
+            ridge_e[:, i] = energy[     ridge_idxs[:, i], range(n_timeshifts)]
 
         for time_idx in range(n_timeshifts):
             ridx = ridge_idxs[time_idx, i]
