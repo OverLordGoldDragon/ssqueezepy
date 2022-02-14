@@ -222,7 +222,7 @@ def test_stft_vs_librosa():
              Sx  = stft( x, n_fft=n_fft, hop_len=hop_len,    win_len=win_len,
                          window='hann', modulated=False, dtype='float64')
              lSx = lstft(x, n_fft=n_fft, hop_length=hop_len, win_length=win_len,
-                         window='hann')
+                         window='hann', pad_mode='reflect')
 
              if n_fft % 2 == 0:
                  if hop_len == 1:

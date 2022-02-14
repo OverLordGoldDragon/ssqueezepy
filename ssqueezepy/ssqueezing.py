@@ -209,10 +209,12 @@ def ssqueeze(Wx, w=None, ssq_freqs=None, scales=None, Sfs=None, fs=None, t=None,
             _ssqueeze(_Tx, _w, _Wx, _dWx, *args)
 
     # `scales` go high -> low
-    if transform == 'cwt' and not flipud:
-        ssq_freqs = ssq_freqs[::-1]
-    elif flipud:
-        ssq_freqs = ssq_freqs[::-1]
+    if (transform == 'cwt' and not flipud) or flipud:
+        if not isinstance(ssq_freqs, np.ndarray):
+            import torch
+            ssq_freqs = torch.flip(ssq_freqs, (0,))
+        else:
+            ssq_freqs = ssq_freqs[::-1]
 
     return Tx, ssq_freqs
 
