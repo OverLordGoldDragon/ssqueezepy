@@ -891,12 +891,24 @@ def plotscat(*args, **kw):
         plt.show()
 
 
-def hist(x, bins=500, title=None, show=0, stats=0):
+def hist(x, bins=500, title=None, show=0, stats=0, ax=None, fig=None,
+         w=1, h=1, xlims=None, ylims=None, xlabel=None, ylabel=None):
+    """Histogram. `stats=True` to print mean, std, min, max of `x`."""
+    def _fmt(*nums):
+        return [(("%.3e" % n) if (abs(n) > 1e3 or abs(n) < 1e-3) else
+                 ("%.3f" % n)) for n in nums]
+
+    ax  = ax  or plt.gca()
+    fig = fig or plt.gcf()
+
     x = np.asarray(x)
-    _ = plt.hist(x.ravel(), bins=bins)
-    _maybe_title(title)
+    _ = ax.hist(x.ravel(), bins=bins)
+    _maybe_title(title, ax=ax)
+    _scale_plot(fig, ax, show=show, w=w, h=h, xlims=xlims, ylims=ylims,
+                xlabel=xlabel, ylabel=ylabel)
     if show:
         plt.show()
+
     if stats:
         mu, std, mn, mx = (x.mean(), x.std(), x.min(), x.max())
         print("(mean, std, min, max) = ({}, {}, {}, {})".format(

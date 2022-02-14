@@ -68,10 +68,10 @@ def _process_ssq_params(Wx, w_or_dWx, ssq_freqs, const, logscale, flipud, out,
                  (const.size if isinstance(const, np.ndarray) else 1))
     if len_const != len(Wx):
         if gpu:
-            const_arr = torch.tensor(len(Wx) * [const], dtype=Wx.dtype,
-                                     device=Wx.device)
+            const_arr = torch.full((len(Wx),), fill_value=const,
+                                   device=Wx.device, dtype=Wx.dtype)
         else:
-            const_arr = np.array(len(Wx) * [const])
+            const_arr = np.full(len(Wx), const, dtype=Wx.dtype)
     elif gpu and isinstance(const, np.ndarray):
         const_arr = torch.as_tensor(const, dtype=Wx.dtype, device=Wx.device)
     else:
