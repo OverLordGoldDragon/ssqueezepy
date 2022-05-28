@@ -940,6 +940,8 @@ def _fmt(*nums):
 
 def _ticks(xticks, yticks, ax):
     def fmt(ticks):
+        if all(isinstance(h, str) for h in ticks):
+            return "%s"
         return ("%.d" if all(float(h).is_integer() for h in ticks) else
                 "%.2f")
 
