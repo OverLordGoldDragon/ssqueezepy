@@ -1,3 +1,20 @@
+### 0.6.4
+
+#### FIXES
+
+ - `_gmw.mom2cum`: formula mistake, `range(1, n - 1)` -> `range(1, n)`, by @bartvm
+ - fix flipping `ssq_freqs` in torch
+ - `istft` edge case with `dtype='float32'`, time-localized `window`, and large `hop_len`
+ - fixed Ridge Extraction README
+ - fixed important typo in `ridge_extraction.py`
+ - fix: librosa defaults to zero padding, which broke `reconstruction_test`
+
+#### MISC 
+
+ - slight performance boost in `_process_ssq_params`
+ - extended `visuals.hist`
+
+
 ### 0.6.3 (1-23-2022): QoL, cleanups, fixes
 
 #### FEATURES
