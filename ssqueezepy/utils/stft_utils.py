@@ -139,7 +139,7 @@ def _buffer_gpu(x, seg_len, n_segs, hop_len, s20, s21, modulated=False, out=None
 
 
 def unbuffer(xbuf, window, hop_len, n_fft, N, win_exp=1):
-    """Undoes `buffer`, per padding logic used in `stft`:
+    """Undoes `buffer` (minus unpadding), per padding logic used in `stft`:
         (N, n_fft) : logic
          even, even: left = right + 1
              (N, n_fft, len(xp), pl, pr) -> (128, 120, 247, 60, 59)
@@ -160,10 +160,9 @@ def unbuffer(xbuf, window, hop_len, n_fft, N, win_exp=1):
         window = 1
     elif win_exp != 1:
         window = window ** win_exp
-    x = np.zeros(N + n_fft - 1)
+    x = np.zeros(N + n_fft - 1, dtype=xbuf.dtype)
 
     _overlap_add(x, xbuf, window, hop_len, n_fft)
-    x = x[n_fft//2 : -((n_fft - 1)//2)]
     return x
 
 
@@ -172,7 +171,7 @@ def window_norm(window, hop_len, n_fft, N, win_exp=1):
     wn = np.zeros(N + n_fft - 1)
 
     _window_norm(wn, window, hop_len, n_fft, win_exp)
-    return wn[n_fft//2 : -((n_fft - 1)//2)]
+    return wn
 
 
 @jit(nopython=True, cache=True)

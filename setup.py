@@ -56,7 +56,8 @@ setup(
     long_description_content_type="text/markdown",
     keywords=(
         "signal-processing python synchrosqueezing wavelet-transform cwt stft "
-        "morse-wavelet ridge-extraction time-frequency time-frequency-analysis"
+        "morse-wavelet ridge-extraction time-frequency time-frequency-analysis "
+        "visualization"
     ),
     install_requires=get_requirements('requirements.txt'),
     tests_require=["pytest>=4.0", "pytest-cov"],
@@ -72,8 +73,11 @@ setup(
         "Intended Audience :: Information Technology",
         "Intended Audience :: Science/Research",
         "Topic :: Utilities",
+        "Topic :: Multimedia :: Sound/Audio :: Analysis",
         "Topic :: Scientific/Engineering",
         "Topic :: Scientific/Engineering :: Information Analysis",
+        "Topic :: Scientific/Engineering :: Bio-Informatics",
+        "Topic :: Scientific/Engineering :: Visualization",
         "Topic :: Software Development",
         "Topic :: Software Development :: Libraries :: Python Modules",
     ],

@@ -597,7 +597,7 @@ def viz_cwt_higher_order(Wx_k, scales=None, wavelet=None, **imshow_kw):
             title = "abs(CWT), order={}{}".format(k, title_append)
             imshow(Wx, abs=1, title=title, **imshow_kw)
 
-        Wx_ka = np.mean(np.vstack([Wx_k]), axis=0)
+        Wx_ka = np.mean(np.abs(np.vstack([Wx_k])), axis=0)
         order_str = ','.join(map(str, range(len(Wx_k))))
         title = "abs(CWT), orders {} avg{}".format(order_str, title_append)
         imshow(Wx_ka, abs=1, title=title, **imshow_kw)
