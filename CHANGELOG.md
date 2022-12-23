@@ -5,6 +5,8 @@
  - `_gmw.mom2cum`: formula mistake, `range(1, n - 1)` -> `range(1, n)`, by @bartvm
  - fix flipping `ssq_freqs` in torch
  - `istft` edge case with `dtype='float32'`, time-localized `window`, and large `hop_len`
+ - `istft` default `N` was supposed to be "largest possible" but wasn't; fixed
+ - `istft` division by window norm now accounts for values below float `tiny`
  - fixed Ridge Extraction README
  - fixed important typo in `ridge_extraction.py`
  - fix: librosa defaults to zero padding, which broke `reconstruction_test`

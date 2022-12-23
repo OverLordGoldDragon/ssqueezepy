@@ -212,9 +212,10 @@ def istft(Sx, window=None, n_fft=None, win_len=None, hop_len=1, N=None,
     n_fft = n_fft or (Sx.shape[0] - 1) * 2
     win_len = win_len or n_fft
     N = N or hop_len * Sx.shape[1]  # assume largest possible N if not given
+    dtype = 'float32' if str(Sx.dtype) == 'complex64' else 'float64'
 
-    window = get_window(window, win_len, n_fft=n_fft)
-    _check_NOLA(window, hop_len, dtype=str(Sx.dtype))
+    window = get_window(window, win_len, n_fft=n_fft, dtype=dtype)
+    _check_NOLA(window, hop_len, dtype=dtype)
 
     xbuf = irfft(Sx, n=n_fft, axis=0).real
     if modulated:
