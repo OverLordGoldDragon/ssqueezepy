@@ -3,4 +3,4 @@ blank_issues_enabled: true # default
 contact_links:
   - name: Other
     url: https://dsp.stackexchange.com/
-    about: Applications, theory questions, etc go elsewhere
+    about: Applications, theory questions, etc go elsewhere. Mainly code-related questions go to StackOverflow. If unsure, open as "Usage question" (but it may close without response).

@@ -1,0 +1,22 @@
+name: Bug Report
+description: Report a bug or issue with ssqueezepy.
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Description
+      description:
+      placeholder:
+      value:
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Code for reproduction
+      description: |
+        Should run by copy-pasting. Posts without this are welcome but may close without response.
+      placeholder: Paste your code here. This field is automatically formatted as Python code.
+      render: python
+    validations:
+      required: false
