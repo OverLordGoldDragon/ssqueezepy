@@ -1,0 +1,6 @@
+# Ref: https://help.github.com/en/github/building-a-strong-community/configuring-issue-templates-for-your-repository#configuring-the-template-chooser
+blank_issues_enabled: true # default
+contact_links:
+  - name: Other
+    url: https://dsp.stackexchange.com/
+    about: Applications, theory questions, etc go elsewhere
