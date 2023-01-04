@@ -5,7 +5,7 @@ body:
     id: summary
     attributes:
       label: Description
-      description:
+      description: Ensure latest version was tried, `pip install git+https://github.com/OverLordGoldDragon/ssqueezepy`
       placeholder:
       value:
     validations:
