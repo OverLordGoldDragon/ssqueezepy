@@ -105,7 +105,7 @@ def padsignal(x, padtype='reflect', padlength=None, get_params=False):
             raise ValueError("`x` must be 1D or 2D (got x.ndim == %s)" % x.ndim)
         return is_numpy
 
-    is_numpy =  _process_args(x, padtype)
+    is_numpy = _process_args(x, padtype)
     N = x.shape[-1]
 
     if padlength is None:
