@@ -183,15 +183,18 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
         return (Wx, dWx) if derivative else (Wx, None)
 
     def _process_args(x, scales, nv, fs, t, wavelet, cache_wavelet):
-        if not isinstance(x, np.ndarray):
-            raise TypeError("`x` must be a numpy array (got %s)" % type(x))
+        if not hasattr(x, 'ndim'):
+            raise TypeError("`x` must be a numpy array or torch Tensor "
+                            "(got %s)" % type(x))
         elif x.ndim not in (1, 2):
             raise ValueError("`x` must be 1D or 2D (got x.ndim == %s)" % x.ndim)
 
-        if nan_checks and (
-                np.isnan(x.max()) or np.isinf(x.max()) or np.isinf(x.min())):
-            WARN("found NaN or inf values in `x`; will zero")
-            replace_at_inf_or_nan(x, replacement=0.)
+        if nan_checks:
+            if not isinstance(x, np.ndarray):
+                raise ValueError("`nan_checks=True` requires NumPy input.")
+            elif np.isnan(x.max()) or np.isinf(x.max()) or np.isinf(x.min()):
+                WARN("found NaN or inf values in `x`; will zero")
+                replace_at_inf_or_nan(x, replacement=0.)
 
         if cache_wavelet:
             if isinstance(wavelet, (str, tuple)):
@@ -206,7 +209,7 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
         elif cache_wavelet is None:
             cache_wavelet = (not isinstance(wavelet, (str, tuple)) and vectorized)
 
-        if isinstance(scales, np.ndarray):
+        if not isinstance(scales, str):
             nv = None
 
         N = x.shape[-1]
@@ -230,16 +233,20 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
     wavelet = Wavelet._init_if_not_isinstance(wavelet)
     dtype = wavelet.dtype
 
-    x = x.astype(dtype)
+    # cast to torch early if possible
+    torch_supports_padding = bool(padtype in ('zero', 'reflect', None))
+    if torch_supports_padding:
+        x = S.asarray(x, dtype)
+
+    # pad, ensure correct data type
     if padtype is not None:
         xp, _, n1, _ = padsignal(x, padtype, get_params=True)
     else:
         xp = x
+    if not torch_supports_padding:
+        xp = S.asarray(xp, dtype)
 
-    # zero-mean `xp`, take to freq-domain
-    xp = S.asarray(xp)
-    x_mean = xp.mean(axis=-1)
-    xp -= (x_mean[:, None] if is_2D else x_mean)
+    # take to freq-domain
     xh = fft(xp, axis=-1, astensor=True)
     if is_2D:
         xh = xh[:, None]  # insert dim1 to broadcast wavelet `scales` along

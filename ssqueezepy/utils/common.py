@@ -45,20 +45,17 @@ def p2up(n):
         n2: int
             Right pad length.
     """
-    eps = np.finfo(np.float64).eps  # machine epsilon for float64
-    up = 2 ** (1 + np.round(np.log2(n + eps)))
-
-    n2 = np.floor((up - n) / 2)
-    n1 = n2 + n % 2           # if n is odd, left-pad by (n2 + 1), else n1=n2
-    assert n1 + n + n2 == up  # [left_pad, original, right_pad]
-    return int(up), int(n1), int(n2)
+    up = int(2**np.ceil(np.log2(n)))
+    n2 = int((up - n) // 2)
+    n1 = int(up - n - n2)
+    return up, n1, n2
 
 
 def padsignal(x, padtype='reflect', padlength=None, get_params=False):
     """Pads signal and returns trim indices to recover original.
 
     # Arguments:
-        x: np.ndarray
+        x: np.ndarray / torch.Tensor
             Input vector, 1D or 2D. 2D has time in dim1, e.g. `(n_inputs, time)`.
 
         padtype: str
@@ -66,6 +63,9 @@ def padsignal(x, padtype='reflect', padlength=None, get_params=False):
                 ('reflect', 'symmetric', 'replicate', 'wrap', 'zero').
             'zero' is most naive, while 'reflect' (default) partly mitigates
             boundary effects. See [1] & [2].
+
+            Torch doesn't support all padding schemes, but `cwt` will still
+            pad it via NumPy.
 
         padlength: int / None
             Number of samples to pad input to (i.e. len(x_padded) == padlength).
@@ -92,14 +92,20 @@ def padsignal(x, padtype='reflect', padlength=None, get_params=False):
         6-lifting%20wavelet%20and%20filterbank.pdf
     """
     def _process_args(x, padtype):
-        assert_is_one_of(padtype, 'padtype',
-                         ('reflect', 'symmetric', 'replicate', 'wrap', 'zero'))
-        if not isinstance(x, np.ndarray):
-            raise TypeError("`x` must be a numpy array (got %s)" % type(x))
+        is_numpy = bool(isinstance(x, np.ndarray))
+        supported = (('zero', 'reflect', 'symmetric', 'replicate', 'wrap')
+                     if is_numpy else
+                     ('zero', 'reflect'))
+        assert_is_one_of(padtype, 'padtype', supported)
+
+        if not hasattr(x, 'ndim'):
+            raise TypeError("`x` must be a numpy array or torch Tensor "
+                            "(got %s)" % type(x))
         elif x.ndim not in (1, 2):
             raise ValueError("`x` must be 1D or 2D (got x.ndim == %s)" % x.ndim)
+        return is_numpy
 
-    _process_args(x, padtype)
+    is_numpy =  _process_args(x, padtype)
     N = x.shape[-1]
 
     if padlength is None:
@@ -114,34 +120,41 @@ def padsignal(x, padtype='reflect', padlength=None, get_params=False):
             n1 = n2 + 1
     n_up, n1, n2 = int(n_up), int(n1), int(n2)
 
+    # set functional spec
     if x.ndim == 1:
         pad_width = (n1, n2)
     elif x.ndim == 2:
-        pad_width = [(0, 0), (n1, n2)]
+        pad_width = ([(0, 0), (n1, n2)] if is_numpy else
+                     (n1, n2, 0, 0))
 
     # comments use (n=4, n1=4, n2=3) as example, but this combination can't occur
-    if padtype == 'zero':
-        # [1,2,3,4] -> [0,0,0,0, 1,2,3,4, 0,0,0]
-        xp = np.pad(x, pad_width)
-    elif padtype == 'reflect':
-        # [1,2,3,4] -> [3,4,3,2, 1,2,3,4, 3,2,1]
-        xp = np.pad(x, pad_width, mode='reflect')
-    elif padtype == 'replicate':
-        # [1,2,3,4] -> [1,1,1,1, 1,2,3,4, 4,4,4]
-        xp = np.pad(x, pad_width, mode='edge')
-    elif padtype == 'wrap':
-        # [1,2,3,4] -> [1,2,3,4, 1,2,3,4, 1,2,3]
-        xp = np.pad(x, pad_width, mode='wrap')
-    elif padtype == 'symmetric':
-        # [1,2,3,4] -> [4,3,2,1, 1,2,3,4, 4,3,2]
+    if is_numpy:
+        if padtype == 'zero':
+            # [1,2,3,4] -> [0,0,0,0, 1,2,3,4, 0,0,0]
+            xp = np.pad(x, pad_width)
+        elif padtype == 'reflect':
+            # [1,2,3,4] -> [3,4,3,2, 1,2,3,4, 3,2,1]
+            xp = np.pad(x, pad_width, mode='reflect')
+        elif padtype == 'replicate':
+            # [1,2,3,4] -> [1,1,1,1, 1,2,3,4, 4,4,4]
+            xp = np.pad(x, pad_width, mode='edge')
+        elif padtype == 'wrap':
+            # [1,2,3,4] -> [1,2,3,4, 1,2,3,4, 1,2,3]
+            xp = np.pad(x, pad_width, mode='wrap')
+        elif padtype == 'symmetric':
+            # [1,2,3,4] -> [4,3,2,1, 1,2,3,4, 4,3,2]
+            if x.ndim == 1:
+                xp = np.hstack([x[::-1][-n1:], x, x[::-1][:n2]])
+            elif x.ndim == 2:
+                xp = np.hstack([x[:, ::-1][:, -n1:], x, x[:, ::-1][:, :n2]])
+    else:
+        import torch
+        mode = 'constant' if padtype == 'zero' else 'reflect'
         if x.ndim == 1:
-            xp = np.hstack([x[::-1][-n1:], x, x[::-1][:n2]])
-        elif x.ndim == 2:
-            xp = np.hstack([x[:, ::-1][:, -n1:], x, x[:, ::-1][:, :n2]])
+            xp = torch.nn.functional.pad(x[None], pad_width, mode)[0]
+        else:
+            xp = torch.nn.functional.pad(x, pad_width, mode)
 
-    Npad = xp.shape[-1]
-    _ = (Npad, n_up, n1, N, n2)
-    assert (Npad == n_up == n1 + N + n2), "%s ?= %s ?= %s + %s + %s" % _
     return (xp, n_up, n1, n2) if get_params else xp
 
 
