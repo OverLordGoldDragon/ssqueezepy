@@ -1,8 +1,10 @@
 ### 0.6.4
 
-#### FIXES
+#### FEATURES
+ - Torch inputs to `cwt` and `ssq_cwt` now supported
 
- - `_gmw.mom2cum`: formula mistake, `range(1, n - 1)` -> `range(1, n)`, by @bartvm
+#### FIXES
+ - `_gmw.mom2cum`: fix formula mistake, `range(1, n - 1)` -> `range(1, n)`, by @bartvm
  - fix flipping `ssq_freqs` in torch
  - `istft` edge case with `dtype='float32'`, time-localized `window`, and large `hop_len`
  - `istft` default `N` was supposed to be "largest possible" but wasn't; fixed
@@ -10,11 +12,17 @@
  - fixed Ridge Extraction README
  - fixed important typo in `ridge_extraction.py`
  - fix: librosa defaults to zero padding, which broke `reconstruction_test`
-
+ - fixed `nv` criterion for ignoring sanity check
+ 
 #### MISC 
-
  - slight performance boost in `_process_ssq_params`
  - extended `visuals.hist`
+ - removed `xp -= xp.mean()`, a no-op with CWT, badly copied from MATLAB (original ssq code)
+ - increased tolerance in `infer_scaletype` for `float32`, had false negatives
+ - simplify `utils.backend.astype`
+ - simplify `p2up`
+ - `padsignal` supports torch inputs
+ - `nan_checks` now defaults to `True` only for NumPy inputs
 
 
 ### 0.6.3 (1-23-2022): QoL, cleanups, fixes

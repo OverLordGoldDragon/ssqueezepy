@@ -2,6 +2,7 @@
 """Test ssqueezepy/_test_signals.py"""
 import os
 import pytest
+import warnings
 import numpy as np
 import scipy.signal as sig
 from ssqueezepy import Wavelet, TestSignals
@@ -9,6 +10,14 @@ from ssqueezepy.utils import window_resolution
 
 VIZ = 0
 os.environ['SSQ_GPU'] = '0'  # in case concurrent tests set it to '1'
+
+try:
+    import torch
+    torch.tensor(1, device='cuda')
+    CAN_GPU = True
+except:
+    CAN_GPU = False
+    warnings.warn("SKIPPED TESTS in `test_signals_test.py`, GPU not found.")
 
 
 def test_demo():
@@ -85,10 +94,7 @@ def test_ridgecomp():
 
 def test_gpu():
     """Test that TestSignals can run on GPU."""
-    try:
-        import torch
-        torch.tensor(1., device='cuda')
-    except:
+    if not CAN_GPU:
         return
 
     N = 256

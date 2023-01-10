@@ -274,7 +274,7 @@ def infer_scaletype(scales):
         raise TypeError("`scales.dtype` must be np.float32 or np.float64 "
                         "(got %s)" % scales.dtype)
 
-    th_log = 1e-15 if scales.dtype == np.float64 else 4e-7
+    th_log = 1e-15 if scales.dtype == np.float64 else 8e-7
     th_lin = th_log * 1e3  # less accurate for some reason
 
     if np.mean(np.abs(np.diff(scales, 2, axis=0))) < th_lin:

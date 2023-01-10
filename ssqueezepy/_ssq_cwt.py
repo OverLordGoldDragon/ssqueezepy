@@ -12,7 +12,7 @@ from ._cwt import cwt
 def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
             ssq_freqs=None, padtype='reflect', squeezing='sum', maprange='peak',
             difftype='trig', difforder=None, gamma=None, vectorized=True,
-            preserve_transform=None, astensor=True, order=0, nan_checks=True,
+            preserve_transform=None, astensor=True, order=0, nan_checks=None,
             patience=0, flipud=True, cache_wavelet=None,
             get_w=False, get_dWx=False):
     """Synchrosqueezed Continuous Wavelet Transform.
@@ -122,9 +122,11 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
             If tuple, computes ssq of average of `cwt`s taken at each specified
             order. See `help(_cwt.cwt_higher_order)`.
 
-        nan_checks: bool (default True)
+        nan_checks: bool / None
             Checks whether input has `nan` or `inf` values, and zeros them.
-            `False` saves compute.
+            `False` saves compute. Doesn't support torch inputs.
+
+            Defaults to `True` for NumPy inputs, else `False`.
 
         patience: int / tuple[int, int]
             pyFFTW parameter for faster FFT on CPU; see `help(ssqueezepy.FFT)`.

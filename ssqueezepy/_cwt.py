@@ -12,7 +12,7 @@ from .wavelets import Wavelet
 def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
         l1_norm=True, derivative=False, padtype='reflect', rpadded=False,
         vectorized=True, astensor=True, cache_wavelet=None, order=0, average=None,
-        nan_checks=True, patience=0):
+        nan_checks=None, patience=0):
     """Continuous Wavelet Transform, discretized, as described in
     Sec. 4.3.3 of [1] and Sec. IIIA of [2]. Uses FFT convolution via frequency-
     domain wavelets matching (padded) input's length.
@@ -110,9 +110,11 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
         average: bool / None
             Only used for tuple `order`; see `help(_cwt.cwt_higher_order)`.
 
-        nan_checks: bool (default True)
+        nan_checks: bool / None
             Checks whether input has `nan` or `inf` values, and zeros them.
-            `False` saves compute.
+            `False` saves compute. Doesn't support torch inputs.
+
+            Defaults to `True` for NumPy inputs, else `False`.
 
         patience: int / tuple[int, int]
             pyFFTW parameter for faster FFT on CPU; see `help(ssqueezepy.FFT)`.
@@ -182,16 +184,21 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
                 dWx[idx] = ifft(dpsih * xh, axis=-1, astensor=True)
         return (Wx, dWx) if derivative else (Wx, None)
 
-    def _process_args(x, scales, nv, fs, t, wavelet, cache_wavelet):
-        if not isinstance(x, np.ndarray):
-            raise TypeError("`x` must be a numpy array (got %s)" % type(x))
+    def _process_args(x, scales, nv, fs, t, nan_checks, wavelet, cache_wavelet):
+        if not hasattr(x, 'ndim'):
+            raise TypeError("`x` must be a numpy array or torch Tensor "
+                            "(got %s)" % type(x))
         elif x.ndim not in (1, 2):
             raise ValueError("`x` must be 1D or 2D (got x.ndim == %s)" % x.ndim)
 
-        if nan_checks and (
-                np.isnan(x.max()) or np.isinf(x.max()) or np.isinf(x.min())):
-            WARN("found NaN or inf values in `x`; will zero")
-            replace_at_inf_or_nan(x, replacement=0.)
+        if nan_checks is None:
+            nan_checks = bool(isinstance(x, np.ndarray))
+        if nan_checks:
+            if not isinstance(x, np.ndarray):
+                raise ValueError("`nan_checks=True` requires NumPy input.")
+            elif np.isnan(x.max()) or np.isinf(x.max()) or np.isinf(x.min()):
+                WARN("found NaN or inf values in `x`; will zero")
+                replace_at_inf_or_nan(x, replacement=0.)
 
         if cache_wavelet:
             if isinstance(wavelet, (str, tuple)):
@@ -206,7 +213,7 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
         elif cache_wavelet is None:
             cache_wavelet = (not isinstance(wavelet, (str, tuple)) and vectorized)
 
-        if isinstance(scales, np.ndarray):
+        if not isinstance(scales, str):
             nv = None
 
         N = x.shape[-1]
@@ -223,23 +230,28 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
                                 astensor=astensor, **kw)
 
     (N, nv, dt, is_2D, cache_wavelet
-     ) = _process_args(x, scales, nv, fs, t, wavelet, cache_wavelet)
+     ) = _process_args(x, scales, nv, fs, t, nan_checks, wavelet, cache_wavelet)
 
     # process `wavelet`, get its `dtype`
     wavelet = _process_gmw_wavelet(wavelet, l1_norm)
     wavelet = Wavelet._init_if_not_isinstance(wavelet)
     dtype = wavelet.dtype
 
-    x = x.astype(dtype)
+    # cast to torch early if possible (keeps as NumPy if SSQ_GPU=0)
+    torch_supports_padding = bool(padtype in ('zero', 'reflect', None))
+    if torch_supports_padding:
+        x = S.asarray(x, dtype)
+    x = S.astype(x, dtype)
+
+    # pad, ensure correct data type
     if padtype is not None:
         xp, _, n1, _ = padsignal(x, padtype, get_params=True)
     else:
         xp = x
+    if not torch_supports_padding:
+        xp = S.asarray(xp, dtype)
 
-    # zero-mean `xp`, take to freq-domain
-    xp = S.asarray(xp)
-    x_mean = xp.mean(axis=-1)
-    xp -= (x_mean[:, None] if is_2D else x_mean)
+    # take to freq-domain
     xh = fft(xp, axis=-1, astensor=True)
     if is_2D:
         xh = xh[:, None]  # insert dim1 to broadcast wavelet `scales` along
