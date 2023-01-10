@@ -20,7 +20,7 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
     Uses `Wavelet.dtype` precision.
 
     # Arguments:
-        x: np.ndarray
+        x: np.ndarray / torch.Tensor
             Input vector(s), 1D / 2D.
 
             2D: does *not* do 2D CWT. Instead, treats dim0 as separate inputs,

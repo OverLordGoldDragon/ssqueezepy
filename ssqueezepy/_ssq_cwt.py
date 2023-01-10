@@ -21,7 +21,7 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
     Uses `wavelet.dtype` precision.
 
     # Arguments:
-        x: np.ndarray
+        x: np.ndarray / torch.Tensor
             Input vector(s), 1D or 2D. See `help(cwt)`.
 
         wavelet: str / tuple[str, dict] / `wavelets.Wavelet`
