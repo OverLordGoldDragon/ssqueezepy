@@ -13,6 +13,7 @@
  - fixed Ridge Extraction README
  - fixed important typo in `ridge_extraction.py`
  - fix: librosa defaults to zero padding, which broke `reconstruction_test`
+ - fixed `nv` criterion for ignoring sanity check
 
 #### MISC 
 
@@ -22,6 +23,7 @@
  - increased tolerance in `infer_scaletype` for `float32`, had false negatives
  - simplify `utils.backend.astype`
  - simplify `p2up`
+ - `padsignal` supports torch inputs
 
 
 ### 0.6.3 (1-23-2022): QoL, cleanups, fixes

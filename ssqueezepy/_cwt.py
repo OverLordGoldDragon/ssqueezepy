@@ -235,7 +235,7 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
     wavelet = Wavelet._init_if_not_isinstance(wavelet)
     dtype = wavelet.dtype
 
-    # cast to torch early if possible
+    # cast to torch early if possible (keeps as NumPy if SSQ_GPU=0)
     torch_supports_padding = bool(padtype in ('zero', 'reflect', None))
     if torch_supports_padding:
         x = S.asarray(x, dtype)
