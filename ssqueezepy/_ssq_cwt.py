@@ -126,6 +126,8 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
             Checks whether input has `nan` or `inf` values, and zeros them.
             `False` saves compute.
 
+            Doesn't support torch inputs.
+
         patience: int / tuple[int, int]
             pyFFTW parameter for faster FFT on CPU; see `help(ssqueezepy.FFT)`.
 

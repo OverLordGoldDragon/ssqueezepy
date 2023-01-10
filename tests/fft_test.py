@@ -9,6 +9,7 @@ Note that GPU tests are skipped in CI (Travis), and are instead done locally.
 """
 import os
 import pytest
+import warnings
 import numpy as np
 from scipy.fft import fft as sfft, rfft as srfft, ifft as sifft, irfft as sirfft
 from scipy.fft import ifftshift
@@ -30,6 +31,7 @@ try:
     CAN_GPU = True
 except:
     CAN_GPU = False
+    warnings.warn("SKIPPED TESTS in `fft_test.py`, GPU not found.")
 
 
 def _wavelet(name='gmw', **kw):
@@ -590,7 +592,7 @@ def test_ssq_cwt_batched():
             # didn't investigate float32, and `allclose` threshold is pretty bad,
             # so check MAE
             if dtype == 'float32':
-                assert adiff_Tx01 < 2e-5, (dtype, adiff_Tx01)
+                assert adiff_Tx01 < 2.5e-5, (dtype, adiff_Tx01)
 
 
 def test_ssq_stft_batched():

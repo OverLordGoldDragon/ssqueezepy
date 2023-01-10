@@ -125,7 +125,7 @@ def padsignal(x, padtype='reflect', padlength=None, get_params=False):
         pad_width = (n1, n2)
     elif x.ndim == 2:
         pad_width = ([(0, 0), (n1, n2)] if is_numpy else
-                     (n1, n2, 0, 0))
+                     (n1, n2))
 
     # comments use (n=4, n1=4, n2=3) as example, but this combination can't occur
     if is_numpy:
