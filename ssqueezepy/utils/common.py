@@ -45,7 +45,7 @@ def p2up(n):
         n2: int
             Right pad length.
     """
-    up = int(2**np.ceil(np.log2(n)))
+    up = int(2**(1 + np.round(np.log2(n))))
     n2 = int((up - n) // 2)
     n1 = int(up - n - n2)
     return up, n1, n2

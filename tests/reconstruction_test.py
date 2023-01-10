@@ -65,7 +65,7 @@ th = .1
 def test_ssq_cwt():
     errs = []
     for fn in test_fns:
-        x, ts = fn(2048)
+        x, ts = fn(2048)  # may not return length 2048
         for scales in ('log', 'log-piecewise', 'linear'):
             if fn.__name__ == 'low_freqs':
                 if scales == 'linear':

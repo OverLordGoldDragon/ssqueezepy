@@ -1,12 +1,11 @@
 ### 0.6.4
 
 #### FEATURES
- - Significant GPU performance boost from fixing bottleneck
  - Torch inputs to `cwt` and `ssq_cwt` now supported
 
 #### FIXES
 
- - `_gmw.mom2cum`: formula mistake, `range(1, n - 1)` -> `range(1, n)`, by @bartvm
+ - `_gmw.mom2cum`: fix formula mistake, `range(1, n - 1)` -> `range(1, n)`, by @bartvm
  - fix flipping `ssq_freqs` in torch
  - `istft` edge case with `dtype='float32'`, time-localized `window`, and large `hop_len`
  - `istft` default `N` was supposed to be "largest possible" but wasn't; fixed
@@ -21,6 +20,8 @@
  - extended `visuals.hist`
  - removed `xp -= xp.mean()`, a no-op with CWT, badly copied from MATLAB (original ssq code)
  - increased tolerance in `infer_scaletype` for `float32`, had false negatives
+ - simplify `utils.backend.astype`
+ - simplify `p2up`
 
 
 ### 0.6.3 (1-23-2022): QoL, cleanups, fixes

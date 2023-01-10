@@ -13,10 +13,7 @@ def allclose(a, b, device='cuda'):
 
 def astype(x, dtype, device='cuda'):
     if is_tensor(x):
-        if isinstance(device, torch.device):
-            device = device.type
-        out = x.type(_torch_dtype(dtype))
-        return out.cuda() if 'cuda' in str(device) else out
+        return x.to(dtype=_torch_dtype(dtype))
     return x.astype(dtype)
 
 

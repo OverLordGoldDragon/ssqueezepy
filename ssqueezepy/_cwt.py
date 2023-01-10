@@ -237,6 +237,7 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
     torch_supports_padding = bool(padtype in ('zero', 'reflect', None))
     if torch_supports_padding:
         x = S.asarray(x, dtype)
+    x = S.astype(x, dtype)
 
     # pad, ensure correct data type
     if padtype is not None:
