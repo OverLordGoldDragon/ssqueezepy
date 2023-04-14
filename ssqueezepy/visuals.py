@@ -634,13 +634,15 @@ def viz_gmw_orders(N=1024, n_orders=3, scale=5, gamma=3, beta=60,
 #### Visual tools ## messy code ##############################################
 def imshow(data, title=None, show=1, cmap=None, norm=None, complex=None, abs=0,
            w=None, h=None, ridge=0, ticks=1, borders=1, aspect='auto', ax=None,
-           fig=None, yticks=None, xticks=None, xlabel=None, ylabel=None, **kw):
+           fig=None, yticks=None, xticks=None, xlabel=None, ylabel=None,
+           norm_scaling=1, **kw):
     """
     norm: color norm, tuple of (vmin, vmax)
     abs: take abs(data) before plotting
     ticks: False to not plot x & y ticks
     borders: False to not display plot borders
     w, h: rescale width & height
+    norm_scaling: multiplies `norm`, even if `norm` is None (multiplies default)
     kw: passed to `plt.imshow()`
 
     others
@@ -661,6 +663,8 @@ def imshow(data, title=None, show=1, cmap=None, norm=None, complex=None, abs=0,
                       (0, mx))
     else:
         vmin, vmax = norm
+    vmin *= norm_scaling
+    vmax *= norm_scaling
 
     # colormap
     import matplotlib as mpl

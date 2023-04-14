@@ -274,17 +274,17 @@ def infer_scaletype(scales):
         raise TypeError("`scales.dtype` must be np.float32 or np.float64 "
                         "(got %s)" % scales.dtype)
 
-    th_log = 1e-15 if scales.dtype == np.float64 else 8e-7
+    th_log = 4e-15 if scales.dtype == np.float64 else 8e-7
     th_lin = th_log * 1e3  # less accurate for some reason
 
-    if np.mean(np.abs(np.diff(scales, 2, axis=0))) < th_lin:
-        scaletype = 'linear'
-        nv = None
-
-    elif np.mean(np.abs(np.diff(np.log(scales), 2, axis=0))) < th_log:
+    if np.mean(np.abs(np.diff(np.log(scales), 2, axis=0))) < th_log:
         scaletype = 'log'
         # ceil to avoid faulty float-int roundoffs
         nv = int(np.round(1 / np.diff(np.log2(scales), axis=0)[0]))
+
+    elif np.mean(np.abs(np.diff(scales, 2, axis=0))) < th_lin:
+        scaletype = 'linear'
+        nv = None
 
     elif logscale_transition_idx(scales) is None:
         raise ValueError("could not infer `scaletype` from `scales`; "
