@@ -31,7 +31,6 @@ jobs:
               run: echo $MAMBA >> $GITHUB_PATH
               
             - name: Set up Micromamba
-              uses: mamba-org/provision-with-micromamba@main
               run: |
                   mamba config --set always_yes yes --set changeps1 no
                   mamba install setuptools
