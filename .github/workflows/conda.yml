@@ -35,17 +35,16 @@ jobs:
                   conda config --set always_yes yes --set changeps1 no
                   conda install setuptools
                   conda install conda
+                  conda install -c conda-forge conda
                   conda update --force conda
-                  conda install -c conda-forge mamba
-                  mamba update --force mamba
                   conda info -a
                   conda create -q -n test-env python=${{ matrix.python-version }}
                   
             - name: Install dependencies
               run: |
-                  mamba install pytest pytest-cov -c conda-forge
-                  mamba install numpy scipy matplotlib librosa pyfftw -c conda-forge -n test-env
-                  mamba install numba -c numba
+                  conda install pytest pytest-cov -c conda-forge
+                  conda install numpy scipy matplotlib librosa pyfftw -c conda-forge -n test-env
+                  conda install numba -c numba
                   
                   conda run -n test-env python3 -m pip install --upgrade pip
                   conda run -n test-env python3 -m pip install -r requirements.txt
