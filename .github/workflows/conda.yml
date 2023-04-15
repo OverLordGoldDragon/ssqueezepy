@@ -36,7 +36,7 @@ jobs:
                   conda install setuptools
                   conda install conda
                   conda update --force conda
-                  conda install mamba
+                  conda install -c conda-forge mamba
                   mamba update --force mamba
                   conda info -a
                   conda create -q -n test-env python=${{ matrix.python-version }}
