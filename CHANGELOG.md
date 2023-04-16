@@ -17,8 +17,9 @@
  - `istft` division by window norm now accounts for values below float `tiny`
  - fixed Ridge Extraction README
  - fixed important typo in `ridge_extraction.py`
- - fix: librosa defaults to zero padding, which broke `reconstruction_test`
  - fixed `nv` criterion for ignoring sanity check
+ - fixed `trigdiff` for certain arg combinations
+ - fix: librosa defaults to zero padding, which broke `reconstruction_test`
  
 #### MISC 
  - slight performance boost in `_process_ssq_params`
@@ -27,6 +28,7 @@
  - simplify `utils.backend.astype`
  - simplify `p2up`
  - `nan_checks` now defaults to `True` only for NumPy inputs
+ - CI changes: conda -> micromamba
 
 
 ### 0.6.3 (1-23-2022): QoL, cleanups, fixes
