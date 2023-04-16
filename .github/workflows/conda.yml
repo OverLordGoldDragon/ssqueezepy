@@ -26,39 +26,38 @@ jobs:
                 python-version: [3.7]
 
         steps:
-            - uses: actions/checkout@v1
+            - uses: actions/checkout@v3
+            
             - name: Add Conda to path
               run: echo $CONDA >> $GITHUB_PATH
-              
-            - name: Set up Conda
-              run: |
-                  conda config --set always_yes yes --set changeps1 no
-                  conda install setuptools
-                  conda install conda
-                  conda update --force conda
-                  conda info -a
-                  conda create -q -n test-env python=${{ matrix.python-version }}
+            
+            - name: Install Conda environment with Micromamba
+              uses: mamba-org/provision-with-micromamba@main
+              with:
+                cache-downloads: true
+                cache-env: true
+                environment-file: environment.yaml
+                extra-specs: |
+                  python=${{ matrix.python-version }}
                   
-            - name: Install dependencies
+            - name: additional setup
+              shell: bash -l {0}
               run: |
-                  conda install pytest pytest-cov -c conda-forge
-                  conda install numpy scipy matplotlib librosa pyfftw -c conda-forge -n test-env
-                  conda install numba -c numba
-                  
-                  conda run -n test-env python3 -m pip install --upgrade pip
-                  conda run -n test-env python3 -m pip install -r requirements.txt
-                  conda run -n test-env python3 -m pip install -r requirements-dev.txt
+                  conda run python3 -m pip install --upgrade pip
+                  conda run python3 -m pip install -r requirements.txt
+                  conda run python3 -m pip install -r requirements-dev.txt
                   
             - name: Set up ssqueezepy
-              run: conda run -n test-env python3 setup.py develop
-              
+              run: conda run python3 setup.py develop
+
             - name: Test
+              shell: bash -l {0}
               run: >
-                  conda run -n test-env pycodestyle --max-line-length=85 
+                  conda run pycodestyle --max-line-length=85 
                   --ignore=E221,E241,E225,E226,E402,E722,E741,E272,E266,E302,E731,E702,E201,E129,E203,E202,W503,W504 
                   ssqueezepy
                   
-                  conda run -n test-env pytest tests/ -s --cov=ssqueezepy --cov-report=xml
+                  conda run pytest tests/ -s --cov=ssqueezepy --cov-report=xml
                   
             - name: codecov upload coverage
               uses: codecov/codecov-action@v1

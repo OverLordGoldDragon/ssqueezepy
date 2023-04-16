@@ -2,6 +2,12 @@
 
 #### FEATURES
  - Torch inputs to `cwt` and `ssq_cwt` now supported
+ 
+#### FEATURES (minor)
+ - added `complex=2` option to `visuals.plot`
+ - added `norm_scaling` kwarg to `visuals.imshow`
+ - extended `visuals.hist`
+ - `padsignal` supports torch inputs
 
 #### FIXES
  - `_gmw.mom2cum`: fix formula mistake, `range(1, n - 1)` -> `range(1, n)`, by @bartvm
@@ -11,18 +17,18 @@
  - `istft` division by window norm now accounts for values below float `tiny`
  - fixed Ridge Extraction README
  - fixed important typo in `ridge_extraction.py`
- - fix: librosa defaults to zero padding, which broke `reconstruction_test`
  - fixed `nv` criterion for ignoring sanity check
+ - fixed `trigdiff` for certain arg combinations
+ - fix: librosa defaults to zero padding, which broke `reconstruction_test`
  
 #### MISC 
  - slight performance boost in `_process_ssq_params`
- - extended `visuals.hist`
  - removed `xp -= xp.mean()`, a no-op with CWT, badly copied from MATLAB (original ssq code)
  - increased tolerance in `infer_scaletype` for `float32`, had false negatives
  - simplify `utils.backend.astype`
  - simplify `p2up`
- - `padsignal` supports torch inputs
  - `nan_checks` now defaults to `True` only for NumPy inputs
+ - CI changes: conda -> micromamba
 
 
 ### 0.6.3 (1-23-2022): QoL, cleanups, fixes

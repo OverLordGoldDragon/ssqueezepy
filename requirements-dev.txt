@@ -2,10 +2,7 @@ setuptools>=41.0.0
 twine>=1.15.0
 coverage
 coveralls
-pytest
-pytest-cov
 pycode
-pycodestyle
 matplotlib>=3.3.0
 librosa
 pyfftw

@@ -233,6 +233,8 @@ def trigdiff(A, fs=1., padtype=None, rpadded=None, N=None, n1=None, window=None,
         pass
 
     if rpadded or padtype is not None:
+        if N is None:
+            N = A.shape[-1]
         if n1 is None:
             _, n1, _ = p2up(N)
         idx = ((slice(None), slice(n1, n1 + N)) if A.ndim == 2 else

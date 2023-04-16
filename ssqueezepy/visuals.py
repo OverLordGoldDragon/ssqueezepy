@@ -634,13 +634,15 @@ def viz_gmw_orders(N=1024, n_orders=3, scale=5, gamma=3, beta=60,
 #### Visual tools ## messy code ##############################################
 def imshow(data, title=None, show=1, cmap=None, norm=None, complex=None, abs=0,
            w=None, h=None, ridge=0, ticks=1, borders=1, aspect='auto', ax=None,
-           fig=None, yticks=None, xticks=None, xlabel=None, ylabel=None, **kw):
+           fig=None, yticks=None, xticks=None, xlabel=None, ylabel=None,
+           norm_scaling=1, **kw):
     """
     norm: color norm, tuple of (vmin, vmax)
     abs: take abs(data) before plotting
     ticks: False to not plot x & y ticks
     borders: False to not display plot borders
     w, h: rescale width & height
+    norm_scaling: multiplies `norm`, even if `norm` is None (multiplies default)
     kw: passed to `plt.imshow()`
 
     others
@@ -661,6 +663,8 @@ def imshow(data, title=None, show=1, cmap=None, norm=None, complex=None, abs=0,
                       (0, mx))
     else:
         vmin, vmax = norm
+    vmin *= norm_scaling
+    vmax *= norm_scaling
 
     # colormap
     import matplotlib as mpl
@@ -719,7 +723,7 @@ def plot(x, y=None, title=None, show=0, ax_equal=False, complex=0, abs=0,
     """
     norm: color norm, tuple of (vmin, vmax)
     abs: take abs(data) before plotting
-    complex: plot `x.real` & `x.imag`
+    complex: plot `x.real` & `x.imag`; `2` to also plot `abs(x)`
     ticks: False to not plot x & y ticks
     w, h: rescale width & height
     kw: passed to `plt.imshow()`
@@ -750,6 +754,8 @@ def plot(x, y=None, title=None, show=0, ax_equal=False, complex=0, abs=0,
     if complex:
         ax.plot(x, y.real, color='tab:blue', **kw)
         ax.plot(x, y.imag, color='tab:orange', **kw)
+        if complex == 2:
+            ax.plot(x, np.abs(y), color='k', linestyle='--', **kw)
         if c_annot:
             _kw = dict(fontsize=15, xycoords='axes fraction', weight='bold')
             ax.annotate("real", xy=(.93, .95), color='tab:blue', **_kw)
