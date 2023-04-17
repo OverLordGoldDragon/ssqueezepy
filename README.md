@@ -172,6 +172,8 @@ Also see ridge extraction [README](https://github.com/OverLordGoldDragon/ssqueez
 ## Interesting use cases (with code)
 
  1. [Identify abrupt changes in audio](https://dsp.stackexchange.com/a/87512/50076) - `ssq_cwt` and `ssq_stft` used together to solve an ML problem without ML
+ 
+Feel free to share yours [here](https://github.com/OverLordGoldDragon/ssqueezepy/issues/9).
 
 
 ## Learning resources

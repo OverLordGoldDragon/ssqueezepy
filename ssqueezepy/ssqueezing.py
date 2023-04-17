@@ -184,7 +184,12 @@ def ssqueeze(Wx, w=None, ssq_freqs=None, scales=None, Sfs=None, fs=None, t=None,
                              "tuple with `maprange = 'maximal'` "
                              "(got %s)" % str(maprange))
         ssq_freqs = _compute_associated_frequencies(
-            scales, N, wavelet, ssq_scaletype, maprange, was_padded, dt, transform)
+            scales, N, wavelet, ssq_scaletype, maprange, was_padded, dt,
+            transform)
+    elif transform == 'stft':
+        # removes warning per issue with `infer_scaletype`
+        # future TODO: shouldn't need this
+        ssq_scaletype = 'linear'
     else:
         ssq_scaletype, _ = infer_scaletype(ssq_freqs)
 
