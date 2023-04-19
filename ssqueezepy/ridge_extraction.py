@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Authors: David Bondesson, OverLordGoldDragon
+"""Authors: David Bondesson, John Muradeli
 
 Ridge extraction from time-frequency representations (STFT, CWT, synchrosqueezed).
 """

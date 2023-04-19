@@ -72,8 +72,8 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
 
         l1_norm: bool (default True)
             Whether to L1-normalize the CWT, which yields a more representative
-            distribution of energies and component amplitudes than L2 (see [3]).
-            If False (default True), uses L2 norm.
+            distribution of energies and component amplitudes than L2 (see [3],
+            [6]). If False (default True), uses L2 norm.
 
         derivative: bool (default False)
             Whether to compute and return `dWx`. Requires `fs` or `t`.
@@ -138,9 +138,8 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
         E. Brevdo, N.-S. Fučkar, and H.-T. Wu.
         https://arxiv.org/abs/1105.0010
 
-        3. Rectification of the Bias in the Wavelet Power Spectrum.
-        Y. Liu, X. S. Liang, R. H. Weisberg.
-        http://ocg6.marine.usf.edu/~liu/Papers/Liu_etal_2007_JAOT_wavelet.pdf
+        3. How to validate a wavelet filterbank (CWT)? John Muradeli.
+        https://dsp.stackexchange.com/a/86069/50076
 
         4. The Exponential Accuracy of Fourier and Chebyshev Differencing Methods.
         E. Tadmor.
@@ -149,6 +148,10 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
         5. Synchrosqueezing Toolbox, (C) 2014--present. E. Brevdo, G. Thakur.
         https://github.com/ebrevdo/synchrosqueezing/blob/master/synchrosqueezing/
         cwt_fw.m
+
+        6. Rectification of the Bias in the Wavelet Power Spectrum.
+        Y. Liu, X. S. Liang, R. H. Weisberg.
+        http://ocg6.marine.usf.edu/~liu/Papers/Liu_etal_2007_JAOT_wavelet.pdf
     """
     def _vectorized(xh, scales, wavelet, derivative, cache_wavelet):
         if cache_wavelet:
@@ -307,7 +310,7 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
 
 
 def icwt(Wx, wavelet='gmw', scales='log-piecewise', nv=None, one_int=True,
-         x_len=None, x_mean=0, padtype='zero', rpadded=False, l1_norm=True):
+         x_len=None, x_mean=0, padtype='reflect', rpadded=False, l1_norm=True):
     """The inverse Continuous Wavelet Transform of `Wx`, via double or
     single integral.
 
@@ -332,8 +335,8 @@ def icwt(Wx, wavelet='gmw', scales='log-piecewise', nv=None, one_int=True,
         one_int: bool (default True)
             Whether to use one-integral iCWT or double.
             Current one-integral implementation performs best.
-                - True: Eq 2.6, modified, of [3]. Explained in [4].
-                - False: Eq 4.67 of [1]. Explained in [5].
+                - True: Eq 2.6, modified, of [6]. Explained in [1].
+                - False: Eq 4.67 of [3]. Explained in [2].
 
         x_len: int / None. Length of `x` used in forward CWT, if different
             from Wx.shape[1] (default if None).
@@ -356,25 +359,28 @@ def icwt(Wx, wavelet='gmw', scales='log-piecewise', nv=None, one_int=True,
             The signal, as reconstructed from Wx.
 
     # References:
-        1. Wavelet Tour of Signal Processing, 3rd ed. S. Mallat.
+        1. One integral inverse CWT. John Muradeli.
+        https://dsp.stackexchange.com/a/76239/50076
+
+        2. Inverse CWT derivation. John Muradeli.
+        https://dsp.stackexchange.com/a/71148/50076
+
+        3. Wavelet Tour of Signal Processing, 3rd ed. S. Mallat.
         https://www.di.ens.fr/~mallat/papiers/WaveletTourChap1-2-3.pdf
 
-        2. The Synchrosqueezing algorithm for time-varying spectral analysis:
+        4. Why iCWT may be inexact. John Muradeli.
+        https://dsp.stackexchange.com/a/87104/50076
+
+        5. The Synchrosqueezing algorithm for time-varying spectral analysis:
         robustness properties and new paleoclimate applications. G. Thakur,
         E. Brevdo, N.-S. Fučkar, and H.-T. Wu.
         https://arxiv.org/abs/1105.0010
 
-        3. Synchrosqueezed Wavelet Transforms: a Tool for Empirical Mode
+        6. Synchrosqueezed Wavelet Transforms: a Tool for Empirical Mode
         Decomposition. I. Daubechies, J. Lu, H.T. Wu.
         https://arxiv.org/pdf/0912.2437.pdf
 
-        4. One integral inverse CWT. OverLordGoldDragon.
-        https://dsp.stackexchange.com/a/71274/50076
-
-        5. Inverse CWT derivation. OverLordGoldDragon.
-        https://dsp.stackexchange.com/a/71148/50076
-
-        6. Synchrosqueezing Toolbox, (C) 2014--present. E. Brevdo, G. Thakur.
+        7. Synchrosqueezing Toolbox, (C) 2014--present. E. Brevdo, G. Thakur.
         https://github.com/ebrevdo/synchrosqueezing/blob/master/synchrosqueezing/
         synsq_cwt_fw.m
     """

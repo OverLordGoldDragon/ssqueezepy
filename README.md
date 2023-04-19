@@ -169,6 +169,13 @@ imshow(Sx, **ikw, yticks=freqs_stft)
 Also see ridge extraction [README](https://github.com/OverLordGoldDragon/ssqueezepy/tree/master/examples/ridge_extraction).
 
 
+## Interesting use cases (with code)
+
+ 1. [Identify abrupt changes in audio](https://dsp.stackexchange.com/a/87512/50076) - `ssq_cwt` and `ssq_stft` used together to solve an ML problem without ML
+ 
+Feel free to share yours [here](https://github.com/OverLordGoldDragon/ssqueezepy/issues/9).
+
+
 ## Learning resources
 
  1. [Continuous Wavelet Transform, & vs STFT](https://ccrma.stanford.edu/~unjung/mylec/WTpart1.html)
