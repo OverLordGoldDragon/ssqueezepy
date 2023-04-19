@@ -15,6 +15,7 @@
  - `istft` edge case with `dtype='float32'`, time-localized `window`, and large `hop_len`
  - `istft` default `N` was supposed to be "largest possible" but wasn't; fixed
  - `istft` division by window norm now accounts for values below float `tiny`
+ - `icwt` defaults args fix
  - fixed Ridge Extraction README
  - fixed important typo in `ridge_extraction.py`
  - fixed `nv` criterion for ignoring sanity check
@@ -29,6 +30,8 @@
  - simplify `p2up`
  - `nan_checks` now defaults to `True` only for NumPy inputs
  - CI changes: conda -> micromamba
+ - docstring references improved
+ - README section added
 
 
 ### 0.6.3 (1-23-2022): QoL, cleanups, fixes
