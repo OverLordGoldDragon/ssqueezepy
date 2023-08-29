@@ -65,7 +65,7 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=None, t=None,
             Whether to use "modified" variant as in [1], which centers DFT
             cisoids at the window for each shift `u`. `False` will not invert
             once synchrosqueezed.
-            Recommended to use `True`; see "Modulation" below.
+            Recommended `True`. See "Modulation" and [2] below.
 
         derivative: bool (default False)
             Whether to compute and return `dSx`. Uses `fs`.
@@ -93,6 +93,8 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=None, t=None,
         of high frequency, making inversion and synchrosqueezing very unstable.
         Details & visuals: https://dsp.stackexchange.com/a/72590/50076
 
+        Better explanation in ref [2].
+
     # Returns:
         Sx: [(n_fft//2 + 1) x n_hops] np.ndarray
             STFT of `x`. Positive frequencies only (+dc), via `rfft`.
@@ -110,6 +112,17 @@ def stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=None, t=None,
         1. Synchrosqueezing-based Recovery of Instantaneous Frequency from
         Nonuniform Samples. G. Thakur and H.-T. Wu.
         https://arxiv.org/abs/1006.2533
+
+        2. Equivalence between "windowed Fourier transform" and STFT as
+        convolutions/filtering. John Muradeli.
+        https://dsp.stackexchange.com/a/86938/50076
+
+        3. STFT: why overlapping the window? John Muradeli.
+        https://dsp.stackexchange.com/a/88124/50076
+
+        4. Synchrosqueezing Toolbox, (C) 2014--present. E. Brevdo, G. Thakur.
+        https://github.com/ebrevdo/synchrosqueezing/blob/master/synchrosqueezing/
+        stft_fw.m
     """
     def _stft(xp, window, diff_window, n_fft, hop_len, fs, modulated, derivative):
         Sx = buffer(xp, n_fft, n_fft - hop_len, modulated)
@@ -207,6 +220,10 @@ def istft(Sx, window=None, n_fft=None, win_len=None, hop_len=1, N=None,
 
         2. Invertibility of overlap-add processing. B. Sharpe.
         https://gauss256.github.io/blog/cola.html
+
+        3. Synchrosqueezing Toolbox, (C) 2014--present. E. Brevdo, G. Thakur.
+        https://github.com/ebrevdo/synchrosqueezing/blob/master/synchrosqueezing/
+        stft_iw.m
     """
     ### process args #####################################
     n_fft = n_fft or (Sx.shape[0] - 1) * 2
