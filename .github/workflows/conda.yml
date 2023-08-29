@@ -48,7 +48,7 @@ jobs:
                   conda run python3 -m pip install -r requirements-dev.txt
 
             - name: Set up ssqueezepy
-              run: conda run pip install -e
+              run: conda run pip install -e .
 
             - name: Test
               shell: bash -l {0}
