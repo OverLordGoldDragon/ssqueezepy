@@ -66,9 +66,9 @@ See [Performance guide](https://github.com/OverLordGoldDragon/ssqueezepy/blob/ma
 
 <img src="https://user-images.githubusercontent.com/16495490/150314341-df5c3092-4bef-4895-99ed-2765504329fd.png">
 
-### 3. Testing suite: CWT vs STFT, reflect-added parallel linear chirp
+### 3. Testing suite: CWT vs STFT, reflect-added parallel A.M. linear chirp
 
-<img src="https://user-images.githubusercontent.com/16495490/150281339-71c0db28-9929-4449-a5e4-5ce52a923468.png">
+<img src="https://github.com/OverLordGoldDragon/ssqueezepy/assets/16495490/c89727db-1bb3-4cf0-ac8c-c524cba75b2d">
 
 ### 4. Ridge extraction: cubic polynom. F.M. + pure tone; noiseless & 1.69dB SNR
 
@@ -78,7 +78,7 @@ See [Performance guide](https://github.com/OverLordGoldDragon/ssqueezepy/blob/ma
 
 ### 5. Testing suite: GMW vs Morlet, reflect-added hyperbolic chirp (extreme time-loc.)
 
-<img src="https://user-images.githubusercontent.com/16495490/107903903-d9b69880-6f63-11eb-9478-8ead016cf6f8.png">
+<img src="https://github.com/OverLordGoldDragon/ssqueezepy/assets/16495490/8c41d5f2-4bdd-4537-8d82-6d5a5c0315d3">
 
 ### 6. Higher-order GMW CWT, reflect-added parallel linear chirp, 3.06dB SNR
 

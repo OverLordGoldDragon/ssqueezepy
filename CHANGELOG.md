@@ -31,7 +31,10 @@
  - `nan_checks` now defaults to `True` only for NumPy inputs
  - CI changes: conda -> micromamba
  - docstring references improved
+ - docs: added missing references (w.r.t. original toolbox)
  - README section added
+ - README examplesp improved
+ - updated github workflows code
 
 
 ### 0.6.3 (1-23-2022): QoL, cleanups, fixes

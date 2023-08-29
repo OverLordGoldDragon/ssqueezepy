@@ -180,9 +180,8 @@ def ssq_cwt(x, wavelet='gmw', scales='log-piecewise', nv=None, fs=None, t=None,
         Decomposition. I. Daubechies, J. Lu, H.T. Wu.
         https://arxiv.org/pdf/0912.2437.pdf
 
-        4. Synchrosqueezing-based Recovery of Instantaneous Frequency from
-        Nonuniform Samples. G. Thakur and H.-T. Wu.
-        https://arxiv.org/abs/1006.2533
+        4. Synchrosqueezed Wavelet Transform Explanation. John Muradeli.
+        https://dsp.stackexchange.com/a/71399/50076
 
         5. Synchrosqueezing Toolbox, (C) 2014--present. E. Brevdo, G. Thakur.
         https://github.com/ebrevdo/synchrosqueezing/blob/master/synchrosqueezing/

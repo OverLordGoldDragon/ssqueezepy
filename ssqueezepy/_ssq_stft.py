@@ -70,6 +70,10 @@ def ssq_stft(x, window=None, n_fft=None, win_len=None, hop_len=1, fs=None, t=Non
         1. Synchrosqueezing-based Recovery of Instantaneous Frequency from
         Nonuniform Samples. G. Thakur and H.-T. Wu.
         https://arxiv.org/abs/1006.2533
+
+        2. Synchrosqueezing Toolbox, (C) 2014--present. E. Brevdo, G. Thakur.
+        https://github.com/ebrevdo/synchrosqueezing/blob/master/synchrosqueezing/
+        synsq_stft_fw.m
     """
     if x.ndim == 2 and get_w:
         raise NotImplementedError("`get_w=True` unsupported with batched input.")
@@ -157,6 +161,10 @@ def issq_stft(Tx, window=None, cc=None, cw=None, n_fft=None, win_len=None,
 
         2. Fourier synchrosqueezed transform MATLAB docs.
         https://www.mathworks.com/help/signal/ref/fsst.html
+
+        3. Synchrosqueezing Toolbox, (C) 2014--present. E. Brevdo, G. Thakur.
+        https://github.com/ebrevdo/synchrosqueezing/blob/master/synchrosqueezing/
+        synsq_stft_iw.m
     """
     def _process_args(Tx, window, cc, cw, win_len, hop_len, n_fft, modulated):
         if not modulated:
@@ -224,6 +232,10 @@ def phase_stft(Sx, dSx, Sfs, gamma=None, parallel=None):
         robustness properties and new paleoclimate applications.
         G. Thakur, E. Brevdo, N.-S. Fučkar, and H.-T. Wu.
         https://arxiv.org/abs/1105.0010
+
+        3. Synchrosqueezing Toolbox, (C) 2014--present. E. Brevdo, G. Thakur.
+        https://github.com/ebrevdo/synchrosqueezing/blob/master/synchrosqueezing/
+        phase_stft.m
     """
     S.warn_if_tensor_and_par(Sx, parallel)
     if gamma is None:

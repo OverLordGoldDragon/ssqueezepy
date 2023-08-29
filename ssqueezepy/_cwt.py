@@ -13,8 +13,7 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
         l1_norm=True, derivative=False, padtype='reflect', rpadded=False,
         vectorized=True, astensor=True, cache_wavelet=None, order=0, average=None,
         nan_checks=None, patience=0):
-    """Continuous Wavelet Transform, discretized, as described in
-    Sec. 4.3.3 of [1] and Sec. IIIA of [2]. Uses FFT convolution via frequency-
+    """Continuous Wavelet Transform. Uses FFT convolution via frequency-
     domain wavelets matching (padded) input's length.
 
     Uses `Wavelet.dtype` precision.
@@ -72,8 +71,8 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
 
         l1_norm: bool (default True)
             Whether to L1-normalize the CWT, which yields a more representative
-            distribution of energies and component amplitudes than L2 (see [3],
-            [6]). If False (default True), uses L2 norm.
+            distribution of energies and component amplitudes than L2 (see [3]).
+            If False (default True), uses L2 norm.
 
         derivative: bool (default False)
             Whether to compute and return `dWx`. Requires `fs` or `t`.
@@ -107,6 +106,9 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
             > 0 computes `cwt` with higher-order GMWs. If tuple, computes
             `cwt` at each specified order. See `help(_cwt.cwt_higher_order)`.
 
+            NOTE: implementation may be not entirely correct. Specifically,
+            alignment by center frequency rather than scales may be optimal.
+
         average: bool / None
             Only used for tuple `order`; see `help(_cwt.cwt_higher_order)`.
 
@@ -129,29 +131,36 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
             differentiation (effectively, derivative of trigonometric
             interpolation; see [4]). Implements as described in Sec IIIB of [2].
 
-    # References:
-        1. Wavelet Tour of Signal Processing, 3rd ed. S. Mallat.
-        https://www.di.ens.fr/~mallat/papiers/WaveletTourChap1-2-3.pdf
+    # Note:
+        CWT is cross-correlation of wavelets with input. For zero-phase wavelets
+        (real-valued in Fourier), this is equivalent to convolution. All
+        ssqueezepy wavelets are zero-phase. If a custom general wavelet is
+        used, it must be conjugated in frequency, and it should *not* be used
+        with synchrosqueezing (see one-integral inverse References in `icwt`).
 
-        2. The Synchrosqueezing algorithm for time-varying spectral analysis:
+    # References:
+        1. The Synchrosqueezing algorithm for time-varying spectral analysis:
         robustness properties and new paleoclimate applications. G. Thakur,
         E. Brevdo, N.-S. Fučkar, and H.-T. Wu.
         https://arxiv.org/abs/1105.0010
 
-        3. How to validate a wavelet filterbank (CWT)? John Muradeli.
+        2. How to validate a wavelet filterbank (CWT)? John Muradeli.
         https://dsp.stackexchange.com/a/86069/50076
+
+        3. Wavelet "center frequency" explanation? Relation to CWT scales?
+        John Muradeli.
+        https://dsp.stackexchange.com/a/76371/50076
 
         4. The Exponential Accuracy of Fourier and Chebyshev Differencing Methods.
         E. Tadmor.
         http://webhome.auburn.edu/~jzl0097/teaching/math_8970/Tadmor_86.pdf
 
-        5. Synchrosqueezing Toolbox, (C) 2014--present. E. Brevdo, G. Thakur.
+        5. Wavelet Tour of Signal Processing, 3rd ed. S. Mallat.
+        https://www.di.ens.fr/~mallat/papiers/WaveletTourChap1-2-3.pdf
+
+        6. Synchrosqueezing Toolbox, (C) 2014--present. E. Brevdo, G. Thakur.
         https://github.com/ebrevdo/synchrosqueezing/blob/master/synchrosqueezing/
         cwt_fw.m
-
-        6. Rectification of the Bias in the Wavelet Power Spectrum.
-        Y. Liu, X. S. Liang, R. H. Weisberg.
-        http://ocg6.marine.usf.edu/~liu/Papers/Liu_etal_2007_JAOT_wavelet.pdf
     """
     def _vectorized(xh, scales, wavelet, derivative, cache_wavelet):
         if cache_wavelet:
@@ -382,7 +391,7 @@ def icwt(Wx, wavelet='gmw', scales='log-piecewise', nv=None, one_int=True,
 
         7. Synchrosqueezing Toolbox, (C) 2014--present. E. Brevdo, G. Thakur.
         https://github.com/ebrevdo/synchrosqueezing/blob/master/synchrosqueezing/
-        synsq_cwt_fw.m
+        synsq_cwt_iw.m
     """
     #### Prepare for inversion ###############################################
     na, n = Wx.shape
