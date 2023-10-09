@@ -198,7 +198,7 @@ The Discrete Fourier Transform lays the foundation of signal processing with rea
 
 ## Asking questions
 
-Open an Issue, and follow the [Issues Template](https://github.com/OverLordGoldDragon/ssqueezepy/issues/new/choose). Mainly code-related questions go to [Stack Overflow](https://stackoverflow.com/). Applications, theory questions, etc go elsewhere, e.g. [DSP.SE](https://dsp.stackexchange.com/). Note asking anywhere doesn't guarantee a response from me, but others may help.
+Open an Issue, and follow the [Issues Template](https://github.com/OverLordGoldDragon/ssqueezepy/issues/new/choose). Mainly code-related questions go to [Stack Overflow](https://stackoverflow.com/) (SO). Applications, theory questions, etc go elsewhere, e.g. [DSP.SE](https://dsp.stackexchange.com/). I may or may not respond, but others may (or may not) help. I don't follow SO.
 
 **Do not** send e-mail, LinkedIn messages, etc - they will be ignored.
 
