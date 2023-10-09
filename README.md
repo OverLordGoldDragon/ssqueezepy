@@ -54,6 +54,10 @@ See [Performance guide](https://github.com/OverLordGoldDragon/ssqueezepy/blob/ma
 160k-ssq_stft | 4.65  | 2.48   | 0.159   | -    | -     | -
 
 
+## Questions?
+
+See [here](#asking-questions).
+
 ## Examples
 
 ### 1. Signal recovery under severe noise
@@ -191,6 +195,12 @@ The Discrete Fourier Transform lays the foundation of signal processing with rea
 ## Contributors (noteworthy)
 
  - [David Bondesson](https://github.com/DavidBondesson): ridge extraction (`ridge_extraction.py`; `examples/`: `extracting_ridges.py`, `ridge_extraction/README.md`)
+
+## Asking questions
+
+Open an Issue, and follow the [Issues Template](https://github.com/OverLordGoldDragon/ssqueezepy/issues/new/choose). Mainly code-related questions go to [Stack Overflow](https://stackoverflow.com/). Applications, theory questions, etc go elsewhere, e.g. [DSP.SE](https://dsp.stackexchange.com/). Note asking anywhere doesn't guarantee a response from me, but others may help.
+
+**Do not** send e-mail, LinkedIn messages, etc - they will be ignored.
 
 ## How to cite
 
