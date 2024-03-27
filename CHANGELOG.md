@@ -1,3 +1,10 @@
+### 0.6.5
+
+#### FIXES
+ - CuPy deprecation fix (update methods to be compatible with latest CuPy)
+ - `imp` -> `importlib` (Python deprecation)
+ - Github Actions changes: use fully micromamba; actions v4; py 3.7 -> 3.10; 
+
 ### 0.6.4
 
 #### FEATURES
