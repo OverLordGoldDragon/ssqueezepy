@@ -14,10 +14,10 @@ def _run_on_gpu(kernel, grid, block, *args, **kwargs):
        stream=Stream(ptr=torch.cuda.current_stream().cuda_stream))
 
 
-@cp._util.memoize(for_each_device=True)
+@cp.memoize(for_each_device=True)
 def load_kernel(kernel_name, code, **kwargs):
     code = Template(code).substitute(**kwargs)
-    kernel_code = cp.cuda.compile_with_cache(code)
+    kernel_code = cp.RawModule(code=code)
     return kernel_code.get_function(kernel_name)
 
 
