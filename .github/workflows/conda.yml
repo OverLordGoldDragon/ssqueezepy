@@ -2,7 +2,7 @@ name: ssqueezepy CI
 
 on:
   workflow_dispatch:
-    
+
   pull_request:
     paths:
       - "ssqueezepy/*"
@@ -11,13 +11,13 @@ on:
       - ".coveragerc"
       - "requirements.txt"
       - "requirements-dev.txt"
-    
+
   push:
     branches:
       - master
 
 jobs:
-  build-conda:
+  build-mamba:
     if: "! contains(toJSON(github.event.commits.*.message), '[skip ci]')"
     runs-on: ubuntu-latest
 
@@ -27,8 +27,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Install Conda environment with Micromamba
+
+      - name: Setup Micromamba environment
         uses: mamba-org/setup-micromamba@v1
         with:
           micromamba-version: '1.5.8-0'
@@ -36,7 +36,7 @@ jobs:
           init-shell: bash
           cache-environment: true
           post-cleanup: 'all'
-      
+
       - name: additional setup
         shell: bash -l {0}
         run: |
@@ -55,7 +55,7 @@ jobs:
             ssqueezepy
             
             pytest tests/ -s --cov=ssqueezepy --cov-report=xml
-            
+
       - name: codecov upload coverage
         uses: codecov/codecov-action@v1
         with:
