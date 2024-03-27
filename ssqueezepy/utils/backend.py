@@ -106,18 +106,12 @@ class TorchDummy():
         self.dtype = _TensorDummy
 
 
-class _Util():
-    """For wrapper: `@cp._util.memoize`."""
+class CupyDummy():
+    """Dummy class with dummy attributes."""
     def memoize(self, *args, **kwargs):
         def wrap(fn):
             return fn
         return wrap
-
-
-class CupyDummy():
-    """Dummy class with dummy attributes."""
-    def __init__(self):
-        self._util = _Util()
 
 
 class _Q():

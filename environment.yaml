@@ -9,7 +9,7 @@ dependencies:
   - pytest-cov
   - pycodestyle
   - pip
-  - python >=3.7
+  - python >=3.10
   - numpy
   - scipy 
   - matplotlib 
