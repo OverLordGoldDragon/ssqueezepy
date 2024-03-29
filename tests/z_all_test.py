@@ -32,7 +32,7 @@ from ssqueezepy.ssqueezing import _check_ssqueezing_args
 
 #### Ensure cached imports reloaded ##########################################
 from types import ModuleType
-from imp import reload
+from importlib import reload
 import ssqueezepy
 
 
