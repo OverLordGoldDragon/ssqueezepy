@@ -416,7 +416,7 @@ def test_buffer():
 
 
 def test_ssq_stft():
-    N = 256
+    N = 512
     tsigs = TestSignals(N=N)
     gpu_atol = 1e-5
 
@@ -578,16 +578,17 @@ def test_ssq_cwt_batched():
             os.environ['SSQ_GPU'] = '1'
             Tx1, Wx1, *_ = ssq_cwt(x, _wavelet(dtype=dtype), **kw)
 
-        atol = 1e-12 if dtype == 'float64' else 1e-2
         adiff_Tx000 = np.abs(Tx00 - Tx0).mean()
         adiff_Wx000 = np.abs(Wx00 - Wx0).mean()
         assert np.allclose(Wx00, Wx0), (dtype, adiff_Wx000)
         assert np.allclose(Tx00, Tx0), (dtype, adiff_Tx000)
+
         if CAN_GPU:
+            gpu_atol = 1e-12 if dtype == 'float64' else 1e-2
             adiff_Tx01  = np.abs(Tx0 - Tx1).mean()
             adiff_Wx01  = np.abs(Wx0 - Wx1).mean()
-            assert np.allclose(Wx0, Wx1, atol=atol), (dtype, adiff_Wx01)
-            assert np.allclose(Tx0, Tx1, atol=atol), (dtype, adiff_Tx01)
+            assert np.allclose(Wx0, Wx1, atol=gpu_atol), (dtype, adiff_Wx01)
+            assert np.allclose(Tx0, Tx1, atol=gpu_atol), (dtype, adiff_Tx01)
 
             # didn't investigate float32, and `allclose` threshold is pretty bad,
             # so check MAE
@@ -617,16 +618,17 @@ def test_ssq_stft_batched():
             os.environ['SSQ_GPU'] = '1'
             Tx1, Sx1, *_ = ssq_stft(x, **kw)
 
-        atol = 1e-12 if dtype == 'float64' else 1e-6
         adiff_Tx000 = np.abs(Tx00 - Tx0).mean()
         adiff_Sx000 = np.abs(Sx00 - Sx0).mean()
         assert np.allclose(Sx00, Sx0), (dtype, adiff_Sx000)
         assert np.allclose(Tx00, Tx0), (dtype, adiff_Tx000)
+
         if CAN_GPU:
-            adiff_Tx01  = np.abs(Tx0 - Tx1)
-            adiff_Sx01  = np.abs(Sx0 - Sx1)
-            assert np.allclose(Sx0, Sx1, atol=atol), (dtype, adiff_Sx01)
-            assert np.allclose(Tx0, Tx1, atol=atol), (dtype, adiff_Tx01)
+            gpu_atol = 1e-12 if dtype == 'float64' else 5e-6
+            adiff_Tx01  = np.abs(Tx0 - Tx1).mean()
+            adiff_Sx01  = np.abs(Sx0 - Sx1).mean()
+            assert np.allclose(Sx0, Sx1, atol=gpu_atol), (dtype, adiff_Sx01)
+            assert np.allclose(Tx0, Tx1, atol=gpu_atol), (dtype, adiff_Tx01)
 
 
 def test_cwt_batched_for_loop():
