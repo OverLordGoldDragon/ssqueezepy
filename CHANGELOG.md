@@ -5,8 +5,9 @@
 
 #### FIXES
  - `icwt` with `scaletype='linear'`: fix constant scaling factor
- - `trapz` -> `trapezoid`; scipy deprecation, `scipy.integrate.trapz`
- - numpy deprecation, fix `int()` upon 1D array (of size 1)
+ - scipy deprecation: `scipy.integrate.trapz` -> `scipy.integrate.trapezoid`
+ - numpy deprecation: fix `int()` upon 1D array (of size 1)
+ - numpy deprecation: `np.cfloat` -> `np.complex128`
 
 ### 0.6.5
 

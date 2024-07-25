@@ -275,7 +275,7 @@ class FFT():
         shape_out = self._get_output_shape(x, axis, real, inverse, n)
 
         # dtypes
-        double = x.dtype in (np.float64, np.cfloat)
+        double = x.dtype in (np.float64, np.complex128)
         cdtype = 'complex128' if double else 'complex64'
         rdtype = 'float64'    if double else 'float32'
         dtype_in  = rdtype if (real and not inverse) else cdtype
