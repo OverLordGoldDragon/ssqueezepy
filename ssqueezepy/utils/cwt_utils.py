@@ -280,7 +280,7 @@ def infer_scaletype(scales):
     if np.mean(np.abs(np.diff(np.log(scales), 2, axis=0))) < th_log:
         scaletype = 'log'
         # ceil to avoid faulty float-int roundoffs
-        nv = int(np.round(1 / np.diff(np.log2(scales), axis=0)[0]))
+        nv = int(np.round(1 / np.diff(np.log2(scales), axis=0)[0].squeeze()))
 
     elif np.mean(np.abs(np.diff(scales, 2, axis=0))) < th_lin:
         scaletype = 'linear'
@@ -620,11 +620,11 @@ def integrate_analytic(int_fn, nowarn=False):
         # (.001 to .1 may not be negligible, however; better captured by logspace)
         t = np.logspace(-15, -1, 1000)
         arr = int_fn(t)
-        return integrate.trapz(arr, t)
+        return integrate.trapezoid(arr, t)
 
     int_nz = _integrate_near_zero()
     arr, t = _find_convergent_array()
-    return integrate.trapz(arr, t) + int_nz
+    return integrate.trapezoid(arr, t) + int_nz
 
 
 def find_max_scale_alt(wavelet, N, min_cutoff=.1, max_cutoff=.8):

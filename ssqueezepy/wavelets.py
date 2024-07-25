@@ -703,8 +703,8 @@ def center_frequency(wavelet, scale=None, N=1024, kind='energy', force_int=None,
             scale = (4/pi) * wc_ct
 
         w, psih, apsih2 = _params(wavelet, scale, N)
-        wc = (integrate.trapz(apsih2 * w) /
-              integrate.trapz(apsih2))
+        wc = (integrate.trapezoid(apsih2 * w) /
+              integrate.trapezoid(apsih2))
 
         if use_formula:
             wc *= (scale / scale_orig)
@@ -794,8 +794,8 @@ def freq_resolution(wavelet, scale=10, N=1024, nondim=True, force_int=True,
     wce = center_frequency(wavelet, scale, force_int=force_int, kind='energy')
 
     apsih2 = np.abs(psih)**2
-    var_w = (integrate.trapz((w - wce)**2 * apsih2, w) /
-             integrate.trapz(apsih2, w))
+    var_w = (integrate.trapezoid((w - wce)**2 * apsih2, w) /
+             integrate.trapezoid(apsih2, w))
 
     std_w = np.sqrt(var_w)
     if use_formula:
@@ -910,8 +910,8 @@ def time_resolution(wavelet, scale=10, N=1024, min_decay=1e3, max_mult=2,
     psi = asnumpy(ifft(psih * (-1)**np.arange(Nt)))
 
     apsi2 = np.abs(psi)**2
-    var_t = (integrate.trapz(t**2 * apsi2, t) /
-             integrate.trapz(apsi2, t))
+    var_t = (integrate.trapezoid(t**2 * apsi2, t) /
+             integrate.trapezoid(apsi2, t))
 
     std_t = np.sqrt(var_t)
     if use_formula:

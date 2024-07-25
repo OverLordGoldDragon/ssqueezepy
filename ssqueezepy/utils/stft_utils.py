@@ -208,8 +208,8 @@ def window_resolution(window):
     apsi2   = np.abs(window)**2
     apsih2s = np.abs(psihs)**2
 
-    var_w = integrate.trapz(ws**2 * apsih2s, ws) / integrate.trapz(apsih2s, ws)
-    var_t = integrate.trapz(t**2  * apsi2, t)    / integrate.trapz(apsi2, t)
+    var_w = integrate.trapezoid(ws**2 * apsih2s, ws) / integrate.trapezoid(apsih2s, ws)
+    var_t = integrate.trapezoid(t**2  * apsi2, t)    / integrate.trapezoid(apsi2, t)
 
     std_w, std_t = np.sqrt(var_w), np.sqrt(var_t)
     harea = std_w * std_t
@@ -226,11 +226,11 @@ def window_area(window, time=True, frequency=False):
 
     if time:
         t = np.arange(-len(window)/2, len(window)/2, step=1)
-        at = integrate.trapz(np.abs(window)**2, t)
+        at = integrate.trapezoid(np.abs(window)**2, t)
     if frequency:
         ws = fftshift(_xifn(1, len(window)))
         apsih2s = np.abs(fftshift(fft(window)))**2
-        aw = integrate.trapz(apsih2s, ws)
+        aw = integrate.trapezoid(apsih2s, ws)
 
     if time and frequency:
         return at, aw
