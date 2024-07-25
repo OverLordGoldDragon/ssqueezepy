@@ -110,8 +110,8 @@ def extract_ridges(Tf, scales, penalty=2., n_ridges=1, bw=15, transform='cwt',
 
         return ridge_idxs_fw_bw
 
-    eps   = EPS64      if Tf.dtype == np.cfloat else EPS32
-    dtype = np.float64 if Tf.dtype == np.cfloat else np.float32
+    eps   = EPS64      if Tf.dtype == np.complex128 else EPS32
+    dtype = np.float64 if Tf.dtype == np.complex128 else np.float32
     scales, eps, penalty = [np.asarray(x, dtype=dtype)
                             for x in (scales, eps, penalty)]
 

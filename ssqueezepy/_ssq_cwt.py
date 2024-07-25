@@ -581,7 +581,7 @@ def phase_cwt_num(Wx, dt, difforder=4, gamma=None):
 
     # epsilon from Daubechies, H-T Wu, et al.
     # gamma from Brevdo, H-T Wu, et al.
-    gamma = gamma or 10 * (EPS64 if Wx.dtype == np.cfloat else EPS32)
+    gamma = gamma or 10 * (EPS64 if Wx.dtype == np.complex128 else EPS32)
     w[np.abs(Wx) < gamma] = np.inf
 
     # see `phase_cwt`, though negatives may no longer be in minority

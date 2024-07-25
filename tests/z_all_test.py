@@ -361,7 +361,7 @@ def test_trigdiff():
     dWx = dWx[:, n1:n1+N]
 
     mae = np.mean(np.abs(dWx - dWx2))
-    th = 1e-15 if dWx.dtype == np.cfloat else 1e-7
+    th = 1e-15 if dWx.dtype == np.complex128 else 1e-7
     assert mae < th, mae
 
 

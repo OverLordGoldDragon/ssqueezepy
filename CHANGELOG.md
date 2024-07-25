@@ -1,3 +1,14 @@
+### 0.6.6
+
+#### FEATURES
+ - `icwt` now supports batched `Wx` (3D `Wx`, i.e. `cwt(x)` upon 2D `x`, `(n_inputs, n_times)`)
+
+#### FIXES
+ - `icwt` with `scaletype='linear'`: fix constant scaling factor
+ - scipy deprecation: `scipy.integrate.trapz` -> `scipy.integrate.trapezoid`
+ - numpy deprecation: fix `int()` upon 1D array (of size 1)
+ - numpy deprecation: `np.cfloat` -> `np.complex128`
+
 ### 0.6.5
 
 #### FIXES
