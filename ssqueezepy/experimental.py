@@ -2,7 +2,7 @@
 import warnings
 import numpy as np
 from .wavelets import Wavelet, center_frequency
-from .utils import backend as S, cwt_scalebounds
+from .utils import backend as S, cwt_scalebounds, p2up
 from .utils.common import EPS32, EPS64, p2up, trigdiff
 from .ssqueezing import ssqueeze
 from ._ssq_cwt import phase_cwt, phase_cwt_num
@@ -114,7 +114,7 @@ def scale_to_freq(scales, wavelet, N, fs=1, padtype='reflect'):
     wavelet = Wavelet._init_if_not_isinstance(wavelet)
 
     # evaluate wavelet at `scales`
-    Npad = int(2**np.ceil(np.log2(N))) if padtype is not None else N
+    Npad = p2up(N)[0] if padtype is not None else N
     psis = wavelet(scale=scales, N=Npad)
     if hasattr(psis, 'cpu'):
         psis = psis.cpu().numpy()
