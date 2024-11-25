@@ -46,6 +46,11 @@ def is_tensor(*args, mode='all'):
     return cond(isinstance(x, torch.Tensor) for x in args)
 
 
+def is_array_or_tensor(*args, mode='all'):
+    cond = all if mode == 'all' else any
+    return cond(isinstance(x, (torch.Tensor, np.ndarray)) for x in args)
+
+
 def is_dtype(x, str_dtype):
     return (str_dtype in str(x.dtype) if isinstance(str_dtype, str) else
             any(sd in str(x.dtype) for sd in str_dtype))
