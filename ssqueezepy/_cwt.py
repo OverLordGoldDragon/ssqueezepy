@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 from .utils import fft, ifft, ifftshift, FFT_GLOBAL
-from .utils import WARN, adm_cwt, adm_ssq, _process_fs_and_t
+from .utils import WARN, adm_cwt, adm_ssq, _process_fs_and_t, is_array_or_tensor
 from .utils import padsignal, process_scales, logscale_transition_idx
 from .utils import backend as S
 from .utils.backend import Q
@@ -404,7 +404,7 @@ def icwt(Wx, wavelet='gmw', scales='log-piecewise', nv=None, one_int=True,
     #### Prepare for inversion ###############################################
     *_, na, n = Wx.shape
     x_len = x_len or n
-    if not isinstance(scales, np.ndarray) and nv is None:
+    if not is_array_or_tensor(scales) and nv is None:
         nv = 32  # must match forward's; default to `cwt`'s
 
     wavelet = _process_gmw_wavelet(wavelet, l1_norm)

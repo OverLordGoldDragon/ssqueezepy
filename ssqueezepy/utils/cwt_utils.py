@@ -588,7 +588,7 @@ def integrate_analytic(int_fn, nowarn=False):
     Integrates near zero separately in log space (useful for e.g. 1/x).
     """
     def _est_arr(mxlim, N):
-        t = np.linspace(mxlim, .1, N, endpoint=False)[::-1]
+        t = np.linspace(mxlim, .1, N, endpoint=False)[::-1].copy()
         arr = int_fn(t)
 
         max_idx = np.argmax(arr)
