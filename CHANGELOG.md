@@ -2,12 +2,20 @@
 
 #### FEATURES
  - `icwt` now supports batched `Wx` (3D `Wx`, i.e. `cwt(x)` upon 2D `x`, `(n_inputs, n_times)`)
-
+ 
+#### FEATURES (minor)
+ - `plot(, abs=1)` now auto-scales ylims to `(0, None)` (if `ylims` isn't passed)
+ 
 #### FIXES
  - `icwt` with `scaletype='linear'`: fix constant scaling factor
  - scipy deprecation: `scipy.integrate.trapz` -> `scipy.integrate.trapezoid`
  - numpy deprecation: fix `int()` upon 1D array (of size 1)
  - numpy deprecation: `np.cfloat` -> `np.complex128`
+ - fix matplotlib version determination
+ - visuals, `plot` & `scat`: `vlines` and `hlines` should now apply correctly if `ax` is supplied
+ 
+#### MISC
+ - original `scales` passed to `Wavelet` are now stored as copies inside of `Wavelet` (so modifying it externally doesn't modify `Wavelet`'s)
 
 ### 0.6.5
 
