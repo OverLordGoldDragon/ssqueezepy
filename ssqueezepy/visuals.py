@@ -668,7 +668,7 @@ def imshow(data, title=None, show=1, cmap=None, norm=None, complex=None, abs=0,
 
     # colormap
     import matplotlib as mpl
-    mpl33 = bool(float(mpl.__version__[:3]) >= 3.3)
+    mpl33 = tuple(map(int, mpl.__version__.split('.')[:2])) >= (3, 3)
     if cmap is None:
         cmap = (('turbo' if mpl33 else 'jet') if abs else
                 'bwr')
@@ -767,10 +767,13 @@ def plot(x, y=None, title=None, show=0, ax_equal=False, complex=0, abs=0,
     if dx1:
         ax.set_xticks(np.arange(len(x)))
 
+    # styling
     if vlines:
-        vhlines(vlines, kind='v')
+        _vhlines(vlines, kind='v', ax=ax)
     if hlines:
-        vhlines(hlines, kind='h')
+        _vhlines(hlines, kind='h', ax=ax)
+    if abs and ylims is None:
+        ylims = (0, None)
 
     ticks = ticks if isinstance(ticks, (list, tuple)) else (ticks, ticks)
     if not ticks[0]:
@@ -881,9 +884,9 @@ def scat(x, y=None, title=None, show=0, ax_equal=False, s=18, w=None, h=None,
 
     _maybe_title(title, ax=ax)
     if vlines:
-        vhlines(vlines, kind='v')
+        _vhlines(vlines, kind='v', ax=ax)
     if hlines:
-        vhlines(hlines, kind='h')
+        _vhlines(hlines, kind='h', ax=ax)
     _scale_plot(fig, ax, show=show, ax_equal=ax_equal, w=w, h=h,
                 xlims=xlims, ylims=ylims, dx1=(len(x) if dx1 else 0),
                 xlabel=xlabel, ylabel=ylabel, auto_xlims=auto_xlims)
@@ -922,7 +925,7 @@ def hist(x, bins=500, title=None, show=0, stats=0, ax=None, fig=None,
         return mu, std, mn, mx
 
 
-def vhlines(lines, kind='v'):
+def _vhlines(lines, kind='v'):
     lfn = plt.axvline if kind=='v' else plt.axhline
 
     if not isinstance(lines, (list, tuple)):

@@ -155,7 +155,8 @@ class Wavelet():
 
         self._Psih = self(scale=scale, N=N, nohalf=nohalf)
         self._Psih_N = N
-        self._Psih_scale = scale
+        # store independent of external copy
+        self._Psih_scale = scale.clone() if S.is_tensor(scale) else scale.copy()
         return self._Psih
 
     @property

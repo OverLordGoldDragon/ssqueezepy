@@ -123,7 +123,7 @@ def ssqueeze(Wx, w=None, ssq_freqs=None, scales=None, Sfs=None, fs=None, t=None,
                   cwt_scaletype, flipud, gamma, Sfs):
         if transform == 'cwt':
             # Eq 14 [2]; Eq 2.3 [1]
-            if cwt_scaletype[:3] == 'log':
+            if cwt_scaletype.startswith('log'):
                 # ln(2)/nv == diff(ln(scales))[0] == ln(2**(1/nv))
                 const = np.log(2) / nv
 
