@@ -64,27 +64,33 @@ See [here](#asking-questions).
 
 ![image](https://user-images.githubusercontent.com/16495490/99879090-b9f12c00-2c23-11eb-8a40-2011ce84df61.png)
 
-### 2. Medical: EEG
+### 2. Differentiability (CWT)
+
+<img src="https://media.githubusercontent.com/media/OverLordGoldDragon/ssqueezepy/differentiability-ex/examples/imgs/differentiability.gif" width="800">
+
+[Code](https://github.com/OverLordGoldDragon/ssqueezepy/blob/master/examples/differentiability.py)
+
+### 3. Medical: EEG
 
 <img src="https://user-images.githubusercontent.com/16495490/99880110-c88f1180-2c2a-11eb-8932-90bf3406a20d.png">
 
 <img src="https://user-images.githubusercontent.com/16495490/150314341-df5c3092-4bef-4895-99ed-2765504329fd.png">
 
-### 3. Testing suite: CWT vs STFT, reflect-added parallel A.M. linear chirp
+### 4. Testing suite: CWT vs STFT, reflect-added parallel A.M. linear chirp
 
 <img src="https://github.com/OverLordGoldDragon/ssqueezepy/assets/16495490/c89727db-1bb3-4cf0-ac8c-c524cba75b2d">
 
-### 4. Ridge extraction: cubic polynom. F.M. + pure tone; noiseless & 1.69dB SNR
+### 5. Ridge extraction: cubic polynom. F.M. + pure tone; noiseless & 1.69dB SNR
 
 <img src="https://user-images.githubusercontent.com/16495490/107919540-f4e5d000-6f84-11eb-9f86-dbfd34733084.png">
 
 [More](https://github.com/OverLordGoldDragon/ssqueezepy/tree/master/examples/ridge_extraction)
 
-### 5. Testing suite: GMW vs Morlet, reflect-added hyperbolic chirp (extreme time-loc.)
+### 6. Testing suite: GMW vs Morlet, reflect-added hyperbolic chirp (extreme time-loc.)
 
 <img src="https://github.com/OverLordGoldDragon/ssqueezepy/assets/16495490/8c41d5f2-4bdd-4537-8d82-6d5a5c0315d3">
 
-### 6. Higher-order GMW CWT, reflect-added parallel linear chirp, 3.06dB SNR
+### 7. Higher-order GMW CWT, reflect-added parallel linear chirp, 3.06dB SNR
 
 <img src="https://user-images.githubusercontent.com/16495490/107921072-66bf1900-6f87-11eb-9bf5-afd0a6bbbc4d.png">
 

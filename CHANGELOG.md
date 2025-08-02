@@ -1,8 +1,9 @@
 ### 0.6.6
 
 #### FEATURES
+ - Differentiability example (differentiability has been supported since `os.environ['SSQ_GPU'] = '1'` was added)
  - `icwt` now supports batched `Wx` (3D `Wx`, i.e. `cwt(x)` upon 2D `x`, `(n_inputs, n_times)`)
- 
+
 #### FEATURES (minor)
  - `plot(, abs=1)` now auto-scales ylims to `(0, None)` (if `ylims` isn't passed)
  
