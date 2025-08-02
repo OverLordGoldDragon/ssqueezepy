@@ -64,11 +64,11 @@ See [here](#asking-questions).
 
 ![image](https://user-images.githubusercontent.com/16495490/99879090-b9f12c00-2c23-11eb-8a40-2011ce84df61.png)
 
-### 2. Differentiability (CWT)
+### 2. Reconstruction (differentiable CWT)
 
-<img src="https://media.githubusercontent.com/media/OverLordGoldDragon/ssqueezepy/differentiability-ex/examples/imgs/reconstruction.gif" width="700">
+<img src="https://media.githubusercontent.com/media/OverLordGoldDragon/ssqueezepy/master/examples/imgs/reconstruction.gif" width="700">
 
-[Code](https://github.com/OverLordGoldDragon/ssqueezepy/blob/master/examples/differentiability.py)
+[Code](https://github.com/OverLordGoldDragon/ssqueezepy/blob/master/examples/reconstruction.py)
 
 ### 3. Medical: EEG
 
