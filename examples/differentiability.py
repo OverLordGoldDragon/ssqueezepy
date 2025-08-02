@@ -216,7 +216,7 @@ plot_frames1 = np.log10(losses)
 plot_frames2 = np.log10(losses_recon)
 
 repeat_first = 1
-repeat_last = 15
+repeat_last = 10
 n_repeats = 5
 
 ani = PlotImshowAnimation(imshow_frames, plot_frames0, plot_frames1, plot_frames2)
