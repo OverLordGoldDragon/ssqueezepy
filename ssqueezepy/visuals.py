@@ -925,8 +925,8 @@ def hist(x, bins=500, title=None, show=0, stats=0, ax=None, fig=None,
         return mu, std, mn, mx
 
 
-def _vhlines(lines, kind='v'):
-    lfn = plt.axvline if kind=='v' else plt.axhline
+def _vhlines(lines, kind='v', ax=None):
+    lfn = getattr(plt if ax is None else ax, f'ax{kind}line')
 
     if not isinstance(lines, (list, tuple)):
         lines, lkw = [lines], {}
