@@ -104,8 +104,9 @@ class PlotImshowAnimation(animation.TimedAnimation):
                          + repeat_last)
 
         self.title_kw = dict(weight='bold', fontsize=15, loc='left')
-        self.label_kw = dict(weight='bold', fontsize=14, labelpad=3)
+        self.label_kw = dict(weight='bold', fontsize=15, labelpad=3)
         self.txt_kw = dict(x=0, y=1.017, s="", ha="left", weight='bold')
+        ticks_labelsize = 14
 
         fig, axes = plt.subplots(2, 2, figsize=(18/1.5, 9))
 
@@ -118,6 +119,7 @@ class PlotImshowAnimation(animation.TimedAnimation):
         ax.set_yticklabels([r'$\endash 1.0$', r'$\endash 0.5$', '0',
                             '0.5', '1.0'])
         self.lines0 = [ax.lines[-1]]
+        ax.tick_params(labelsize=ticks_labelsize)
 
         # imshows ############################################################
         ax = axes[0, 1]
@@ -128,6 +130,7 @@ class PlotImshowAnimation(animation.TimedAnimation):
         self.ims1 = [im]
         ax.set_title("|ssq_cwt(x_reconstructed)|", **self.title_kw)
         ax.set_yticks([])
+        ax.tick_params(labelsize=ticks_labelsize)
 
         # plots ##############################################################
         ax = axes[1, 0]
@@ -136,6 +139,7 @@ class PlotImshowAnimation(animation.TimedAnimation):
         ax.set_yticks([0, -1, -2, -3])
         ax.set_yticklabels(['0'] + [rf'$\endash {n}$' for n in (1, 2, 3)])
         ax.set_ylim([-3, 0])
+        ax.tick_params(labelsize=ticks_labelsize)
 
         self.lines2 = [ax.lines[-1]]
         self.lines2[0].set_data([self.xticks[0]], [self.plot_frames1[0]])
@@ -145,6 +149,7 @@ class PlotImshowAnimation(animation.TimedAnimation):
         ax.plot(self.xticks, self.plot_frames2)
         ax.set_xlabel("n_iters", **self.label_kw)
         ax.set_yticks([])
+        ax.tick_params(labelsize=ticks_labelsize)
 
         self.lines3 = [ax.lines[-1]]
         self.lines3[0].set_data([self.xticks[0]], [self.plot_frames2[0]])
@@ -152,7 +157,7 @@ class PlotImshowAnimation(animation.TimedAnimation):
 
         # finalize #######################################################
         fig.subplots_adjust(left=.048, right=.985, bottom=.068, top=.96,
-                            wspace=.02, hspace=.15)
+                            wspace=.025, hspace=.15)
         animation.TimedAnimation.__init__(self, fig, interval=50, blit=True)
 
     def _draw_frame(self, frame_idx):

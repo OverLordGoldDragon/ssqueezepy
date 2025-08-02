@@ -13,8 +13,10 @@ def cwt(x, wavelet='gmw', scales='log-piecewise', fs=None, t=None, nv=32,
         l1_norm=True, derivative=False, padtype='reflect', rpadded=False,
         vectorized=True, astensor=True, cache_wavelet=None, order=0, average=None,
         nan_checks=None, patience=0):
-    """Continuous Wavelet Transform. Uses FFT convolution via frequency-
-    domain wavelets matching (padded) input's length.
+    """Continuous Wavelet Transform. Uses FFT convolution via frequency-domain
+    wavelets matching (padded) input's length.
+
+    Differentiability enabled via `os.environ['SSQ_GPU'] = '1'`.
 
     Uses `Wavelet.dtype` precision.
 
