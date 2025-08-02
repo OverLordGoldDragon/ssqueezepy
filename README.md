@@ -66,7 +66,7 @@ See [here](#asking-questions).
 
 ### 2. Differentiability (CWT)
 
-<img src="https://media.githubusercontent.com/media/OverLordGoldDragon/ssqueezepy/differentiability-ex/examples/imgs/differentiability.gif" width="800">
+<img src="https://media.githubusercontent.com/media/OverLordGoldDragon/ssqueezepy/differentiability-ex/examples/imgs/reconstruction.gif" width="800">
 
 [Code](https://github.com/OverLordGoldDragon/ssqueezepy/blob/master/examples/differentiability.py)
 
