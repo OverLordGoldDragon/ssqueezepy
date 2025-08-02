@@ -9,6 +9,9 @@
 mp4 -> gif:
     ffmpeg -i reconstruction.mp4 -vf
     "fps=10,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse" reconstruction.gif
+
+    followed by https://www.freeconvert.com/gif-compressor
+    compression level 10, number of colors 64
 """
 import os
 import numpy as np
@@ -165,32 +168,32 @@ class PlotImshowAnimation(animation.TimedAnimation):
             self.loss_idx = 0
             self.prev_loss_idx = 0
         elif frame_idx % n_repeats == 0 or frame_idx > self.n_repeats_total:
-            self.loss_idx += 1
+            N = len(self.imshow_frames)
+            tail_start = max(0, N - repeat_last)
+
+            if frame_idx > self.n_repeats_total and self.loss_idx >= tail_start:
+                if self.loss_idx < N - 1:
+                    self.loss_idx += 1
+                else:
+                    # Already at final frame: keep holding.
+                    return
+            else:
+                self.loss_idx += 1
 
         if self.loss_idx == self.prev_loss_idx:
             return
         self.prev_loss_idx = self.loss_idx
-        # Map to source index (loop over last `repeat_last` frames after end)
-        N = len(self.imshow_frames)
-        if self.loss_idx < N:
-            src_idx = self.loss_idx
-        else:
-            tail_len = min(repeat_last, N)
-            tail_start = N - tail_len
-            tail_pos = (self.loss_idx - (N - 1)) % tail_len
-            src_idx = tail_start + tail_pos
-        # Keep progress plots monotone (don’t shrink on tail replay)
-        progress_end = min(self.loss_idx, N - 1)
+        frame_idx = self.loss_idx  # adjusted
 
-        self.lines0[0].set_ydata(self.plot_frames0[src_idx])
-        self.ims1[0].set_array(self.imshow_frames[src_idx])
-        self.lines2[0].set_data(self.xticks[:progress_end + 1],
-                                self.plot_frames1[:progress_end + 1])
-        self.lines3[0].set_data(self.xticks[:progress_end + 1],
-                                self.plot_frames2[:progress_end + 1])
+        self.lines0[0].set_ydata(self.plot_frames0[frame_idx])
+        self.ims1[0].set_array(self.imshow_frames[ frame_idx])
+        self.lines2[0].set_data(self.xticks[:frame_idx],
+                                self.plot_frames1[:frame_idx])
+        self.lines3[0].set_data(self.xticks[:frame_idx],
+                                self.plot_frames2[:frame_idx])
 
-        loss = self.plot_frames1[src_idx]
-        loss_recon = self.plot_frames2[src_idx]
+        loss = self.plot_frames1[frame_idx]
+        loss_recon = self.plot_frames2[frame_idx]
         txt = "log10(loss_scalogram)={:.1f} ({})".format(loss, "L2")
         self.txt2.set_text(txt)
         self.txt3.set_text("log10(loss_x_reconstructed)={:.1f}".format(
@@ -212,9 +215,8 @@ plot_frames0 = x_recons
 plot_frames1 = np.log10(losses)
 plot_frames2 = np.log10(losses_recon)
 
-# extend ending by 1s
 repeat_first = 1
-repeat_last = 10
+repeat_last = 15
 n_repeats = 5
 
 ani = PlotImshowAnimation(imshow_frames, plot_frames0, plot_frames1, plot_frames2)
