@@ -102,7 +102,7 @@ See [here](#asking-questions).
 `ssqueezepy` is equipped with a visualization toolkit, useful for exploring wavelet behavior across scales and configurations. (Also see [explanations and code](https://dsp.stackexchange.com/a/72044/50076))
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/OverLordGoldDragon/ssqueezepy/master/examples/imgs/anim_tf_morlet20.gif" width="500">
+  <img src="https://media.githubusercontent.com/media/OverLordGoldDragon/ssqueezepy/master/examples/imgs/anim_tf_morlet20.gif" width="700">
 </p>
 
 <img src="https://raw.githubusercontent.com/OverLordGoldDragon/ssqueezepy/master/examples/imgs/morlet_5vs20_tf.png">
